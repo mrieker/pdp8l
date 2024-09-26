@@ -192,8 +192,6 @@ void I2CLib::openpads ()
     }
 
     // set output mode for output pins
-    ////fprintf (stderr, "I2CLib::openpads*: dirbits %04X %04X %04X %04X %04X\n",
-    ////    wrmsks[0] ^ 0xFFFFU, wrmsks[1] ^ 0xFFFFU, wrmsks[2] ^ 0xFFFFU, wrmsks[3] ^ 0xFFFFU, wrmsks[4] ^ 0xFFFFU);
     for (int pad = 0; pad < P_NU16S; pad ++) {
         // bit<7> of both ports must be configured as outputs
         uint16_t abdir = ~ wrmsks[pad];
@@ -219,36 +217,12 @@ void I2CLib::readpads (uint16_t *pads)
         uint16_t raw = read16 (I2CBA + pad, GPIOA);
         pads[pad] = raw ^ rdwrrevs[pad];
     }
-
-    /***
-    fprintf (stderr, "I2CLib::readpads*:    raw %04X %04X %04X %04X %04X\n",
-        pads[0] ^ rdwrrevs[0], pads[1] ^ rdwrrevs[1], pads[2] ^ rdwrrevs[2], pads[3] ^ rdwrrevs[3], pads[4] ^ rdwrrevs[4]);
-    fprintf (stderr, "I2CLib::readpads*: cooked %04X %04X %04X %04X %04X\n", pads[0], pads[1], pads[2], pads[3], pads[4]);
-    if (zynqpage != NULL) {
-        ABCD abcd;
-        abcd.cons[0] = zynqpage[ZPRDPADS+0];
-        abcd.cons[1] = zynqpage[ZPRDPADS+1];
-        abcd.cons[2] = zynqpage[ZPRDPADS+2];
-        abcd.cons[3] = zynqpage[ZPRDPADS+3];
-        abcd.decode ();
-        fprintf (stderr, "I2CLib::readpads*: paddle FETCH1,2=%u,%u DEFER1,2,3=%u,%u,%u EXEC1,2,3=%u,%u,%u  AC=%04o\n",
-            abcd.fetch1q, abcd.fetch2q, abcd.defer1q, abcd.defer2q, abcd.defer3q, abcd.exec1q, abcd.exec2q, abcd.exec3q, abcd.acq);
-        uint8_t acbitnos[] = { P_AC00, P_AC01, P_AC02, P_AC03, P_AC04, P_AC05, P_AC06, P_AC07, P_AC08, P_AC09, P_AC10, P_AC11 };
-        uint16_t acook = 0;
-        for (int i = 0; i < 12; i ++) {
-            uint8_t bitno = acbitnos[i];
-            acook += acook + ((pads[bitno/16] >> (bitno & 15)) & 1);
-        }
-        fprintf (stderr, "I2CLib::readpads*:  ac cooked %04o\n", acook);
-    }
-    ***/
 }
 
 // write values to all 5 MCP23017s
 // flip the pins we consider to be active low so caller can pass active high
 void I2CLib::writepads (uint16_t const *pads)
 {
-    ////fprintf (stderr, "I2CLib::writepads*: %04X %04X %04X %04X %04X\n", pads[0], pads[1], pads[2], pads[3], pads[4]);
     for (int pad = 0; pad < P_NU16S; pad ++) {
         write16 (I2CBA + pad, OLATA, pads[pad] ^ wrrevs[pad]);
     }
