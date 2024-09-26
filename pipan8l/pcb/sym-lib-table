@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "mytestersymlib")(type "KiCad")(uri "${KIPRJMOD}/mytestersymlib.kicad_sym")(options "")(descr ""))
+  (lib (name "mypipanellib")(type "KiCad")(uri "${KIPRJMOD}/mypipanellib.kicad_sym")(options "")(descr ""))
+)

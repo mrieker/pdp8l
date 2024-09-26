@@ -1,0 +1,22 @@
+#!/bin/bash
+dz=$0
+dd=`dirname $dz`
+if [ "$i2clibdev" == "" ]
+then
+    export i2clibdev=/dev/i2c-1
+fi
+if [ "$pipanelini" == "" ]
+then
+    export pipanelini=$dd/pipanelini.tcl
+fi
+dbg=''
+if [ "$1" == "-gdb" ]
+then
+    dbg='gdb --args'
+    shift
+elif [ "$1" == "-valgrind" ]
+then
+    dbg='valgrind'
+    shift
+fi
+exec $dbg $dz.`uname -m` "$@"

@@ -1,0 +1,3 @@
+[submodule "pipan8l/pdp8v"]
+	path = pipan8l/pdp8v
+	url = ../pdp8v

@@ -1,0 +1,51 @@
+
+lamps:
+     1  EMA     EMA         AF1
+    12  MAnn    MA 00..11   AM2 AJ1 AP2   AS2 AU2 BH2   BM2 BP2 BT2   CE1 CJ1 CN2
+     3  IR0n    IR 0..2     CR2 CV2 DD2
+    12  MBnn    MB 00..11   AK2 AH1 AN2   AR2 AT2 BF2   BL2 BR2 BS2   CD1 CK1 CM2
+     1  FET     FETCH       CP2
+     1  EXE     EXECUTE     CU2
+     1  DEF     DEFER       DE2
+     1  WCT     WORD COUNT  DJ2
+     1  CAD     CUR ADDR    DK2
+     1  BRK     BREAK       DL2
+     1  LINK    LINK        AE1
+    12  ACnn    AC 00..11   AJ2 AL2 AL1   AK1 BD2 BE2   BJ2 BK2 BU2   BV2 CH1 CF1
+     1  ION     ION         CS2
+     1  PARE    PARITY      CT2
+     1  PTRE    PROTECT     DF2
+     1  RUN     RUN         DH2
+    --
+    51
+
+switches:
+     1  MPRT    MEM PROT    AA1
+     1  DFLD    DATA FIELD  AB1
+     1  IFLD    INST FIELD  AC1
+    12  SRnn    SR 00..11   AH2 AF2 AE2   AD2 AD1 CL2   CK2 CJ2 CH2   CE2 CF2 DM2
+     1  LDAD    LD ADDR     DS2
+     1  STRT    START       DR2
+     1  CONT    CONTINUE    DP2
+     1  STOP    STOP        DN2
+     1  STEP    SING STEP   DT2
+     1  EXAM    EXAM        DU2
+     1  DEPO    DEPOS       DV2
+     1  BNCY    BOUNCEY     DN1 = ~ ( DS1 & DR1 & DP1 & DU1 )  exam dep start cont ldaddr
+    --
+    23
+
+    74
+
+
+grounds:
+    AC2 BC2 CC2 DC2
+    AT1 BT1 CT1 DT1
+
++5 volts:
+    AA2 BA2 CA2 DA2
+
++10 volts:
+        BA1 CA1 DA1
+    AV1 BV1 CV1 DV1
+

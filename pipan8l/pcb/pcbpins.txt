@@ -1,0 +1,87 @@
+
+
+AA1 SW MPRT     A28
+AB1 SW DFLD     A27
+AC1 SW IFLD     B28
+AD1 SW SR04     A26
+AD2 SW SR03         A01
+AE1 LT LINK     A25
+AE2 SW SR02         A02
+AF1 LT EMA      A24
+AF2 SW SR01         A03
+AH1 LT MB01     A23
+AH2 SW SR00         A08
+AJ1 LT MA01     A22
+AJ2 LT AC00         A04
+AK1 LT AC03     A21
+AK2 LT MB00         A05
+AL1 LT AC02     B27
+AL2 LT AC01         A06
+AM2 LT MA00     A07
+AN2 LT MB02         B01
+AP2 LT MA02         B02
+AR2 LT MB03         B03
+AS2 LT MA03     B26
+AT2 LT MB04         B04
+AU2 LT MA04     B25
+
+BD2 LT AC04     B24
+BE2 LT AC05         B05
+BF2 LT MB05     B23
+BH2 LT MA05         B06
+BJ2 LT AC06     B22
+BK2 LT AC07         B07
+BL2 LT MB06     B21
+BM2 LT MA06         C01
+BP2 LT MA07         C02
+BR2 LT MB07         C03
+BS2 LT MB08     C27
+BT2 LT MA08     C26
+BU2 LT AC08     C25
+BV2 LT AC09     C24
+
+CD1 LT MB09     C22
+CD2             C23
+CE1 LT MA09     C21
+CE2 SW SR09     C28
+CF1 LT AC11     D27
+CF2 SW SR10         B08
+CH1 LT AC10     D26
+CH2 SW SR08         C04
+CJ1 LT MA10     D25
+CJ2 SW SR07         C05
+CK1 LT MB10     D24
+CK2 SW SR06         C06
+CL2 SW SR05         C08
+CM1             D23
+CM2 LT MB11         C07
+CN2 LT MA11         D01
+CP2 LT FET          D02
+CR2 LT IR00         D03
+CS2 LT ION          D04
+CT2 LT PARE         D05
+CU1             D22
+CU2 LT EXE          D06
+CV2 LT IR01         D21
+CV2 LT IR01         D07
+
+DB1             C21
+DD2 LT IR02         E01
+DE2 LT DEF      E27
+DF2 LT PRTE         E02
+DH1             E26
+DH2 LT RUN          E03
+DJ1             E25
+DJ2 LT WCT          E04
+DK2 LT CAD      E24
+DL2 LT BRK          E05
+DM2 SW SR11         E06
+DN1 SW BNCY     E23
+DN2 SW STOP     E22
+DP2 SW CONT         E07
+DR2 SW STRT     E21
+DS2 SW LDAD         E08
+DT2 SW STEP     E28
+DU2 SW EXAM         D08
+DV2 SW DEPO     D28
+
