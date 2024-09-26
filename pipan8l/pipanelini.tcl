@@ -286,11 +286,10 @@ proc postinc name {
 }
 
 # read memory location
-# - does loadaddress, examine
+# - does loadaddress which reads the location
 proc rdmem {addr} {
     setsw sr $addr
     flicksw ldad
-    flicksw exam
     return [getreg mb]
 }
 
@@ -302,7 +301,7 @@ proc stepit {} {
 }
 
 # write memory location
-# - does loadaddress, deposit
+# - does loadaddress, then deposit to write
 proc wrmem {addr data args} {
     setsw sr $addr
     flicksw ldad
