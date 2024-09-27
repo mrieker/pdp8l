@@ -37,11 +37,6 @@
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
 
-#define BOOL(b) (b ? '*' : ' ')
-#define RBITL(r,n) BOOL ((r >> (11 - n)) & 1)
-#define REG12L(r) RBITL (r, 0), RBITL (r, 1), RBITL (r, 2), RBITL (r, 3), RBITL (r, 4), RBITL (r, 5), RBITL (r, 6), RBITL (r, 7), RBITL (r, 8), RBITL (r, 9), RBITL (r, 10), RBITL (r, 11)
-#define STL(b,s) (b ? s : "")
-
 #define ESC_NORMV "\033[m"             /* go back to normal video */
 #define ESC_REVER "\033[7m"            /* turn reverse video on */
 #define ESC_UNDER "\033[4m"            /* turn underlining on */
@@ -49,13 +44,23 @@
 #define ESC_BOLDV "\033[1m"            /* turn bold on */
 #define ESC_REDBG "\033[41m"           /* red background */
 #define ESC_YELBG "\033[44m"           /* yellow background */
+#define ESC_REDFG "\033[91m"           /* red foreground */
 #define ESC_EREOL "\033[K"             /* erase to end of line */
 #define ESC_EREOP "\033[J"             /* erase to end of page */
 #define ESC_HOME  "\033[H"             /* home cursor */
 
+#define ESC_ON ESC_BOLDV ESC_REDBG
+
+#define RBITL(r,n) BOOL ((r >> (11 - n)) & 1)
+#define REG12L(r) RBITL (r, 0), RBITL (r, 1), RBITL (r, 2), RBITL (r, 3), RBITL (r, 4), RBITL (r, 5), RBITL (r, 6), RBITL (r, 7), RBITL (r, 8), RBITL (r, 9), RBITL (r, 10), RBITL (r, 11)
+#define STL(b,on,off) (b ? (ESC_ON on ESC_NORMV) : off)
+#define BOOL(b) STL (b, "*", "-")
+
 #define TOP ESC_HOME
-#define EOL "\n" ESC_EREOL
+#define EOL ESC_EREOL "\n"
 #define EOP ESC_EREOP
+
+static char const *const mnes[] = { "AND", "TAD", "ISZ", "DCA", "JMS", "JMP", "IOT", "OPR" };
 
 static char outbuf[4096];
 
@@ -143,20 +148,23 @@ int main (int argc, char **argv)
 
         // display it
         printf (TOP EOL);
-        printf ("                %c  %c %c %c  %c %c %c  %c %c %c  %c %c %c  MA   IR  %c %c %c" EOL,
-            BOOL (udppkt.ea), REG12L (udppkt.ma), RBITL (udppkt.ir, 0), RBITL (udppkt.ir, 1), RBITL (udppkt.ir, 2));
+        printf ("                %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  MA   IR [ %s %s %s  " ESC_ON "%s" ESC_NORMV " ]" EOL,
+            BOOL (udppkt.ea), REG12L (udppkt.ma), udppkt.ea, udppkt.ma,
+            RBITL (udppkt.ir, 0), RBITL (udppkt.ir, 1), RBITL (udppkt.ir, 2), mnes[(udppkt.ir>>9)&7]);
         printf (EOL);
-        printf ("                   %c %c %c  %c %c %c  %c %c %c  %c %c %c  MB      %1s %1s %1s %2s %2s %1s" EOL,
-            REG12L (udppkt.mb), STL (udppkt.stf, "F"), STL (udppkt.ste, "E"), STL (udppkt.std, "D"), STL (udppkt.stwc, "WC"), STL (udppkt.stca, "CA"),
-            STL (udppkt.stb, "B"));
+        printf ("                    %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  MB   ST [ %s %s %s %s %s %s ]" EOL,
+            REG12L (udppkt.mb), udppkt.mb, STL (udppkt.stf, "F", "f"), STL (udppkt.ste, "E", "e"), STL (udppkt.std, "D", "d"),
+            STL (udppkt.stwc, "WC", "wc"), STL (udppkt.stca, "CA", "ca"), STL (udppkt.stb, "B", "b"));
         printf (EOL);
-        printf ("                %c  %c %c %c  %c %c %c  %c %c %c  %c %c %c  AC      %3s %3s %4s %3s" EOL,
-            BOOL (udppkt.link), REG12L (udppkt.ac), STL (udppkt.ion, "ION"), STL (udppkt.per, "PER"), STL (udppkt.prot, "PROT"), STL (udppkt.run, "RUN"));
+        printf ("                %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  AC   %s %s %s %s" EOL,
+            BOOL (udppkt.link), REG12L (udppkt.ac), udppkt.link, udppkt.ac,
+            STL (udppkt.ion, "ION", "ion"), STL (udppkt.per, "PER", "per"), STL (udppkt.prot, "PRT", "prt"), STL (udppkt.run, "RUN", "run"));
         printf (EOL);
-        printf ("  %4s  %4s %4s  %c %c %c  %c %c %c  %c %c %c  %c %c %c  SR       %4s  %5s %4s %4s %4s %4s  %3s" EOL,
-            STL (udppkt.mprt, "MPRT"), STL (udppkt.dfld, "DFLD"), STL (udppkt.ifld, "IFLD"), REG12L (udppkt.sr), STL (udppkt.ldad, "LDAD"),
-            STL (udppkt.start, "START"), STL (udppkt.cont, "CONT"), STL (udppkt.stop, "STOP"), STL (udppkt.step, "STEP"), STL (udppkt.exam, "EXAM"),
-            STL (udppkt.dep, "DEP"));
+        printf ("  %s  %s %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  SR   %s  %s %s %s %s %s  %s" EOL,
+            STL (udppkt.mprt, "MPRT", "mprt"), STL (udppkt.dfld, "DFLD", "dfld"), STL (udppkt.ifld, "IFLD", "ifld"), REG12L (udppkt.sr),
+            udppkt.sr, STL (udppkt.ldad, "LDAD", "ldad"), STL (udppkt.start, "START", "start"), STL (udppkt.cont, "CONT", "cont"),
+            STL (udppkt.stop, "STOP", "stop"), STL (udppkt.step, "STEP", "step"), STL (udppkt.exam, "EXAM", "exam"), STL (udppkt.dep, "DEP", "dep"));
+        printf (EOL);
         printf (EOP);
         fflush (stdout);
     }
