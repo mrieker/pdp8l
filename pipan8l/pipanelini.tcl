@@ -64,7 +64,7 @@ proc dumpit {} {
     set sw [expr {[getsw dfld]  ? "$sw DFLD"  : "$sw"}]
     set sw [expr {[getsw exam]  ? "$sw EXAM"  : "$sw"}]
     set sw [expr {[getsw ifld]  ? "$sw IFLD"  : "$sw"}]
-    set sw [expr {[getsw mprot] ? "$sw MPROT" : "$sw"}]
+    set sw [expr {[getsw mprt]  ? "$sw MPRT"  : "$sw"}]
     set sw [expr {[getsw start] ? "$sw START" : "$sw"}]
     set sw [expr {[getsw step]  ? "$sw STEP"  : "$sw"}]
     set sw [expr {[getsw stop]  ? "$sw STOP"  : "$sw"}]

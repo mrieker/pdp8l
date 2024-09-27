@@ -97,7 +97,7 @@ static PermSw const permsws[] = {
     { "exam",  1, P_EXAM },
     { "ifld",  1, P_IFLD },
     { "ldad",  1, P_LDAD },
-    { "mprot", 1, P_MPRT },
+    { "mprt",  1, P_MPRT },
     { "sr", 12, P_SR11, P_SR10, P_SR09, P_SR08, P_SR07, P_SR06, P_SR05, P_SR04, P_SR03, P_SR02, P_SR01, P_SR00 },
     { "start", 1, P_STRT },
     { "step",  1, P_STEP },
