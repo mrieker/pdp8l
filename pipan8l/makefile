@@ -16,7 +16,7 @@ endif
 
 LIBS = lib.$(MACH).a
 
-default: mcp23017.$(MACH) pipanel.$(MACH)
+default: mcp23017.$(MACH) pipanel.$(MACH) ttpanel.$(MACH)
 
 lib.$(MACH).a: \
 		abcd.$(MACH).o \
@@ -33,6 +33,9 @@ mcp23017.$(MACH): mcp23017.$(MACH).o $(LIBS)
 
 pipanel.$(MACH): pipanel.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
+
+ttpanel.$(MACH): ttpanel.$(MACH).o
+	$(GPP) -o $@ $^ -lpthread
 
 %.$(MACH).o: %.cc *.h
 	$(GPP) -DUNIPROC=$(UNIPROC) -c -o $@ $<

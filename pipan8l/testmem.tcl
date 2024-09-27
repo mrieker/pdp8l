@@ -1,5 +1,20 @@
 # ./pipanel testmem.tcl
 
+# continuously read the given list of memory addresses
+proc readloop {args} {
+    while {! [ctrlcflag]} {
+        foreach addr $args {
+            if [ctrlcflag] break
+            puts -nonewline [format " %04o" $addr]
+            flush stdout
+            setsw sr $addr
+            flicksw ldad
+            puts -nonewline [format "=%04o" [getreg mb]]
+        }
+        puts ""
+    }
+}
+
 proc testzeroes {} {
     flicksw stop
     setsw dfld 0

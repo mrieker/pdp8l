@@ -19,14 +19,17 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // run via pipanel shell script:
-//  ./pipanel [<scriptfile.tcl>]
+//  ./pipanel [-sim] [<scriptfile.tcl>]
 
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <tcl.h>
 #include <unistd.h>
@@ -36,6 +39,7 @@
 #include "padlib.h"
 #include "pindefs.h"
 #include "readprompt.h"
+#include "udppkt.h"
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
@@ -83,6 +87,7 @@ static int const acbits[] = { P_AC00, P_AC01, P_AC02, P_AC03, P_AC04, P_AC05, P_
 static int const irbits[] = { P_IR00, P_IR01, P_IR02, -1 };
 static int const mabits[] = { P_MA00, P_MA01, P_MA02, P_MA03, P_MA04, P_MA05, P_MA06, P_MA07, P_MA08, P_MA09, P_MA10, P_MA11, -1 };
 static int const mbbits[] = { P_MB00, P_MB01, P_MB02, P_MB03, P_MB04, P_MB05, P_MB06, P_MB07, P_MB08, P_MB09, P_MB10, P_MB11, -1 };
+static int const srbits[] = { P_SR00, P_SR01, P_SR02, P_SR03, P_SR04, P_SR05, P_SR06, P_SR07, P_SR08, P_SR09, P_SR10, P_SR11, -1 };
 
 static PermSw const permsws[] = {
     { "bncy",  1, P_BNCY },
@@ -103,9 +108,12 @@ static PermSw const permsws[] = {
 static bool volatile ctrlcflag;
 static bool rdpadsvalid;
 static bool wrpadsdirty;
+static char *inihelp;
 static int logfd, pipefds[2], oldstdoutfd;
 static PadLib *padlib;
+static pthread_mutex_t padmutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t logtid;
+static sigset_t sigintmask;
 static uint16_t rdpads[P_NU16S];
 static uint16_t wrpads[P_NU16S];
 
@@ -114,15 +122,19 @@ static void *logthread (void *dummy);
 static void closelog ();
 static int writepipe (int fd, char const *buf, int len);
 static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);
+static uint16_t getreg (int const *pins);
 static void setpin (int pin, bool set);
 static bool getpin (int pin);
 static void flushit ();
+static void *udpthread (void *dummy);
 
 
 
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
+    sigemptyset (&sigintmask);
+    sigaddset (&sigintmask, SIGINT);
 
     bool simit = false;
     char const *fn = NULL;
@@ -214,12 +226,18 @@ int main (int argc, char **argv)
         printf ("\377*S*T*A*R*T*U*P*\n");
     }
 
+    // create udp server thread
+    {
+        pthread_t udptid;
+        int rc = pthread_create (&udptid, NULL, udpthread, NULL);
+        if (rc != 0) ABORT ();
+    }
+
     // set ctrlcflag on control-C, but exit if two in a row
     signal (SIGINT, siginthand);
 
     // maybe there is a script init file
     char const *scriptini = getenv ("pipanelini");
-    char *inihelp = NULL;
     if (scriptini != NULL) {
         rc = Tcl_EvalFile (interp, scriptini);
         if (rc != TCL_OK) {
@@ -249,10 +267,6 @@ int main (int argc, char **argv)
     // to have a script file with no stdin processing, end script file with 'exit'
     puts ("\nTCL scripting, do 'help' for pipanel-specific commands");
     puts ("  do 'exit' to exit pipanel");
-    if (inihelp != NULL) {
-        puts (inihelp);
-        free (inihelp);
-    }
     for (char const *line;;) {
         ctrlcflag = false;
         line = readprompt ("pipanel> ");
@@ -406,9 +420,34 @@ static int cmd_assemop (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl
 static int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     bool oldctrlcflag = ctrlcflag;
-    ctrlcflag = false;
-    Tcl_SetObjResult (interp, Tcl_NewIntObj (oldctrlcflag));
-    return TCL_OK;
+    switch (objc) {
+        case 2: {
+            char const *opstr = Tcl_GetString (objv[1]);
+            if (strcasecmp (opstr, "help") == 0) {
+                puts ("");
+                puts ("  ctrlcflag - read control-C flag");
+                puts ("  ctrlcflag <boolean> - read control-C flag and set to given value");
+                puts ("");
+                puts ("  in any case, control-C flag is cleared at command prompt");
+                puts ("");
+                return TCL_OK;
+            }
+            int temp;
+            int rc = Tcl_GetBooleanFromObj (interp, objv[1], &temp);
+            if (rc != TCL_OK) return rc;
+            if (sigprocmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
+            oldctrlcflag = ctrlcflag;
+            ctrlcflag = temp != 0;
+            if (sigprocmask (SIG_UNBLOCK, &sigintmask, NULL) != 0) ABORT ();
+            // fallthrough
+        }
+        case 1: {
+            Tcl_SetObjResult (interp, Tcl_NewIntObj (oldctrlcflag));
+            return TCL_OK;
+        }
+    }
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
 }
 
 // disassemble instruciton
@@ -454,8 +493,10 @@ static int cmd_flushit (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl
 {
     switch (objc) {
         case 1: {
+            if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
             flushit ();
             rdpadsvalid = false;
+            if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
             return TCL_OK;
         }
         case 2: {
@@ -506,11 +547,9 @@ static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
             if (strcasecmp (regname, "ma") == 0) regpins = mabits;
             if (strcasecmp (regname, "mb") == 0) regpins = mbbits;
             if (regpins != NULL) {
-                int regval = 0;
-                for (int j = 0; regpins[j] >= 0; j ++) {
-                    regval <<= 1;
-                    regval += getpin (regpins[j]);
-                }
+                if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
+                int regval = getreg (regpins);
+                if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                 Tcl_SetObjResult (interp, Tcl_NewIntObj (regval));
                 return TCL_OK;
             }
@@ -518,12 +557,14 @@ static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
                 char *statebuf = (char *) malloc (16);
                 if (statebuf == NULL) ABORT ();
                 char *p = statebuf;
+                if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
                 if (getpin (P_FET)) { strcpy (p, "F ");  p += strlen (p); }
                 if (getpin (P_EXE)) { strcpy (p, "E ");  p += strlen (p); }
                 if (getpin (P_DEF)) { strcpy (p, "D ");  p += strlen (p); }
                 if (getpin (P_WCT)) { strcpy (p, "WC "); p += strlen (p); }
                 if (getpin (P_CAD)) { strcpy (p, "CA "); p += strlen (p); }
                 if (getpin (P_BRK)) { strcpy (p, "B ");  p += strlen (p); }
+                if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                 if (p > statebuf) -- p;
                 *p = 0;
                 Tcl_SetResult (interp, statebuf, (void (*) (char *)) free);
@@ -537,7 +578,9 @@ static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
             if (strcasecmp (regname, "prot") == 0) pinum = P_PRTE;
             if (strcasecmp (regname, "run")  == 0) pinum = P_RUN;
             if (pinum >= 0) {
+                if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
                 int regval = getpin (pinum);
+                if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                 Tcl_SetObjResult (interp, Tcl_NewIntObj (regval));
                 return TCL_OK;
             }
@@ -567,10 +610,12 @@ static int cmd_getsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
             for (int i = 0; permsws[i].name != NULL; i ++) {
                 if (strcasecmp (swname, permsws[i].name) == 0) {
                     int swval = 0;
+                    if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
                     for (int j = permsws[i].nbits; -- j >= 0;) {
                         swval <<= 1;
                         swval += getpin (permsws[i].pinums[j]);
                     }
+                    if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                     Tcl_SetObjResult (interp, Tcl_NewIntObj (swval));
                     return TCL_OK;
                 }
@@ -592,6 +637,10 @@ static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Ob
     }
     puts ("");
     puts ("for help on specific command, do '<command> help'");
+    if (inihelp != NULL) {
+        puts ("");
+        puts (inihelp);
+    }
     puts ("");
     return TCL_OK;
 }
@@ -624,10 +673,12 @@ static int cmd_setsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
                         Tcl_SetResultF (interp, "value %d out of range for switch %s", swval, swname);
                         return TCL_ERROR;
                     }
+                    if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
                     for (int j = 0; j < permsws[i].nbits; j ++) {
                         setpin (permsws[i].pinums[j], swval & 1);
                         swval >>= 1;
                     }
+                    if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                     return TCL_OK;
                 }
             }
@@ -656,7 +707,19 @@ static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...)
     Tcl_SetResult (interp, buf, (void (*) (char *)) free);
 }
 
+// flush writes then read register
+// - call with mutex locked
+static uint16_t getreg (int const *pins)
+{
+    uint16_t reg = 0;
+    for (int pin; (pin = *(pins ++)) >= 0;) {
+        reg += reg + getpin (pin);
+    }
+    return reg;
+}
+
 // queue write for given pin
+// - call with mutex locked
 static void setpin (int pin, bool set)
 {
     int index = pin >> 4;
@@ -669,6 +732,7 @@ static void setpin (int pin, bool set)
 }
 
 // flush writes then read pin into cache if not already there
+// - call with mutex locked
 static bool getpin (int pin)
 {
     flushit ();
@@ -684,11 +748,89 @@ static bool getpin (int pin)
 
 // flush writes
 // if anything flushed, invalidate read cache
+// - call with mutex locked
 static void flushit ()
 {
     if (wrpadsdirty) {
         padlib->writepads (wrpads);
         wrpadsdirty = false;
         rdpadsvalid = false;
+    }
+}
+
+
+
+// pass state of processor to whoever asks via udp
+static void *udpthread (void *dummy)
+{
+    pthread_detach (pthread_self ());
+
+    // create a socket to listen on
+    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+    if (udpfd < 0) ABORT ();
+
+    struct sockaddr_in server;
+    memset (&server, 0, sizeof server);
+    server.sin_family = AF_INET;
+    server.sin_port   = htons (UDPPORT);
+    if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
+        fprintf (stderr, "error binding to %d: %m\n", UDPPORT);
+        ABORT ();
+    }
+
+    while (true) {
+        struct sockaddr_in client;
+        socklen_t clilen = sizeof client;
+        UDPPkt udppkt;
+        int rc = recvfrom (udpfd, &udppkt, sizeof udppkt, 0, (struct sockaddr *) &client, &clilen);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "error receiving udp packet: %m\n");
+            } else {
+                fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+            continue;
+        }
+
+        if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
+        flushit ();
+        rdpadsvalid = false;
+        udppkt.ma    = getreg (mabits);
+        udppkt.ir    = getreg (irbits) << 9;
+        udppkt.mb    = getreg (mbbits);
+        udppkt.ac    = getreg (acbits);
+        udppkt.sr    = getreg (srbits);
+        udppkt.ea    = getpin (P_EMA);
+        udppkt.stf   = getpin (P_FET);
+        udppkt.ste   = getpin (P_EXE);
+        udppkt.std   = getpin (P_DEF);
+        udppkt.stwc  = getpin (P_WCT);
+        udppkt.stca  = getpin (P_CAD);
+        udppkt.stb   = getpin (P_BRK);
+        udppkt.link  = getpin (P_LINK);
+        udppkt.ion   = getpin (P_ION);
+        udppkt.per   = getpin (P_PARE);
+        udppkt.prot  = getpin (P_PRTE);
+        udppkt.run   = getpin (P_RUN);
+        udppkt.mprt  = getpin (P_MPRT);
+        udppkt.dfld  = getpin (P_DFLD);
+        udppkt.ifld  = getpin (P_IFLD);
+        udppkt.ldad  = getpin (P_LDAD);
+        udppkt.start = getpin (P_STRT);
+        udppkt.cont  = getpin (P_CONT);
+        udppkt.stop  = getpin (P_STOP);
+        udppkt.step  = getpin (P_STEP);
+        udppkt.exam  = getpin (P_EXAM);
+        udppkt.dep   = getpin (P_DEP);
+        if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
+
+        rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &client, sizeof client);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "error sending udp packet: %m\n");
+            } else {
+                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+        }
     }
 }

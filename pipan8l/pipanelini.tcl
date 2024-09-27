@@ -10,6 +10,7 @@ proc helpini {} {
     puts "  octal <val>             - convert value to 4-digit octal string"
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
+    puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
     puts "  stepit                  - step one cycle then dump"
     puts "  wait                    - wait for CTRLC or STOP"
     puts "  wrmem <addr> <data>     - write memory at the given address"
@@ -127,6 +128,9 @@ proc loadbin {fname} {
         }
 
         while {true} {
+            if {[ctrlcflag]} {
+                return "control-C"
+            }
 
             # read byte from tape
             incr offset
@@ -333,5 +337,5 @@ flicksw stop
 puts ""
 puts [dumpit]
 
-# message displayed before first interactive prompt
-return "  also, 'helpini' will print help for pipanelini.tcl commands"
+# message displayed as part of help command
+return "also, 'helpini' will print help for pipanelini.tcl commands"
