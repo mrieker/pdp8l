@@ -15,15 +15,16 @@ proc readloop {args} {
     }
 }
 
-proc testzeroes {} {
+proc testzeroes {{beg 0} {end 07777}} {
     flicksw stop
     setsw dfld 0
     setsw ifld 0
 
-    puts "write zeroes..."
-    setsw sr 0
+    puts "write zeroes [octal $beg]..[octal $end]..."
+    setsw sr $beg
     flicksw ldad
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    setsw sr 0
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         if {($addr & 077) == 0} {puts -nonewline " [octal $addr]" ; flush stdout}
         flicksw dep
@@ -40,8 +41,9 @@ proc testzeroes {} {
     }
     puts ""
     puts "verify zeroes..."
+    setsw sr $beg
     flicksw ldad
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         flicksw exam
         set ma [getreg ma]
@@ -56,16 +58,16 @@ proc testzeroes {} {
     }
 }
 
-proc testones {} {
+proc testones {{beg 0} {end 07777}} {
     flicksw stop
     setsw dfld 0
     setsw ifld 0
 
-    puts "write ones..."
-    setsw sr 0
+    puts "write ones [octal $beg]..[octal $end]..."
+    setsw sr $beg
     flicksw ldad
     setsw sr 07777
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         if {($addr & 077) == 0} {puts -nonewline " [octal $addr]" ; flush stdout}
         flicksw dep
@@ -82,10 +84,10 @@ proc testones {} {
     }
     puts ""
     puts "verify ones..."
-    setsw sr 0
+    setsw sr $beg
     flicksw ldad
     setsw sr 07777
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         flicksw exam
         set ma [getreg ma]
@@ -100,15 +102,15 @@ proc testones {} {
     }
 }
 
-proc testrands {} {
+proc testrands {{beg 0} {end 07777}} {
     flicksw stop
     setsw dfld 0
     setsw ifld 0
 
-    puts "write randoms..."
-    setsw sr 0
+    puts "write randoms [octal $beg]..[octal $end]..."
+    setsw sr $beg
     flicksw ldad
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         if {($addr & 077) == 0} {puts -nonewline " [octal $addr]" ; flush stdout}
         set r [expr {int (rand () * 010000)}]
@@ -128,9 +130,9 @@ proc testrands {} {
     }
     puts ""
     puts "verify randoms..."
-    setsw sr 0
+    setsw sr $beg
     flicksw ldad
-    for {set addr 0} {$addr <= 07777} {incr addr} {
+    for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] return
         flicksw exam
         set ma [getreg ma]
@@ -152,7 +154,7 @@ proc testrands {} {
 }
 
 puts ""
-puts "  testzeroes - writes zeroes to all memory then verifies"
-puts "  testones - writes ones to all memory then verifies"
-puts "  testrands - writes randoms to all memory then verifies"
+puts "  testzeroes \[beg \[end\]\] - writes zeroes to all memory then verifies"
+puts "  testones \[beg \[end\]\] - writes ones to all memory then verifies"
+puts "  testrands \[beg \[end\]\] - writes randoms to all memory then verifies"
 
