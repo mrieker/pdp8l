@@ -28,6 +28,8 @@ struct PadLib {
     virtual void openpads () = 0;
     virtual void readpads (uint16_t *pads) = 0;
     virtual void writepads (uint16_t const *pads) = 0;
+    virtual int readpin (int pinnum) { return -1; }
+    virtual int writepin (int pinnum, int pinval) { return -1; }
 };
 
 struct I2CLib : PadLib {
@@ -36,6 +38,8 @@ struct I2CLib : PadLib {
     virtual void openpads ();
     virtual void readpads (uint16_t *pads);
     virtual void writepads (uint16_t const *pads);
+    virtual int readpin (int pinnum);
+    virtual int writepin (int pinnum, int pinval);
 
 private:
     int i2cfd;

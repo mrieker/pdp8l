@@ -219,6 +219,14 @@ void I2CLib::readpads (uint16_t *pads)
     }
 }
 
+int I2CLib::readpin (int pinnum)
+{
+    if (pinnum < 0) return -1;
+    if (pinnum >= P_NU16S * 16) return -1;
+    uint16_t raw = read16 (I2CBA + (pinnum / 16), GPIOA);
+    return (raw >> (pinnum % 16)) & 1;
+}
+
 // write values to all 5 MCP23017s
 // flip the pins we consider to be active low so caller can pass active high
 void I2CLib::writepads (uint16_t const *pads)
@@ -226,6 +234,19 @@ void I2CLib::writepads (uint16_t const *pads)
     for (int pad = 0; pad < P_NU16S; pad ++) {
         write16 (I2CBA + pad, OLATA, pads[pad] ^ wrrevs[pad]);
     }
+}
+
+int I2CLib::writepin (int pinnum, int pinval)
+{
+    if (pinnum < 0) return -1;
+    if (pinnum >= P_NU16S * 16) return -1;
+    if (pinval < 0) return -1;
+    if (pinval > 1) return -1;
+    uint16_t raw = read16 (I2CBA + (pinnum / 16), OLATA);
+    if (pinval) raw |= (1U << (pinnum % 16));
+         else raw &= ~ (1U << (pinnum % 16));
+    write16 (I2CBA + (pinnum / 16), OLATA, raw);
+    return pinval;
 }
 
 
@@ -416,28 +437,31 @@ uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
         memset (&msgset, 0, sizeof msgset);
         memset (iomsgs, 0, sizeof iomsgs);
 
-        wbuf[0] = reg;              // MCP23017 register number
-        iomsgs[0].addr  = addr;
-        iomsgs[0].flags = 0;        // write
-        iomsgs[0].buf   = wbuf;
-        iomsgs[0].len   = 1;
+        for (int retry = 0; retry < 3; retry ++) {
+            wbuf[0] = reg;              // MCP23017 register number
+            iomsgs[0].addr  = addr;
+            iomsgs[0].flags = 0;        // write
+            iomsgs[0].buf   = wbuf;
+            iomsgs[0].len   = 1;
 
-        iomsgs[1].addr  = addr;
-        iomsgs[1].flags = I2C_M_RD; // read
-        iomsgs[1].buf   = rbuf;
-        iomsgs[1].len   = 2;
+            iomsgs[1].addr  = addr;
+            iomsgs[1].flags = I2C_M_RD; // read
+            iomsgs[1].buf   = rbuf;
+            iomsgs[1].len   = 2;
 
-        msgset.msgs = iomsgs;
-        msgset.nmsgs = 2;
+            msgset.msgs = iomsgs;
+            msgset.nmsgs = 2;
 
-        int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
-        if (rc < 0) {
+            int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
+            if (rc >= 0) {
+                if (retry > 0) fprintf (stderr, "I2CLib::read16: reading recovered\n");
+                // reg+1 in upper byte; reg+0 in lower byte
+                return (rbuf[1] << 8) | rbuf[0];
+            }
+
             fprintf (stderr, "I2CLib::read16: error reading from %02X.%02X: %m\n", addr, reg);
-            ABORT ();
         }
-
-        // reg+1 in upper byte; reg+0 in lower byte
-        return (rbuf[1] << 8) | rbuf[0];
+        ABORT ();
     }
 }
 

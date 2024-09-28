@@ -66,9 +66,11 @@ static Tcl_ObjCmdProc cmd_assemop;
 static Tcl_ObjCmdProc cmd_ctrlcflag;
 static Tcl_ObjCmdProc cmd_disasop;
 static Tcl_ObjCmdProc cmd_flushit;
+static Tcl_ObjCmdProc cmd_getpin;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
 static Tcl_ObjCmdProc cmd_help;
+static Tcl_ObjCmdProc cmd_setpin;
 static Tcl_ObjCmdProc cmd_setsw;
 
 static FunDef const fundefs[] = {
@@ -76,9 +78,11 @@ static FunDef const fundefs[] = {
     { cmd_ctrlcflag,  "ctrlcflag",  "read and clear control-C flag" },
     { cmd_disasop,    "disasop",    "disassemble instruction" },
     { cmd_flushit,    "flushit",    "flush writes / invalidate reads" },
+    { cmd_getpin,     "getpin",     "get gpio pin" },
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
     { cmd_help,       "help",       "print this help" },
+    { cmd_setpin,     "setpin",     "set gpio pin" },
     { cmd_setsw,      "setsw",      "set switch value" },
     { NULL, NULL, NULL }
 };
@@ -104,6 +108,8 @@ static PermSw const permsws[] = {
     { "stop",  1, P_STOP },
     {  NULL,   0, 0 }
 };
+
+static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
 
 static bool volatile ctrlcflag;
 static bool rdpadsvalid;
@@ -516,6 +522,48 @@ static int cmd_flushit (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl
     return TCL_ERROR;
 }
 
+// get gpio pin
+static int cmd_getpin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    switch (objc) {
+        case 2: {
+            char const *regname = Tcl_GetString (objv[1]);
+            if (strcasecmp (regname, "help") == 0) {
+                puts ("");
+                puts (" getpin <pinnumber>");
+                puts ("   0.. 7 : U1 GPA0..7");
+                puts ("   8..15 : U1 GPB0..7");
+                puts ("  16..23 : U2 GPA0..7");
+                puts ("  24..31 : U2 GPB0..7");
+                puts ("  32..39 : U3 GPA0..7");
+                puts ("  40..47 : U3 GPB0..7");
+                puts ("  48..55 : U4 GPA0..7");
+                puts ("  56..63 : U4 GPB0..7");
+                puts ("  64..71 : U5 GPA0..7");
+                puts ("  72..79 : U5 GPB0..7");
+                puts ("");
+                return TCL_OK;
+            }
+            int pinnum;
+            int rc = Tcl_GetIntFromObj (interp, objv[1], &pinnum);
+            if (rc != TCL_OK) return rc;
+            if ((pinnum < 0) || (pinnum > 79)) {
+                Tcl_SetResultF (interp, "bad pin number %d\n", pinnum);
+                return TCL_ERROR;
+            }
+            int pinval = padlib->readpin (pinnum);
+            if (pinval < 0) {
+                Tcl_SetResultF (interp, "error reading pin %d\n", pinnum);
+                return TCL_ERROR;
+            }
+            Tcl_SetObjResult (interp, Tcl_NewIntObj (pinval));
+            return TCL_OK;
+        }
+    }
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
+}
+
 // get register (lights)
 static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
@@ -643,6 +691,51 @@ static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Ob
     }
     puts ("");
     return TCL_OK;
+}
+
+// set gpio pin
+static int cmd_setpin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    switch (objc) {
+        case 3: {
+            char const *regname = Tcl_GetString (objv[1]);
+            if (strcasecmp (regname, "help") == 0) {
+                puts ("");
+                puts (" setpin <pinnumber> <boolean>");
+                puts ("   0.. 7 : U1 GPA0..7");
+                puts ("   8..15 : U1 GPB0..7");
+                puts ("  16..23 : U2 GPA0..7");
+                puts ("  24..31 : U2 GPB0..7");
+                puts ("  32..39 : U3 GPA0..7");
+                puts ("  40..47 : U3 GPB0..7");
+                puts ("  48..55 : U4 GPA0..7");
+                puts ("  56..63 : U4 GPB0..7");
+                puts ("  64..71 : U5 GPA0..7");
+                puts ("  72..79 : U5 GPB0..7");
+                puts ("");
+                return TCL_OK;
+            }
+            int pinnum, pinval;
+            int rc = Tcl_GetIntFromObj (interp, objv[1], &pinnum);
+            if (rc != TCL_OK) return rc;
+            if ((pinnum < 0) || (pinnum > 79)) {
+                Tcl_SetResultF (interp, "bad pin number %d\n", pinnum);
+                return TCL_ERROR;
+            }
+            rc = Tcl_GetBooleanFromObj (interp, objv[2], &pinval);
+            if (rc != TCL_OK) return rc;
+            if (! ((wrmsks[pinnum/16] >> (pinnum % 16)) & 1)) {
+                pinval = -1;
+            } else if (padlib->writepin (pinnum, pinval) < 0) {
+                Tcl_SetResultF (interp, "error writing pin %d\n", pinnum);
+                return TCL_ERROR;
+            }
+            Tcl_SetObjResult (interp, Tcl_NewIntObj (pinval));
+            return TCL_OK;
+        }
+    }
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
 }
 
 // set switch

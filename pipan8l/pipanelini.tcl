@@ -75,6 +75,22 @@ proc dumpit {} {
         [expr {$run ? "RUN" : "   "}] [expr {$ion ? "ION" : "   "}] $st $link $ac $ea $ma $mb $ir $mne $sw]
 }
 
+# dump the raw gpio pins
+proc dumppins {} {
+    puts "       U1            U2            U3            U4            U5"
+    for {set row 0} {$row < 8} {incr row} {
+        for {set col 0} {$col < 10} {incr col} {
+            set pinofs [expr {($col & 1) ? 7 - $row : 8 + $row}]
+            set pinnum [expr {($col >> 1) * 16 + $pinofs}]
+            set pinval [getpin $pinnum]
+            set pinwrt [setpin $pinnum $pinval]
+            if {! ($col & 1)} {puts -nonewline "  "}
+            puts -nonewline [format " %2d=%d%s" $pinnum $pinval [expr {($pinwrt < 0) ? " " : "*"}]]
+        }
+        puts ""
+    }
+}
+
 # flick momentary switch on then off
 proc flicksw {swname} {
     global bncyms
