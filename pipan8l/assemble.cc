@@ -264,6 +264,25 @@ static char *decodeopcode (Token *token, uint16_t address, uint16_t *opcode_r)
         }
     }
 
+    if (strcasecmp (mne, "iot") == 0) {
+
+        // decode operand value
+        token = token->next;
+        if (token->toktype != TT_INTEGER) {
+            return mprintf ("expecting integer i/o opcode after %s", mne);
+        }
+        uint16_t exprvalue = token->intval;
+        if ((exprvalue < 06000) || (exprvalue > 06777)) {
+            return mprintf ("expecting i/o opcode 0%04o out of range", exprvalue);
+        }
+        token = token->next;
+        if (token->toktype != TT_ENDLINE) {
+            return mprintf ("expecting end of line after i/o opcode 0%04o", exprvalue);
+        }
+        *opcode_r = exprvalue;
+        return NULL;
+    }
+
     // better be a micro op
     return decomicro (token, opcode_r);
 }
