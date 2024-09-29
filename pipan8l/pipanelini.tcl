@@ -11,6 +11,7 @@ proc helpini {} {
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
+    puts "  startat <addr>          - load pc and start at given address"
     puts "  stepit                  - step one cycle then dump"
     puts "  wait                    - wait for CTRLC or STOP"
     puts "  wrmem <addr> <data>     - write memory at the given address"
@@ -311,6 +312,15 @@ proc rdmem {addr} {
     setsw sr $addr
     flicksw ldad
     return [getreg mb]
+}
+
+# load PC and start at given address
+proc startat {addr} {
+    set savesr [getsw sr]
+    setsw sr $addr
+    flicksw ldad
+    setsw sr $savesr
+    flicksw start
 }
 
 # step single cycle then dump front panel
