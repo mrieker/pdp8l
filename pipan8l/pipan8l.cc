@@ -18,8 +18,8 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// run via pipanel shell script:
-//  ./pipanel [-sim] [<scriptfile.tcl>]
+// run via pipan8l shell script:
+//  ./pipan8l [-sim] [<scriptfile.tcl>]
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -179,9 +179,9 @@ int main (int argc, char **argv)
     if (rc != TCL_OK) {
         char const *err = Tcl_GetStringResult (interp);
         if ((err != NULL) && (err[0] != 0)) {
-            fprintf (stderr, "pipanel: error %d initialing tcl: %s\n", rc, err);
+            fprintf (stderr, "pipan8l: error %d initialing tcl: %s\n", rc, err);
         } else {
-            fprintf (stderr, "pipanel: error %d initialing tcl\n", rc);
+            fprintf (stderr, "pipan8l: error %d initialing tcl\n", rc);
         }
         ABORT ();
     }
@@ -243,13 +243,13 @@ int main (int argc, char **argv)
     signal (SIGINT, siginthand);
 
     // maybe there is a script init file
-    char const *scriptini = getenv ("pipanelini");
+    char const *scriptini = getenv ("pipan8lini");
     if (scriptini != NULL) {
         rc = Tcl_EvalFile (interp, scriptini);
         if (rc != TCL_OK) {
             char const *err = Tcl_GetStringResult (interp);
-            if ((err == NULL) || (err[0] == 0)) fprintf (stderr, "pipanel: error %d evaluating scriptini %s\n", rc, scriptini);
-                                  else fprintf (stderr, "pipanel: error %d evaluating scriptini %s: %s\n", rc, scriptini, err);
+            if ((err == NULL) || (err[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating scriptini %s\n", rc, scriptini);
+                                  else fprintf (stderr, "pipan8l: error %d evaluating scriptini %s: %s\n", rc, scriptini, err);
             Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
             return 1;
         }
@@ -262,8 +262,8 @@ int main (int argc, char **argv)
         rc = Tcl_EvalFile (interp, fn);
         if (rc != TCL_OK) {
             char const *res = Tcl_GetStringResult (interp);
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipanel: error %d evaluating script %s\n", rc, fn);
-                                  else fprintf (stderr, "pipanel: error %d evaluating script %s: %s\n", rc, fn, res);
+            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating script %s\n", rc, fn);
+                                  else fprintf (stderr, "pipan8l: error %d evaluating script %s: %s\n", rc, fn, res);
             Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
             return 1;
         }
@@ -271,18 +271,18 @@ int main (int argc, char **argv)
 
     // either way, prompt and process commands from stdin
     // to have a script file with no stdin processing, end script file with 'exit'
-    puts ("\nTCL scripting, do 'help' for pipanel-specific commands");
-    puts ("  do 'exit' to exit pipanel");
+    puts ("\nTCL scripting, do 'help' for pipan8l-specific commands");
+    puts ("  do 'exit' to exit pipan8l");
     for (char const *line;;) {
         ctrlcflag = false;
-        line = readprompt ("pipanel> ");
+        line = readprompt ("pipan8l> ");
         ctrlcflag = false;
         if (line == NULL) break;
         rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
         char const *res = Tcl_GetStringResult (interp);
         if (rc != TCL_OK) {
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipanel: error %d evaluating command\n", rc);
-                                  else fprintf (stderr, "pipanel: error %d evaluating command: %s\n", rc, res);
+            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating command\n", rc);
+                                  else fprintf (stderr, "pipan8l: error %d evaluating command: %s\n", rc, res);
             Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
         }
         else if ((res != NULL) && (res[0] != 0)) puts (res);

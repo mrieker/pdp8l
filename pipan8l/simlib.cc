@@ -18,7 +18,7 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// simulate being the PDP-8/L to test pipanel.cc
+// simulate being the PDP-8/L to test pipan8l.cc
 
 #include <pthread.h>
 #include <signal.h>

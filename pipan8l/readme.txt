@@ -2,9 +2,9 @@
 RasPI-Zero-W uses /dev/i2c-1 to access the I2C bus going to the PCB.
 The PCB plugs into slot 1 of the PDP-8/L in place of the console.
 
-    RasPI-Zero-W ./pipanel  ==>  PCB MCP23017s  ==>  PDP-8/L slot 1  ==>  rest of PDP-8/L
+    RasPI-Zero-W ./pipan8l  ==>  PCB MCP23017s  ==>  PDP-8/L slot 1  ==>  rest of PDP-8/L
 
-./pipanel runs the test program.  It reads commands from the prompt and can
+./pipan8l runs the test program.  It reads commands from the prompt and can
 run scripts written in TCL.  The commands echo the switches and lights:
 
     setsw <switchname> <value>      - sets switch to a value
@@ -20,12 +20,12 @@ There are a couple utility commands:
 
     ctrlcflag                       - sense if control-C has been pressed, optionallly clearing it
                                     - used for test scripts
-                                    - otherwise, two control-Cs will abort out of pipanel
+                                    - otherwise, two control-Cs will abort out of pipan8l
 
     assemop <mnemonic> <operand>    - assemble the given assembly language instruction
     disasop <opcode>                - disassemble the given opcode to assemly language
 
-And the pipanelini.tcl script adds some higher-level commands:
+And the pipan8lini.tcl script adds some higher-level commands:
 
     assem <address> <mnemonic> <operand>    - assemble the instruction and deposit in memory
     disas <start> <stop>                    - disassemble the instructions in given memory range
@@ -45,7 +45,7 @@ Note:
 
 So when it's all running, you can do commands like:
 
-    ./pipanel               ;# start it running
+    ./pipan8l               ;# start it running
     assem 0200 isz 030      ;# input a simple test program
     assem 0201 jmp 0200
     assem 0202 iac
@@ -70,48 +70,48 @@ Logged into RasPI:
 $ sudo apt install tcl-dev
 $ make
     ...
-$ ./pipanel
+$ ./pipan8l
 
           ST=F  AC=0.7777 MA=0.7240 MB=7777 IR=7  OPR  SR=0000 DFLD IFLD MPRT STEP
 
-TCL scripting, do 'help' for pipanel-specific commands
-  do 'exit' to exit pipanel
-pipanel> assem 0200 isz 030
-pipanel> assem 0201 jmp 0200
-pipanel> assem 0202 iac
-pipanel> assem 0203 jmp 0200
-pipanel> disas 0200 0203
+TCL scripting, do 'help' for pipan8l-specific commands
+  do 'exit' to exit pipan8l
+pipan8l> assem 0200 isz 030
+pipan8l> assem 0201 jmp 0200
+pipan8l> assem 0202 iac
+pipan8l> assem 0203 jmp 0200
+pipan8l> disas 0200 0203
 0200  2030  ISZ   0030
 0201  5200  JMP   0200
 0202  7001  IAC
 0203  5200  JMP   0200
-pipanel> startat 0200
-pipanel> flicksw stop
-pipanel> setsw step 1
-pipanel> stepit
+pipan8l> startat 0200
+pipan8l> flicksw stop
+pipan8l> setsw step 1
+pipan8l> stepit
           ST=E  AC=0.0000 MA=0.0030 MB=0000 IR=2  ISZ  SR=0203 DFLD IFLD MPRT STEP
-pipanel> stepit
+pipan8l> stepit
           ST=F  AC=0.0000 MA=0.5027 MB=5747 IR=2  ISZ  SR=0203 DFLD IFLD MPRT STEP
-pipanel> stepit
+pipan8l> stepit
           ST=F  AC=0.0000 MA=0.0200 MB=2577 IR=5  JMP  SR=0203 DFLD IFLD MPRT STEP
-pipanel> setsw step 0
-pipanel> flicksw cont
-pipanel> dumpit
+pipan8l> setsw step 0
+pipan8l> flicksw cont
+pipan8l> dumpit
   RUN     ST=F  AC=0.0003 MA=0.4230 MB=5755 IR=3  DCA  SR=0203 DFLD IFLD MPRT
-pipanel> dumpit
+pipan8l> dumpit
   RUN     ST=E  AC=0.0005 MA=0.0100 MB=4177 IR=2  ISZ  SR=0203 DFLD IFLD MPRT
-pipanel> dumpit
+pipan8l> dumpit
   RUN     ST=F  AC=0.0006 MA=0.0233 MB=0560 IR=3  DCA  SR=0203 DFLD IFLD MPRT
-pipanel> flicksw stop
-pipanel> octal [rdmem 030]
+pipan8l> flicksw stop
+pipan8l> octal [rdmem 030]
 4521
-pipanel> startat 0200
-pipanel>
+pipan8l> startat 0200
+pipan8l>
 
 - - - - - - - - - - - - -
 
 It is somewhat tedious to keep entering dumpit commands to see what the panel is doing.
-So there is a program called ttpanel that will continuously dump the panel contents in
+So there is a program called ttpan8l that will continuously dump the panel contents in
 similar format to the actual PDP-8/L panel:
 
 
@@ -131,9 +131,9 @@ Also, the ON lights are highlighted in green.
 
 Run it with command:
 
-    ./ttpanel <ip-address-of-raspi>
+    ./ttpan8l <ip-address-of-raspi>
 
-It does UDP to the pipanel program to read the panel state as fast as it can.
+It does UDP to the pipan8l program to read the panel state as fast as it can.
 It can run either on a PC or on the RasPI itself.
 
 - - - - - - - - - - - - -
@@ -141,7 +141,7 @@ It can run either on a PC or on the RasPI itself.
 There is a simple memory test script, testmem.tcl.
 To use it:
 
-    ./pipanel testmem.tcl
+    ./pipan8l testmem.tcl
 
     testzeroes 0 077            ;# test writing zeroes to memory 0000..0077
                                 ;# writes then verifies
@@ -165,7 +165,7 @@ Note:
     doing it by hand!
 
 
-$ ./pipanel testmem.tcl
+$ ./pipan8l testmem.tcl
 
           ST=E  AC=0.1314 MA=0.0030 MB=0000 IR=2  ISZ  SR=0030 DFLD IFLD MPRT
 
@@ -174,9 +174,9 @@ $ ./pipanel testmem.tcl
   testones [beg [end]] - writes ones to all memory then verifies
   testrands [beg [end]] - writes randoms to all memory then verifies
 
-TCL scripting, do 'help' for pipanel-specific commands
-  do 'exit' to exit pipanel
-pipanel> looptest testrands
+TCL scripting, do 'help' for pipan8l-specific commands
+  do 'exit' to exit pipan8l
+pipan8l> looptest testrands
 
 PASS 1
 

@@ -16,7 +16,7 @@ endif
 
 LIBS = lib.$(MACH).a
 
-default: mcp23017.$(MACH) pipanel.$(MACH) ttpanel.$(MACH)
+default: mcp23017.$(MACH) pipan8l.$(MACH) ttpan8l.$(MACH)
 
 lib.$(MACH).a: \
 		abcd.$(MACH).o \
@@ -31,10 +31,10 @@ lib.$(MACH).a: \
 mcp23017.$(MACH): mcp23017.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
 
-pipanel.$(MACH): pipanel.$(MACH).o $(LIBS)
+pipan8l.$(MACH): pipan8l.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
 
-ttpanel.$(MACH): ttpanel.$(MACH).o
+ttpan8l.$(MACH): ttpan8l.$(MACH).o
 	$(GPP) -o $@ $^ -lpthread
 
 %.$(MACH).o: %.cc *.h

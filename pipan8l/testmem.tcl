@@ -1,4 +1,4 @@
-# ./pipanel testmem.tcl
+# ./pipan8l testmem.tcl
 
 # wrap one of the test procs below to loop continuously
 # eg, looptest testrands

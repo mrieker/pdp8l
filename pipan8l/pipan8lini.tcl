@@ -364,4 +364,4 @@ puts ""
 puts [dumpit]
 
 # message displayed as part of help command
-return "also, 'helpini' will print help for pipanelini.tcl commands"
+return "also, 'helpini' will print help for pipan8lini.tcl commands"

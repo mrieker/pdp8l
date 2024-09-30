@@ -19,9 +19,9 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // continuously display what would be on PDP-8/L front panel
-// reads panel lights and switches from pipanel via udp
+// reads panel lights and switches from pipan8l via udp
 
-//  ./ttpanel [<ipaddress-of-pipanel>]
+//  ./ttpan8l [<ipaddress-of-pipan8l>]
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -77,7 +77,7 @@ int main (int argc, char **argv)
     char const *ipaddr = "127.0.0.1";
     if (argc == 2) ipaddr = argv[1];
     else if (argc != 1) {
-        fprintf (stderr, "usage: ttpanel [<ipaddress-of-pipanel>]\n");
+        fprintf (stderr, "usage: ttpan8l [<ipaddress-of-pipan8l>]\n");
         return 1;
     }
 

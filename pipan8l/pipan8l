@@ -5,9 +5,9 @@ if [ "$i2clibdev" == "" ]
 then
     export i2clibdev=/dev/i2c-1
 fi
-if [ "$pipanelini" == "" ]
+if [ "$pipan8lini" == "" ]
 then
-    export pipanelini=$dd/pipanelini.tcl
+    export pipan8lini=$dd/pipan8lini.tcl
 fi
 dbg=''
 if [ "$1" == "-gdb" ]

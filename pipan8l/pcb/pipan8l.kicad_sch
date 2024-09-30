@@ -878,7 +878,7 @@
         )
       )
     )
-    (symbol "mypipanellib:2x18edgecon" (pin_names (offset 1.016) hide) (in_bom yes) (on_board yes)
+    (symbol "mypipan8llib:2x18edgecon" (pin_names (offset 1.016) hide) (in_bom yes) (on_board yes)
       (property "Reference" "J" (at 0 45.72 0)
         (effects (font (size 1.27 1.27)))
       )
@@ -1195,7 +1195,7 @@
         )
       )
     )
-    (symbol "mypipanellib:MCP23017" (in_bom yes) (on_board yes)
+    (symbol "mypipan8llib:MCP23017" (in_bom yes) (on_board yes)
       (property "Reference" "U" (at -12.7 34.29 0)
         (effects (font (size 1.27 1.27)) (justify left bottom))
       )
@@ -4158,7 +4158,7 @@
     (uuid fdba7eca-4aed-47e6-b878-e581e87baf62)
   )
 
-  (symbol (lib_id "mypipanellib:MCP23017") (at 52.07 116.84 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:MCP23017") (at 52.07 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 033851e2-8802-45b7-9bc6-8a969209d83a)
     (property "Reference" "U5" (at 91.44 109.9119 90)
@@ -4200,7 +4200,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1925))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899b))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U5") (unit 1)
         )
@@ -4226,7 +4226,7 @@
     (pin "2" (uuid 3034915a-d861-4bec-9788-10d8d122d840))
     (pin "1" (uuid 341de8a0-9afa-4964-8cdc-67baef0dfcee))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R3") (unit 1)
         )
@@ -4250,7 +4250,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H1") (unit 1)
         )
@@ -4290,7 +4290,7 @@
     (pin "12" (uuid e489f9ae-c895-4a39-9087-2990e6b3e4a0))
     (pin "11" (uuid b07d5186-1e08-4785-9b68-f44b827dcfdf))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J7") (unit 1)
         )
@@ -4354,7 +4354,7 @@
     (pin "20" (uuid 6f2d86ed-7c7e-41ff-bf6d-a8650686de12))
     (pin "15" (uuid d33b2f77-37b0-40b1-9c82-46f3d1a58096))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J5") (unit 1)
         )
@@ -4362,7 +4362,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:2x18edgecon") (at 274.32 264.16 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 274.32 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 3a5c03ba-3583-4bf9-b0b4-728e200e1735)
     (property "Reference" "J2" (at 273.05 267.97 90)
@@ -4371,7 +4371,7 @@
     (property "Value" "2x18edgecon" (at 273.05 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipanelfoots:2x18-edge" (at 274.32 264.16 0)
+    (property "Footprint" "mypipan8lfoots:2x18-edge" (at 274.32 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 274.32 264.16 0)
@@ -4414,7 +4414,7 @@
     (pin "C1" (uuid c4c27536-4075-4f5d-802b-6be262f3aebf))
     (pin "B2" (uuid 7ca48b05-1d7f-4e4a-a60d-e13788537273))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J2") (unit 1)
         )
@@ -4422,7 +4422,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:2x18edgecon") (at 76.2 264.16 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 76.2 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 3c4610c7-ed49-46f6-abca-c55bb3cedff3)
     (property "Reference" "J4" (at 74.93 267.97 90)
@@ -4431,7 +4431,7 @@
     (property "Value" "2x18edgecon" (at 74.93 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipanelfoots:2x18-edge" (at 76.2 264.16 0)
+    (property "Footprint" "mypipan8lfoots:2x18-edge" (at 76.2 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 76.2 264.16 0)
@@ -4474,7 +4474,7 @@
     (pin "C1" (uuid ed83d333-590d-4a2b-a2cd-3fa1d86f0ed0))
     (pin "B2" (uuid 82a330f1-330f-494c-b23b-e582afa4ea20))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J4") (unit 1)
         )
@@ -4500,7 +4500,7 @@
     (pin "2" (uuid d28f203b-b476-4bab-9633-5e5b5a4abb16))
     (pin "1" (uuid 2035af61-df5a-4bb0-a754-ddee6f32000c))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R1") (unit 1)
         )
@@ -4508,7 +4508,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:MCP23017") (at 260.35 116.84 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:MCP23017") (at 260.35 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 64735c20-4ca4-455a-93c4-174231e8a26f)
     (property "Reference" "U2" (at 299.72 109.9119 90)
@@ -4550,7 +4550,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1926))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899c))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U2") (unit 1)
         )
@@ -4575,7 +4575,7 @@
     )
     (pin "1" (uuid 5c4157c0-304d-4ff9-9f50-1143696ad328))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR01") (unit 1)
         )
@@ -4601,7 +4601,7 @@
     (pin "2" (uuid 03989a95-70a6-45c2-9a1e-b71593271a88))
     (pin "1" (uuid 55cf79ab-4694-42f0-b14f-8af0fa0336f8))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C5") (unit 1)
         )
@@ -4625,7 +4625,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H2") (unit 1)
         )
@@ -4649,7 +4649,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H3") (unit 1)
         )
@@ -4674,7 +4674,7 @@
     )
     (pin "1" (uuid ad84cddf-af40-47a8-8c10-47eac26262e7))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR03") (unit 1)
         )
@@ -4700,7 +4700,7 @@
     (pin "2" (uuid dc4cf033-5275-429c-a939-958cacf8ce9e))
     (pin "1" (uuid 2e23f7c5-b8fe-47bc-8979-0aa586d38914))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C3") (unit 1)
         )
@@ -4726,7 +4726,7 @@
     (pin "1" (uuid 9a457ccc-6d4e-43e9-91f1-1722faf3ff29))
     (pin "2" (uuid b124a098-b30b-4c12-bab8-0e8511d846d8))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C6") (unit 1)
         )
@@ -4734,7 +4734,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:MCP23017") (at 121.92 116.84 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:MCP23017") (at 121.92 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 8d1987b9-d1ea-422e-b964-232e9b3b9958)
     (property "Reference" "U4" (at 161.29 109.9119 90)
@@ -4776,7 +4776,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1927))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899d))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U4") (unit 1)
         )
@@ -4802,7 +4802,7 @@
     (pin "2" (uuid 91461f82-5d7c-495d-8210-6bf39f4c842b))
     (pin "1" (uuid 7f3878b1-ae0a-460d-8eef-916ba5d17292))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R2") (unit 1)
         )
@@ -4810,7 +4810,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:2x18edgecon") (at 373.38 264.16 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 373.38 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid ab4493b4-a678-4843-88e7-4bd41f14088e)
     (property "Reference" "J1" (at 372.11 267.97 90)
@@ -4819,7 +4819,7 @@
     (property "Value" "2x18edgecon" (at 372.11 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipanelfoots:2x18-edge" (at 373.38 264.16 0)
+    (property "Footprint" "mypipan8lfoots:2x18-edge" (at 373.38 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 373.38 264.16 0)
@@ -4862,7 +4862,7 @@
     (pin "C1" (uuid 980f1746-82ea-4171-b518-665158e27e80))
     (pin "B2" (uuid 3c55a90a-df8b-4eef-bb70-b0ec49cbf498))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J1") (unit 1)
         )
@@ -4888,7 +4888,7 @@
     (pin "2" (uuid 13aebc7f-7460-4762-921d-34230ec2d4f1))
     (pin "1" (uuid 3b7c61bc-2819-4f88-ae69-073181a20f5c))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C1") (unit 1)
         )
@@ -4914,7 +4914,7 @@
     (pin "1" (uuid 37ecfd3c-f593-46d1-aa30-5a12614ef811))
     (pin "2" (uuid cd6574af-213f-4bd1-b44c-ef1289526cb8))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J6") (unit 1)
         )
@@ -4922,7 +4922,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:MCP23017") (at 334.01 118.11 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:MCP23017") (at 334.01 118.11 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid bf77d6af-0d48-407d-a25f-166ff303d86d)
     (property "Reference" "U1" (at 373.38 111.1819 90)
@@ -4964,7 +4964,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1928))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899e))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U1") (unit 1)
         )
@@ -4991,7 +4991,7 @@
     (pin "2" (uuid 4889afc1-8a1f-48c8-94b5-5b6ba36fcd75))
     (pin "3" (uuid 5d9d84a5-d821-477f-8174-c70c08f55908))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q1") (unit 1)
         )
@@ -5017,7 +5017,7 @@
     (pin "2" (uuid 0aa08e55-033e-446d-ab0d-7645bc65b321))
     (pin "1" (uuid d135d59c-9c47-4685-9660-73cf82ef9a13))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C2") (unit 1)
         )
@@ -5025,7 +5025,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:2x18edgecon") (at 175.26 264.16 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 175.26 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid d69bfe1c-cb8f-4194-83d5-a1da7b2daa7b)
     (property "Reference" "J3" (at 173.99 267.97 90)
@@ -5034,7 +5034,7 @@
     (property "Value" "2x18edgecon" (at 173.99 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipanelfoots:2x18-edge" (at 175.26 264.16 0)
+    (property "Footprint" "mypipan8lfoots:2x18-edge" (at 175.26 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 175.26 264.16 0)
@@ -5077,7 +5077,7 @@
     (pin "C1" (uuid ee68ba7e-b365-40c1-97b9-50bd9aaf98ac))
     (pin "B2" (uuid 0e06bc69-d0e0-46e8-8526-b02a05a1362c))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J3") (unit 1)
         )
@@ -5103,7 +5103,7 @@
     (pin "2" (uuid efc8c295-8855-41bb-b1a8-239a24cb8fb1))
     (pin "1" (uuid 0bf359e5-dcc2-46b0-8c16-086e88c51a01))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C4") (unit 1)
         )
@@ -5127,7 +5127,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H4") (unit 1)
         )
@@ -5135,7 +5135,7 @@
     )
   )
 
-  (symbol (lib_id "mypipanellib:MCP23017") (at 191.77 116.84 270) (unit 1)
+  (symbol (lib_id "mypipan8llib:MCP23017") (at 191.77 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid e1ce18a4-cba4-4a79-bd9f-583bd4350476)
     (property "Reference" "U3" (at 231.14 109.9119 90)
@@ -5177,7 +5177,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1929))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899f))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U3") (unit 1)
         )
@@ -5202,7 +5202,7 @@
     )
     (pin "1" (uuid 6059f17f-cd37-4e70-9566-6ff795588fd4))
     (instances
-      (project "pipanel"
+      (project "pipan8l"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR02") (unit 1)
         )
