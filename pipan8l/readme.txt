@@ -1,11 +1,32 @@
 
 RasPI-Zero-W uses /dev/i2c-1 to access the I2C bus going to the PCB.
+Any RasPI that runs recent RasPI OS and has a 40-pin GPIO connector
+should work, but I use a RasPI Zero because it is small, allowing me
+to flip the processor over without any issue.
+
+Here is a pic of everything running:
+
+    https://www.outerworldapps.com/pdp8l-with-pipan8l.jpg
+
+The PIPAN8L board is in the lower right corner plugged into the 8/L downside-up.
+The PC screen on the left shows the pipan8l program on the lower terminal window,
+with the ttpan8l program running on the upper terminal window.
+
+- - - - - - - - - - - - -
+
 The PCB plugs into slot 1 of the PDP-8/L in place of the console.
 
     RasPI-Zero-W ./pipan8l  ==>  PCB MCP23017s  ==>  PDP-8/L slot 1  ==>  rest of PDP-8/L
 
-./pipan8l runs the test program.  It reads commands from the prompt and can
-run scripts written in TCL.  The commands echo the switches and lights:
+The RasPI can be powered from its own USB cable or from the PDP's 5V supply.
+To power it from the PDP, install the jumper on the right end of the PCB.
+I use the USB power so I can turn the PDP off and the RasPI will not need rebooting.
+
+- - - - - - - - - - - - -
+
+./pipan8l runs the test program.  (You can type ./pip then press tab).
+It reads commands from the prompt and can run scripts written in TCL.
+The commands echo the switches and lights:
 
     setsw <switchname> <value>      - sets switch to a value
     getsw <switchname>              - gets value of a switch
@@ -59,7 +80,7 @@ So when it's all running, you can do commands like:
     stepit                  ;# ... 3 times
     setsw step 0            ;# turn single cycle off
     flicksw cont            ;# continue
-    dumpit                  ;# see it runnint
+    dumpit                  ;# see it running
     dumpit
     flicksw stop            ;# stop processor so we can access memory
     octal [rdmem 030]       ;# read the counter and print in octal
@@ -128,13 +149,17 @@ Capital letters indicate the light is ON.
 Small letters incdicate it is off.
 Also, the ON lights are highlighted in green.
 
+Leave pipan8l running in one terminal window of the RasPI.
 
-Run it with command:
+Then, you can either run ttpan8l from another terminal window of the RasPI:
+
+    ./ttpan8l
+
+Or you can run it from a terminal window of a PC:
 
     ./ttpan8l <ip-address-of-raspi>
 
 It does UDP to the pipan8l program to read the panel state as fast as it can.
-It can run either on a PC or on the RasPI itself.
 
 - - - - - - - - - - - - -
 
