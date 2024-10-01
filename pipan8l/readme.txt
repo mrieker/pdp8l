@@ -22,6 +22,11 @@ The RasPI can be powered from its own USB cable or from the PDP's 5V supply.
 To power it from the PDP, install the jumper on the right end of the PCB.
 I use the USB power so I can turn the PDP off and the RasPI will not need rebooting.
 
+BE SURE TO USE 1.4mm THICK PCB STOCK.  1.6mm WON'T FIT.  The Digital spec says
+board thickness of their modules is 0.056", which is a hair thicker than 1.4mm.
+Even at 1.4mm, it takes a little gentle tapping to get it plugged in, so maybe
+1.2mm might be better.  But even Digital's modules can be tough to insert.
+
 - - - - - - - - - - - - -
 
 ./pipan8l runs the test program.  (You can type ./pip then press tab).
