@@ -153,35 +153,37 @@ void I2CLib::openpads ()
 
         // pulse GPIO<16> = PIN[36] to reset the MCP23017s
         int gpiofd = open ("/dev/gpiomem", O_RDWR);
-        if (gpiofd < 0) {
-            fprintf (stderr, "I2CLib::openpads: error opening /dev/gpiomem: %m\n");
-            ABORT ();
+        if ((gpiofd >= 0) || (errno != ENOENT)) {
+            if (gpiofd < 0) {
+                fprintf (stderr, "I2CLib::openpads: error opening /dev/gpiomem: %m\n");
+                ABORT ();
+            }
+            void *gpioptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, gpiofd, 0);
+            if (gpioptr == MAP_FAILED) {
+                fprintf (stderr, "I2CLib::openpads: error mmapping /dev/gpiomem: %m\n");
+                ABORT ();
+            }
+            uint32_t volatile *gpiopage = (uint32_t volatile *) gpioptr;
+
+            // set GPIO<16> (pin[36]) to output mode
+            gpiopage[GPIO_FSEL0+1] = (gpiopage[GPIO_FSEL0+1] & 037770777777) | 000001000000;
+
+            // turn bit<16> on
+            gpiopage[GPIO_SET0] = 1U << 16;
+
+            // let it soak in
+            usleep (10);
+
+            // turn bit<16> off
+            gpiopage[GPIO_CLR0] = 1U << 16;
+
+            // let it soak in
+            usleep (10);
+
+            // all done with GPIO
+            munmap (gpioptr, 4096);
+            close (gpiofd);
         }
-        void *gpioptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, gpiofd, 0);
-        if (gpioptr == MAP_FAILED) {
-            fprintf (stderr, "I2CLib::openpads: error mmapping /dev/gpiomem: %m\n");
-            ABORT ();
-        }
-        uint32_t volatile *gpiopage = (uint32_t volatile *) gpioptr;
-
-        // set GPIO<16> (pin[36]) to output mode
-        gpiopage[GPIO_FSEL0+1] = (gpiopage[GPIO_FSEL0+1] & 037770777777) | 000001000000;
-
-        // turn bit<16> on
-        gpiopage[GPIO_SET0] = 1U << 16;
-
-        // let it soak in
-        usleep (10);
-
-        // turn bit<16> off
-        gpiopage[GPIO_CLR0] = 1U << 16;
-
-        // let it soak in
-        usleep (10);
-
-        // all done with GPIO
-        munmap (gpioptr, 4096);
-        close (gpiofd);
 
         // open I2C bus #1 which is on GPIO connector : SDA=GPIO<02>=PIN[03] SCL=GPIO<03>=PIN[05]
         i2cfd = open (i2cenv, O_RDWR);
