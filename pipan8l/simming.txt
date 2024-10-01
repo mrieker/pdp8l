@@ -1,0 +1,43 @@
+
+Simulating to test pipan8l and ttpan8l
+No PDP-8/L required
+
+3 ways to simulate:
+
+    1) run with -sim option on either a PC or a RasPI
+            a) on one terminal window:
+                $ ./pipan8l -sim
+                pipan8l>
+            b) optional 2nd terminal window (same or different computer):
+                $ ./ttpan8l <ipaddressofpipan8lcomputer>
+
+    2) run with i2clibdev=zynq on a zturn zynq board
+        requires pdp8v running on same zynq
+            a) on one terminal window on zynq with pdp8v program:
+                $ cd pdp8v/driver
+                $ ./raspictl -zynqlib -script -
+                raspictl> run
+                ...or it can run any of the pdp-8/v programs such as os/8
+            b) on another zynq terminal window:
+                $ export i2clibdev=zynq
+                $ ./pipan8l
+                pipan8l>
+            c) optional 3rd terminal window (zynq or PC):
+                $ ./ttpan8l <ipaddressofzynq>
+
+    3) run with a raspi and a zturn zynq board
+        requires jumpering raspi i2c pins to zynq pins
+                GND: zturn CN2-61 (or any of them), raspi 9 (or any of them)
+                SCL: zturn CN2-65 (zynq H20), raspi 5
+                SDA: zturn CN2-69 (zynq G15), raspi 3
+            a) on one terminal window on zynq with pdp8v program:
+                $ cd pdp8v/driver
+                $ ./raspictl -zynqlib -script -
+                raspictl> run
+                ...or it can run any of the pdp-8/v programs such as os/8
+            b) on terminal window to raspi:
+                $ ./pipan8l
+                pipan8l>
+            c) optional 3rd terminal window (zynq or raspi or PC):
+                $ ./ttpan8l <ipaddressofraspi>
+

@@ -445,7 +445,7 @@
       "step": "",
       "vrml": ""
     },
-    "page_layout_descr_file": "/home/mrieker/nfs/pdp8l/zturn/notitleblock.kicad_wks"
+    "page_layout_descr_file": "notitleblock.kicad_wks"
   },
   "schematic": {
     "annotate_start_num": 0,
@@ -471,7 +471,7 @@
       "version": 1
     },
     "net_format_name": "",
-    "page_layout_descr_file": "/home/mrieker/nfs/pdp8/kicads/notitleblock.kicad_wks",
+    "page_layout_descr_file": "notitleblock.kicad_wks",
     "plot_directory": "",
     "spice_current_sheet_as_root": false,
     "spice_external_command": "spice \"%I\"",
