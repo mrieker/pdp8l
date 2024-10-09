@@ -2,7 +2,7 @@
 
 # wrap one of the test procs below to loop continuously
 # eg, looptest testrands
-proc looptest {testfunc {step 040}} {
+proc looptest {testfunc {step 0100}} {
     set errors 0
     for {set pass 1} true {incr pass} {
         puts ""
@@ -32,6 +32,13 @@ proc readloop {args} {
         }
         puts ""
     }
+}
+
+# reverse bits in 12-bit word
+proc rev12 {fwd} {
+    set rev [expr {(($fwd & 01111) << 2) | ($fwd & 02222) | (($fwd & 04444) >> 2)}]
+    set rev [expr {(($rev & 00707) << 3) | (($rev & 07070) >> 3)}]
+    return  [expr {(($rev & 00077) << 6) | (($rev & 07700) >> 6)}]
 }
 
 proc testzeroes {{beg 0} {end 07777}} {
@@ -127,26 +134,37 @@ proc testones {{beg 0} {end 07777}} {
     return $errors
 }
 
+set revrand 0
 proc testrands {{beg 0} {end 07777}} {
+    global revrand
+
     flicksw stop
     setsw dfld 0
     setsw ifld 0
     set errors 0
 
     puts "write randoms [octal $beg]..[octal $end]..."
-    setsw sr $beg
-    flicksw ldad
+    if {! $revrand} {
+        setsw sr $beg
+        flicksw ldad
+    }
     for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] {return -1}
-        if {($addr & 077) == 0} {puts -nonewline " [octal $addr]" ; flush stdout}
+        set radr $addr
+        if {$revrand} {
+            set radr [rev12 $radr]
+            setsw sr $radr
+            flicksw ldad
+        }
+        if {($addr & 077) == 0} {puts -nonewline " [octal $radr]" ; flush stdout}
         set r [expr {int (rand () * 010000)}]
         set rands($addr) $r
         setsw sr $r
         flicksw dep
         set ma [getreg ma]
         set mb [getreg mb]
-        if {$ma != $addr} {
-            puts "expected ma [octal $addr] but got [octal $ma]"
+        if {$ma != $radr} {
+            puts "expected ma [octal $radr] but got [octal $ma]"
             return -1
         }
         if {$mb != $r} {
@@ -156,18 +174,27 @@ proc testrands {{beg 0} {end 07777}} {
     }
     puts ""
     puts "verify randoms..."
-    setsw sr $beg
-    flicksw ldad
+    if {! $revrand} {
+        setsw sr $beg
+        flicksw ldad
+    }
     for {set addr $beg} {$addr <= $end} {incr addr} {
         if [ctrlcflag] {return -1}
-        flicksw exam
+        if {$revrand} {
+            set radr [rev12 $addr]
+            setsw sr $radr
+            flicksw ldad
+        } else {
+            set radr $addr
+            flicksw exam
+        }
         set ma [getreg ma]
         set mb [getreg mb]
-        if {$ma != $addr} {
-            puts "expected ma [octal $addr] but got [octal $ma]"
+        if {$ma != $radr} {
+            puts "expected ma [octal $radr] but got [octal $ma]"
             return -1
         }
-        if {($addr & 007) == 000} {puts -nonewline " [octal $addr]:"}
+        if {($addr & 007) == 000} {puts -nonewline " [octal $radr]:"}
         puts -nonewline " [octal $mb]"
         set r $rands($addr)
         if {$mb != $r} {
@@ -182,8 +209,12 @@ proc testrands {{beg 0} {end 07777}} {
 }
 
 puts ""
-puts "  looptest - wrap one of the below test to run continuously"
+puts "  looptest testfunc \[step\] - wrap one of the below test to run continuously"
 puts "  testzeroes \[beg \[end\]\] - writes zeroes to all memory then verifies"
 puts "  testones \[beg \[end\]\] - writes ones to all memory then verifies"
 puts "  testrands \[beg \[end\]\] - writes randoms to all memory then verifies"
+puts ""
+puts "  global var:"
+puts "    revrand = 0 : testrands address increments normally (default)"
+puts "              1 : testrands address increments bits in reverse"
 

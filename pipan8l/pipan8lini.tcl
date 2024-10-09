@@ -13,6 +13,7 @@ proc helpini {} {
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
     puts "  startat <addr>          - load pc and start at given address"
     puts "  stepit                  - step one cycle then dump"
+    puts "  steploop                - step one cycle, dump, then loop on enter key"
     puts "  wait                    - wait for CTRLC or STOP"
     puts "  wrmem <addr> <data>     - write memory at the given address"
     puts ""
@@ -215,7 +216,7 @@ proc loadbin {fname} {
                 }
 
                 # verify resultant lights
-                set actea [getreg ea]
+                set actea $field ;##;;TODO; [getreg ea]
                 set actma [getreg ma]
                 set actmb [getreg mb]
                 if {($actea != $field) || ($actma != $addr) || ($actmb != $data)} {
@@ -330,6 +331,18 @@ proc stepit {} {
     puts [dumpit]
 }
 
+proc steploop {} {
+    puts "<enter> to keep stepping, anything<enter> to stop"
+    setsw step 1
+    while {! [ctrlcflag]} {
+        flicksw cont
+        puts -nonewline "[dumpit]  > "
+        flush stdout
+        set line [gets stdin]
+        if {$line != ""} break
+    }
+}
+
 # write memory location
 # - does loadaddress, then deposit to write
 proc wrmem {addr data args} {
@@ -354,11 +367,16 @@ proc wait {} {
 set bncyms 120
 
 # make sure processor is stopped
-# ...and no momentaries stuck on
+# and turn off all the other switches
 setsw cont  0
 setsw dep   0
+setsw dfld  0
 setsw exam  0
+setsw ifld  0
+setsw ldad  0
+setsw mprt  0
 setsw start 0
+setsw step  0
 flicksw stop
 puts ""
 puts [dumpit]
