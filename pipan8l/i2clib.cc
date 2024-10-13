@@ -194,11 +194,13 @@ void I2CLib::openpads ()
     }
 
     // set output mode for output pins
+    // also enable weak pullups (ignored for output pins)
     for (int pad = 0; pad < P_NU16S; pad ++) {
         // bit<7> of both ports must be configured as outputs
         uint16_t abdir = ~ wrmsks[pad];
         ASSERT ((abdir & 0x8080) == 0);
         write16 (I2CBA + pad, IODIRA, abdir);
+        write16 (I2CBA + pad, GPPUA, 0xFFFF);
     }
 }
 
