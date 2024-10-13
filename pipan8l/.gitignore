@@ -2,10 +2,15 @@
 *.a
 *.armv6l
 *.armv7l
+*.bin
 *.*bak*
 *.class
+*.lis
 *.log
+*.map
 *.o
+*.obj
+*.oct
 *.so
 *.tgz
 *.x86_64
