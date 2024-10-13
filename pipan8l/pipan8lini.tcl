@@ -7,6 +7,7 @@ proc helpini {} {
     puts "  dumpit                  - dump registers and switches"
     puts "  flicksw <switch>        - flick momentary switch on then off"
     puts "  loadbin <filename>      - load bin file, verify, return start address"
+    puts "  loadrim <filename>      - load rim file, verify"
     puts "  octal <val>             - convert value to 4-digit octal string"
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
@@ -120,177 +121,292 @@ proc getenv {varname {defvalu ""}} {
 #     else: successful, start address
 proc loadbin {fname} {
 
-    # first pass, load in memory
-    # second pass, verify contents
-    for {set verify 0} {$verify < 2} {incr verify} {
-        set fp [open $fname rb]
+    set fp [open $fname rb]
 
-        set rubbingout 0
-        set inleadin 1
-        set state -1
-        set addr 0
-        set data 0
-        set chksum 0
-        set offset -1
-        set start -1
-        set nextaddr -1
+    set rubbingout 0
+    set inleadin 1
+    set state -1
+    set addr 0
+    set data 0
+    set chksum 0
+    set offset -1
+    set start -1
+    set nextaddr -1
+    set verify [dict create]
 
-        set field 0
-        setsw ifld 0
-        setsw dfld 0
+    set field 0
+    setsw ifld 0
+    setsw dfld 0
 
-        if {$verify} {
-            puts "loadbin: verifying $fname..."
-        } else {
-            puts "loadbin: loading $fname..."
+    puts "loadbin: loading $fname..."
+
+    while {true} {
+        if {[ctrlcflag]} {
+            return "control-C"
         }
 
-        while {true} {
-            if {[ctrlcflag]} {
-                return "control-C"
+        # read byte from tape
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        scan $ch "%c" ch
+
+        # ignore anything between pairs of rubouts
+        if {$ch == 0377} {
+            set rubbingout [expr 1 - $rubbingout]
+            continue
+        }
+        if $rubbingout continue
+
+        # 03x0 sets field to 'x'
+        # not counted in checksum
+        if {($ch & 0300) == 0300} {
+            set field [expr ($ch & 0070) << 9]
+            setsw ifld $field
+            setsw dfld $field
+            set nextaddr -1
+            continue
+        }
+
+        # leader/trailer is just <7>
+        if {$ch == 0200} {
+            if $inleadin continue
+            break
+        }
+        set inleadin 0
+
+        # no other frame should have <7> set
+        if {$ch & 0200} {
+            close $fp
+            puts ""
+            return [format "bad char %03o at %d" $ch $offset]
+        }
+
+        # add to checksum before stripping <6>
+        incr chksum $ch
+
+        # state 4 means we have a data word assembled ready to go to memory
+        # it also invalidates the last address as being a start address
+        # and it means the next word is the first of a data pair
+        if {$state == 4} {
+            dict set verify $addr $data
+            puts -nonewline [format "  %o.%04o / %04o\r" $field $addr $data]
+            flush stdout
+
+            # do 'load address' if not sequential
+            if {$nextaddr != $addr} {
+                setsw sr $addr
+                flicksw ldad
             }
 
-            # read byte from tape
-            incr offset
-            set ch [read $fp 1]
-            if {[eof $fp]} {
+            # deposit the data
+            setsw sr $data
+            flicksw dep
+
+            # verify resultant lights
+            set actea $field ;##;;TODO; [getreg ea]
+            set actma [getreg ma]
+            set actmb [getreg mb]
+            if {($actea != $field) || ($actma != $addr) || ($actmb != $data)} {
                 close $fp
                 puts ""
-                return "eof reading loadfile at $offset"
-            }
-            scan $ch "%c" ch
-
-            # ignore anything between pairs of rubouts
-            if {$ch == 0377} {
-                set rubbingout [expr 1 - $rubbingout]
-                continue
-            }
-            if $rubbingout continue
-
-            # 03x0 sets field to 'x'
-            # not counted in checksum
-            if {($ch & 0300) == 0300} {
-                set field [expr ($ch & 0070) << 9]
-                setsw ifld $field
-                setsw dfld $field
-                set nextaddr -1
-                continue
+                return [format "%o.%04o %04o showed %o.%04o %04o" $field $addr $data $actea $actma $actmb]
             }
 
-            # leader/trailer is just <7>
-            if {$ch == 0200} {
-                if $inleadin continue
-                break
-            }
-            set inleadin 0
+            # set up for next byte
+            set addr [expr {($addr + 1) & 07777}]
+            set start -1
+            set state 2
+            set nextaddr $addr
+        }
 
-            # no other frame should have <7> set
-            if {$ch & 0200} {
+        # <6> set means this is first part of an address
+        if {$ch & 0100} {
+            set state 0
+            incr ch -0100
+        }
+
+        # process the 6 bits
+        switch $state {
+            -1 {
                 close $fp
                 puts ""
-                return [format "bad char %03o at %d" $ch $offset]
+                return [format "bad leader char %03o at %d" $ch $offset]
             }
 
-            # add to checksum before stripping <6>
-            incr chksum $ch
+            0 {
+                # top 6 bits of address are followed by bottom 6 bits
+                set addr [expr {$ch << 6}]
+                set state 1
+            }
 
-            # state 4 means we have a data word assembled ready to go to memory
-            # it also invalidates the last address as being a start address
-            # and it means the next word is the first of a data pair
-            if {$state == 4} {
-                puts -nonewline [format "  %o.%04o\r" $field $addr]
-                flush stdout
-
-                # do 'load address' if not sequential
-                if {$nextaddr != $addr} {
-                    setsw sr $addr
-                    flicksw ldad
-                }
-
-                # deposit or examine the data
-                if {$verify} {
-                    flicksw exam
-                } else {
-                    setsw sr $data
-                    flicksw dep
-                }
-
-                # verify resultant lights
-                set actea $field ;##;;TODO; [getreg ea]
-                set actma [getreg ma]
-                set actmb [getreg mb]
-                if {($actea != $field) || ($actma != $addr) || ($actmb != $data)} {
-                    close $fp
-                    puts ""
-                    return [format "%o.%04o %04o showed %o.%04o %04o" $field $addr $data $actea $actma $actmb]
-                }
-
-                # set up for next byte
-                set addr [expr {($addr + 1) & 07777}]
-                set start -1
+            1 {
+                # bottom 6 bits of address are followed by top 6 bits data
+                # it is also the start address if it is last address on tape and is not followed by any data other than checksum
+                incr addr $ch
+                set start [expr {$field | $addr}]
                 set state 2
-                set nextaddr $addr
             }
 
-            # <6> set means this is first part of an address
-            if {$ch & 0100} {
-                set state 0
-                incr ch -0100
+            2 {
+                # top 6 bits of data are followed by bottom 6 bits
+                set data [expr {$ch << 6}]
+                set state 3
             }
 
-            # process the 6 bits
-            switch $state {
-                -1 {
-                    close $fp
-                    puts ""
-                    return [format "bad leader char %03o at %d" $ch $offset]
-                }
-
-                0 {
-                    # top 6 bits of address are followed by bottom 6 bits
-                    set addr [expr {$ch << 6}]
-                    set state 1
-                }
-
-                1 {
-                    # bottom 6 bits of address are followed by top 6 bits data
-                    # it is also the start address if it is last address on tape and is not followed by any data other than checksum
-                    incr addr $ch
-                    set start [expr {$field | $addr}]
-                    set state 2
-                }
-
-                2 {
-                    # top 6 bits of data are followed by bottom 6 bits
-                    set data [expr {$ch << 6}]
-                    set state 3
-                }
-
-                3 {
-                    # bottom 6 bits of data are followed by top 6 bits of next word
-                    # the data is stored in memory when next frame received,
-                    # as this is the checksum if it is the very last data word
-                    incr data $ch
-                    set state 4
-                }
-
-                default abort
+            3 {
+                # bottom 6 bits of data are followed by top 6 bits of next word
+                # the data is stored in memory when next frame received,
+                # as this is the checksum if it is the very last data word
+                incr data $ch
+                set state 4
             }
-        }
 
-        close $fp
-        puts ""
-
-        # trailing byte found, validate checksum
-        set chksum [expr {$chksum - ($data & 63)}]
-        set chksum [expr {$chksum - ($data >> 6)}]
-        set chksum [expr {$chksum & 07777}]
-        if {$chksum != $data} {
-            return [format "checksum calculated %04o, given on tape %04o" $chksum $data]
+            default abort
         }
     }
 
-    return $start;
+    close $fp
+    puts ""
+
+    # trailing byte found, validate checksum
+    set chksum [expr {$chksum - ($data & 63)}]
+    set chksum [expr {$chksum - ($data >> 6)}]
+    set chksum [expr {$chksum & 07777}]
+    if {$chksum != $data} {
+        return [format "checksum calculated %04o, given on tape %04o" $chksum $data]
+    }
+
+    # verify what was loaded
+    return [loadverify $verify $start]
+}
+
+# load rim format tape file
+#  returns
+#   string: error message
+#       "": successful
+proc loadrim {fname} {
+
+    set fp [open $fname rb]
+
+    set addr 0
+    set data 0
+    set offset -1
+    set nextaddr -1
+    set verify [dict create]
+
+    setsw ifld 0
+    setsw dfld 0
+
+    puts "loadrim: loading $fname..."
+
+    while {true} {
+        if {[ctrlcflag]} {
+            return "control-C"
+        }
+
+        # read byte from tape
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} break
+        scan $ch "%c" ch
+
+        # ignore rubouts
+        if {$ch == 0377} continue
+
+        # keep skipping until we have an address
+        if {! ($ch & 0100)} continue
+
+        set addr [expr {($ch & 077) << 6}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        scan $ch "%c" ch
+        set addr [expr {$addr | ($ch & 077)}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        scan $ch "%c" ch
+        set data [expr {($ch & 077) << 6}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        scan $ch "%c" ch
+        set data [expr {$data | ($ch & 077)}]
+
+        dict set verify $addr $data
+        puts -nonewline [format "  %04o / %04o\r" $addr $data]
+        flush stdout
+
+        # do 'load address' if not sequential
+        if {$nextaddr != $addr} {
+            setsw sr $addr
+            flicksw ldad
+        }
+
+        # deposit the data
+        setsw sr $data
+        flicksw dep
+
+        # verify resultant lights
+        set actma [getreg ma]
+        set actmb [getreg mb]
+        if {($actma != $addr) || ($actmb != $data)} {
+            close $fp
+            puts ""
+            return [format %04o %04o showed %04o %04o" $addr $data $actma $actmb]
+        }
+
+        set nextaddr [expr {($addr + 1) & 07777}]
+    }
+
+    close $fp
+    puts ""
+
+    # verify what was loaded
+    return [loadverify $verify ""]
+}
+
+# verify memory loaded by bin/rim
+#  input:
+#   verify = dictionary of addr => data as written to memory
+#   retifok = value to return if verification successful
+#  output:
+#   returns error: error message string
+#            else: $retifok
+proc loadverify {verify retifok} {
+    puts "loadverify: verifying..."
+    dict for {addr expect} $verify {
+        set actual [rdmem $addr]
+        puts -nonewline [format "  %04o / %04o\r" $addr $actual]
+        flush stdout
+        if {$actual != $expect} {
+            puts ""
+            return [format "%04o was %04o expected %04o" $addr $actual $expect]
+        }
+    }
+    puts ""
+    puts "loadverify: verify ok"
+    return $retifok
 }
 
 # convert integer to 4-digit octal string
