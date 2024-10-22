@@ -50,6 +50,8 @@
 #define Z_RH 8
 #define Z_RI 9
 #define Z_RJ 10
+#define Z_RK 11
+#define Z_N 12
 
 #define a_iBEMA         (1U <<  0)
 #define a_iCA_INCREMENT (1U <<  1)
@@ -145,93 +147,198 @@
 #define j_lbMA0      (j_lbMA      & - j_lbMA)
 #define j_lbMB0      (j_lbMB      & - j_lbMB)
 
-// which of the pins are outputs (switches)
-static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
-// active low outputs
-static uint16_t const wrrevs[P_NU16S] = { P0_WREV, P1_WREV, P2_WREV, P3_WREV, P4_WREV };
-// active low inputs + active low outputs (so we can read the outputs back)
-static uint16_t const rdwrrevs[P_NU16S] = { P0_RREV | P0_WREV, P1_RREV | P1_WREV, P2_RREV | P2_WREV, P3_RREV | P3_WREV, P4_RREV | P4_WREV };
+#define k_state     (   7U <<  0)
+#define k_memodify  (   3U <<  3)
+#define k_memstate  (   7U <<  5)
+#define k_timedelay (   7U <<  8)
+#define k_timestate (  15U << 11)
+#define k_cyclectr  (1023U << 15)
 
-
+// map Z8L bits to pipan8l bits
 static uint32_t ztop[] = {
 
         // light bulbs
-     7, g_lbBRK,       P_BRK,
-     7, g_lbCA,        P_CAD,
-     7, g_lbDEF,       P_DEF,
-     7, g_lbEA,        P_EMA,
-     7, g_lbEXE,       P_EXE,
-     7, g_lbFET,       P_FET,
-     7, g_lbION,       P_ION,
-     7, g_lbLINK,      P_LINK,
-     7, g_lbRUN,       P_RUN,
-     7, g_lbWC,        P_WCT,
-     7, g_lbIR0 <<  2, P_IR00,
-     7, g_lbIR0 <<  1, P_IR01,
-     7, g_lbIR0 <<  0, P_IR02,
-     9, i_lbAC0 << 11, P_AC00,
-     9, i_lbAC0 << 10, P_AC01,
-     9, i_lbAC0 <<  9, P_AC02,
-     9, i_lbAC0 <<  8, P_AC03,
-     9, i_lbAC0 <<  7, P_AC04,
-     9, i_lbAC0 <<  6, P_AC05,
-     9, i_lbAC0 <<  5, P_AC06,
-     9, i_lbAC0 <<  4, P_AC07,
-     9, i_lbAC0 <<  3, P_AC08,
-     9, i_lbAC0 <<  2, P_AC09,
-     9, i_lbAC0 <<  1, P_AC10,
-     9, i_lbAC0 <<  0, P_AC11,
-    10, j_lbMA0 << 11, P_MA00,
-    10, j_lbMA0 << 10, P_MA01,
-    10, j_lbMA0 <<  9, P_MA02,
-    10, j_lbMA0 <<  8, P_MA03,
-    10, j_lbMA0 <<  7, P_MA04,
-    10, j_lbMA0 <<  6, P_MA05,
-    10, j_lbMA0 <<  5, P_MA06,
-    10, j_lbMA0 <<  4, P_MA07,
-    10, j_lbMA0 <<  3, P_MA08,
-    10, j_lbMA0 <<  2, P_MA09,
-    10, j_lbMA0 <<  1, P_MA10,
-    10, j_lbMA0 <<  0, P_MA11,
-    10, j_lbMB0 << 11, P_MB00,
-    10, j_lbMB0 << 10, P_MB01,
-    10, j_lbMB0 <<  9, P_MB02,
-    10, j_lbMB0 <<  8, P_MB03,
-    10, j_lbMB0 <<  7, P_MB04,
-    10, j_lbMB0 <<  6, P_MB05,
-    10, j_lbMB0 <<  5, P_MB06,
-    10, j_lbMB0 <<  4, P_MB07,
-    10, j_lbMB0 <<  3, P_MB08,
-    10, j_lbMB0 <<  2, P_MB09,
-    10, j_lbMB0 <<  1, P_MB10,
-    10, j_lbMB0 <<  0, P_MB11,
+    Z_RG, g_lbBRK,       P_BRK,
+    Z_RG, g_lbCA,        P_CAD,
+    Z_RG, g_lbDEF,       P_DEF,
+    Z_RG, g_lbEA,        P_EMA,
+    Z_RG, g_lbEXE,       P_EXE,
+    Z_RG, g_lbFET,       P_FET,
+    Z_RG, g_lbION,       P_ION,
+    Z_RG, g_lbLINK,      P_LINK,
+    Z_RG, g_lbRUN,       P_RUN,
+    Z_RG, g_lbWC,        P_WCT,
+    Z_RG, g_lbIR0 <<  2, P_IR00,
+    Z_RG, g_lbIR0 <<  1, P_IR01,
+    Z_RG, g_lbIR0 <<  0, P_IR02,
+    Z_RI, i_lbAC0 << 11, P_AC00,
+    Z_RI, i_lbAC0 << 10, P_AC01,
+    Z_RI, i_lbAC0 <<  9, P_AC02,
+    Z_RI, i_lbAC0 <<  8, P_AC03,
+    Z_RI, i_lbAC0 <<  7, P_AC04,
+    Z_RI, i_lbAC0 <<  6, P_AC05,
+    Z_RI, i_lbAC0 <<  5, P_AC06,
+    Z_RI, i_lbAC0 <<  4, P_AC07,
+    Z_RI, i_lbAC0 <<  3, P_AC08,
+    Z_RI, i_lbAC0 <<  2, P_AC09,
+    Z_RI, i_lbAC0 <<  1, P_AC10,
+    Z_RI, i_lbAC0 <<  0, P_AC11,
+    Z_RJ, j_lbMA0 << 11, P_MA00,
+    Z_RJ, j_lbMA0 << 10, P_MA01,
+    Z_RJ, j_lbMA0 <<  9, P_MA02,
+    Z_RJ, j_lbMA0 <<  8, P_MA03,
+    Z_RJ, j_lbMA0 <<  7, P_MA04,
+    Z_RJ, j_lbMA0 <<  6, P_MA05,
+    Z_RJ, j_lbMA0 <<  5, P_MA06,
+    Z_RJ, j_lbMA0 <<  4, P_MA07,
+    Z_RJ, j_lbMA0 <<  3, P_MA08,
+    Z_RJ, j_lbMA0 <<  2, P_MA09,
+    Z_RJ, j_lbMA0 <<  1, P_MA10,
+    Z_RJ, j_lbMA0 <<  0, P_MA11,
+    Z_RJ, j_lbMB0 << 11, P_MB00,
+    Z_RJ, j_lbMB0 << 10, P_MB01,
+    Z_RJ, j_lbMB0 <<  9, P_MB02,
+    Z_RJ, j_lbMB0 <<  8, P_MB03,
+    Z_RJ, j_lbMB0 <<  7, P_MB04,
+    Z_RJ, j_lbMB0 <<  6, P_MB05,
+    Z_RJ, j_lbMB0 <<  5, P_MB06,
+    Z_RJ, j_lbMB0 <<  4, P_MB07,
+    Z_RJ, j_lbMB0 <<  3, P_MB08,
+    Z_RJ, j_lbMB0 <<  2, P_MB09,
+    Z_RJ, j_lbMB0 <<  1, P_MB10,
+    Z_RJ, j_lbMB0 <<  0, P_MB11,
 
         // switches
-     2, b_swCONT,      P_CONT,
-     2, b_swDEP,       P_DEP,
-     2, b_swDFLD,      P_DFLD,
-     2, b_swEXAM,      P_EXAM,
-     2, b_swIFLD,      P_IFLD,
-     2, b_swLDAD,      P_LDAD,
-     2, b_swMPRT,      P_MPRT,
-     2, b_swSTEP,      P_STEP,
-     2, b_swSTOP,      P_STOP,
-     2, b_swSTART,     P_STRT,
-     5, e_swSR0 << 11, P_SR00,
-     5, e_swSR0 << 10, P_SR01,
-     5, e_swSR0 <<  9, P_SR02,
-     5, e_swSR0 <<  8, P_SR03,
-     5, e_swSR0 <<  7, P_SR04,
-     5, e_swSR0 <<  6, P_SR05,
-     5, e_swSR0 <<  5, P_SR06,
-     5, e_swSR0 <<  4, P_SR07,
-     5, e_swSR0 <<  3, P_SR08,
-     5, e_swSR0 <<  2, P_SR09,
-     5, e_swSR0 <<  1, P_SR10,
-     5, e_swSR0 <<  0, P_SR11,
+    Z_RB, b_swCONT,      P_CONT,
+    Z_RB, b_swDEP,       P_DEP,
+    Z_RB, b_swDFLD,      P_DFLD,
+    Z_RB, b_swEXAM,      P_EXAM,
+    Z_RB, b_swIFLD,      P_IFLD,
+    Z_RB, b_swLDAD,      P_LDAD,
+    Z_RB, b_swMPRT,      P_MPRT,
+    Z_RB, b_swSTEP,      P_STEP,
+    Z_RB, b_swSTOP,      P_STOP,
+    Z_RB, b_swSTART,     P_STRT,
+    Z_RE, e_swSR0 << 11, P_SR00,
+    Z_RE, e_swSR0 << 10, P_SR01,
+    Z_RE, e_swSR0 <<  9, P_SR02,
+    Z_RE, e_swSR0 <<  8, P_SR03,
+    Z_RE, e_swSR0 <<  7, P_SR04,
+    Z_RE, e_swSR0 <<  6, P_SR05,
+    Z_RE, e_swSR0 <<  5, P_SR06,
+    Z_RE, e_swSR0 <<  4, P_SR07,
+    Z_RE, e_swSR0 <<  3, P_SR08,
+    Z_RE, e_swSR0 <<  2, P_SR09,
+    Z_RE, e_swSR0 <<  1, P_SR10,
+    Z_RE, e_swSR0 <<  0, P_SR11,
 
      0, 0, 0
 };
+
+// names of all z8l bits
+
+struct ZName {
+    int zi;
+    uint32_t zm;
+    char const *zn;
+};
+
+static ZName const znames[] = {
+    { Z_RA, a_iBEMA         , "iBEMA"         },
+    { Z_RA, a_iCA_INCREMENT , "iCA_INCREMENT" },
+    { Z_RA, a_iDATA_IN      , "iDATA_IN"      },
+    { Z_RA, a_iMEMINCR      , "iMEMINCR"      },
+    { Z_RA, a_iMEM_P        , "iMEM_P"        },
+    { Z_RA, a_iTHREECYCLE   , "iTHREECYCLE"   },
+    { Z_RA, a_i_AC_CLEAR    , "i_AC_CLEAR"    },
+    { Z_RA, a_i_BRK_RQST    , "i_BRK_RQST"    },
+    { Z_RA, a_i_EA          , "i_EA"          },
+    { Z_RA, a_i_EMA         , "i_EMA"         },
+    { Z_RA, a_i_INT_INHIBIT , "i_INT_INHIBIT" },
+    { Z_RA, a_i_INT_RQST    , "i_INT_RQST"    },
+    { Z_RA, a_i_IO_SKIP     , "i_IO_SKIP"     },
+    { Z_RA, a_i_MEMDONE     , "i_MEMDONE"     },
+    { Z_RA, a_i_STROBE      , "i_STROBE"      },
+    { Z_RA, a_softreset     , "softreset"     },
+    { Z_RA, a_softclock     , "softclock"     },
+    { Z_RA, a_softenab      , "softenab"      },
+
+    { Z_RB, b_swCONT        , "swCONT"        },
+    { Z_RB, b_swDEP         , "swDEP"         },
+    { Z_RB, b_swDFLD        , "swDFLD"        },
+    { Z_RB, b_swEXAM        , "swEXAM"        },
+    { Z_RB, b_swIFLD        , "swIFLD"        },
+    { Z_RB, b_swLDAD        , "swLDAD"        },
+    { Z_RB, b_swMPRT        , "swMPRT"        },
+    { Z_RB, b_swSTEP        , "swSTEP"        },
+    { Z_RB, b_swSTOP        , "swSTOP"        },
+    { Z_RB, b_swSTART       , "swSTART"       },
+
+    { Z_RC, c_iINPUTBUS     , "iINPUTBUS"     },
+    { Z_RC, c_iMEM          , "iMEM"          },
+    { Z_RD, d_i_DMAADDR     , "i_DMAADDR"     },
+    { Z_RD, d_i_DMADATA     , "i_DMADATA"     },
+    { Z_RE, e_swSR          , "swSR"          },
+
+    { Z_RF, f_oBIOP1        , "oBIOP1"        },
+    { Z_RF, f_oBIOP2        , "oBIOP2"        },
+    { Z_RF, f_oBIOP4        , "oBIOP4"        },
+    { Z_RF, f_oBTP2         , "oBTP2"         },
+    { Z_RF, f_oBTP3         , "oBTP3"         },
+    { Z_RF, f_oBTS_1        , "oBTS_1"        },
+    { Z_RF, f_oBTS_3        , "oBTS_3"        },
+    { Z_RF, f_oBUSINIT      , "oBUSINIT"      },
+    { Z_RF, f_oBWC_OVERFLOW , "oBWC_OVERFLOW" },
+    { Z_RF, f_oB_BREAK      , "oB_BREAK"      },
+    { Z_RF, f_oE_SET_F_SET  , "oE_SET_F_SET"  },
+    { Z_RF, f_oJMP_JMS      , "oJMP_JMS"      },
+    { Z_RF, f_oLINE_LOW     , "oLINE_LOW"     },
+    { Z_RF, f_oMEMSTART     , "oMEMSTART"     },
+    { Z_RF, f_o_ADDR_ACCEPT , "o_ADDR_ACCEPT" },
+    { Z_RF, f_o_BF_ENABLE   , "o_BF_ENABLE"   },
+    { Z_RF, f_o_BUSINIT     , "o_BUSINIT"     },
+    { Z_RF, f_o_B_RUN       , "o_B_RUN"       },
+    { Z_RF, f_o_DF_ENABLE   , "o_DF_ENABLE"   },
+    { Z_RF, f_o_KEY_CLEAR   , "o_KEY_CLEAR"   },
+    { Z_RF, f_o_KEY_DF      , "o_KEY_DF"      },
+    { Z_RF, f_o_KEY_IF      , "o_KEY_IF"      },
+    { Z_RF, f_o_KEY_LOAD    , "o_KEY_LOAD"    },
+    { Z_RF, f_o_LOAD_SF     , "o_LOAD_SF"     },
+    { Z_RF, f_o_SP_CYC_NEXT , "o_SP_CYC_NEXT" },
+
+    { Z_RG, g_lbBRK         , "lbBRK"         },
+    { Z_RG, g_lbCA          , "lbCA"          },
+    { Z_RG, g_lbDEF         , "lbDEF"         },
+    { Z_RG, g_lbEA          , "lbEA"          },
+    { Z_RG, g_lbEXE         , "lbEXE"         },
+    { Z_RG, g_lbFET         , "lbFET"         },
+    { Z_RG, g_lbION         , "lbION"         },
+    { Z_RG, g_lbLINK        , "lbLINK"        },
+    { Z_RG, g_lbRUN         , "lbRUN"         },
+    { Z_RG, g_lbWC          , "lbWC"          },
+    { Z_RG, g_lbIR          , "lbIR"          },
+
+    { Z_RH, h_oBAC          , "oBAC"          },
+    { Z_RH, h_oBMB          , "oBMB"          },
+    { Z_RI, i_oMA           , "oMA"           },
+    { Z_RI, i_lbAC          , "lbAC"          },
+    { Z_RJ, j_lbMA          , "lbMA"          },
+    { Z_RJ, j_lbMB          , "lbMB"          },
+
+    { Z_RK, k_state,     "state"     },
+    { Z_RK, k_memodify,  "memodify"  },
+    { Z_RK, k_memstate,  "memstate"  },
+    { Z_RK, k_timedelay, "timedelay" },
+    { Z_RK, k_timestate, "timestate" },
+    { Z_RK, k_cyclectr,  "cyclectr"  },
+
+    { 0, 0, NULL }
+};
+
+static uint32_t const forceons[Z_N] = {
+    0, a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
+    0, 0, d_i_DMAADDR | d_i_DMADATA };
+
 
 
 Z8LLib::Z8LLib ()
@@ -275,13 +382,17 @@ void Z8LLib::openpads ()
         ABORT ();
     }
 
-    for (int i = 0; i < 11; i ++) {
-        zynqpage[i] = -1;
-        printf ("Z8LLib::openpads*: %2d / %08X\n", i, zynqpage[i]);
-    }
+    usleep (10);
+    zynqpage[Z_RA] = a_softenab | a_softreset;
+    usleep (10);
+    zynqpage[Z_RA] = a_softenab | a_softreset | a_softclock;
+    usleep (10);
+    zynqpage[Z_RA] = a_softenab | a_softreset;
 
-    for (int i = 0; i < 11; i ++) {
-        zynqpage[i] = (i == 1) ? (a_softenab | a_softreset | a_i_EA) : 0;
+    for (int i = 0; i < Z_N; i ++) {
+        usleep (10);
+        zynqpage[i] = ((i == Z_RA) ? (a_softenab | a_softreset) : 0) | forceons[i];
+        usleep (10);
         printf ("Z8LLib::openpads*: %2d / %08X\n", i, zynqpage[i]);
     }
 }
@@ -289,8 +400,8 @@ void Z8LLib::openpads ()
 // read pins from zynq pdp8l
 void Z8LLib::readpads (uint16_t *pads)
 {
-    uint32_t z8ls[11];
-    for (int i = 0; i < 11; i ++) {
+    uint32_t z8ls[Z_N];
+    for (int i = 0; i < Z_N; i ++) {
         z8ls[i] = zynqpage[i];
     }
 
@@ -309,11 +420,22 @@ void Z8LLib::readpads (uint16_t *pads)
     }
 }
 
+static char const *const memodifynames[4] = { "NONE", "DEPOS", "STATE", "???3" };
+static char const *const memstatenames[8] = { "IDLE", "START", "LOCAL", "EXTERN", "STARTIO", "DOIO", "FINISH", "???7" };
+static char const *const statenames[8] = { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "INTAK" };
+static char const *const timestatenames[16] = {
+    "IDLE",
+    "TS1BODY", "TP1BEG", "TP1END",
+    "TS2BODY", "TP2BEG", "TP2END",
+    "TS3BODY", "TP3BEG", "TP3END",
+    "TS4BODY", "TP4BEG", "TP4END",
+    "???13", "???14", "???15" };
+
 // write values to zynq pdp8l
 void Z8LLib::writepads (uint16_t const *pads)
 {
-    uint32_t z8ls[11];
-    memset (z8ls, 0, sizeof z8ls);
+    uint32_t z8ls[Z_N];
+    memcpy (z8ls, forceons, sizeof z8ls);
 
     for (int i = 0; ztop[i*3] != 0; i ++) {
         uint32_t pb = ztop[i*3+2];
@@ -326,26 +448,59 @@ void Z8LLib::writepads (uint16_t const *pads)
         }
     }
 
-    z8ls[1] = (z8ls[1] | a_softenab | a_i_EA) & ~ a_softreset & ~ a_softclock;
+    z8ls[Z_RA] = (z8ls[Z_RA] | a_softenab) & ~ a_softreset & ~ a_softclock;
 
-    for (int i = 0; i < 11; i ++) {
+    for (int i = 0; i < Z_N; i ++) {
         zynqpage[i] = z8ls[i];
     }
 
-    printf ("= = = = = = = =\n");
+    printf ("Z8LLib::writepads*: = = = = = = = =\n");
+    int iter = 0;
     while (true) {
         usleep (10);
-        zynqpage[1] ^= a_softclock;
+        zynqpage[Z_RA] ^= a_softclock;
         usleep (10);
-        for (int i = 0; i < 11; i ++) {
-            printf ("Z8LLib::writepads*: %2d / %08X\n", i, zynqpage[i]);
+        if (-- iter <= 0) {
+            for (int i = 0; i < Z_N; i ++) {
+                uint32_t zr = zynqpage[i];
+                printf ("Z8LLib::writepads*: %2d / %08X\n", i, zr);
+                for (int j = 0; znames[j].zn != NULL; j ++) {
+                    if (znames[j].zi == i) {
+                        printf ("  %s=", znames[j].zn);
+                        uint32_t mask   = znames[j].zm;
+                        uint32_t lowbit = mask & - mask;
+                        uint32_t value  = (zr & mask) / lowbit;
+                        if ((i == Z_RK) && (mask == k_memodify)) {
+                            printf ("%-5s", memodifynames[value]);
+                            continue;
+                        }
+                        if ((i == Z_RK) && (mask == k_memstate)) {
+                            printf ("%-7s", memstatenames[value]);
+                            continue;
+                        }
+                        if ((i == Z_RK) && (mask == k_state)) {
+                            printf ("%-5s", statenames[value]);
+                            continue;
+                        }
+                        if ((i == Z_RK) && (mask == k_timestate)) {
+                            printf ("%-7s", timestatenames[value]);
+                            continue;
+                        }
+                        uint32_t width  = 1;
+                        while (1ULL << (width * 3) <= mask / lowbit) width ++;
+                        printf ("%0*o", width, value);
+                    }
+                }
+                putchar ('\n');
+            }
+            printf ("Z8LLib::writepads*: > ");
+            fflush (stdout);
+            char buff[8];
+            int rc = read (STDIN_FILENO, buff, sizeof buff);
+            if (rc <= 0) break;
+            if (buff[0] == '\n') continue;
+            iter = atoi (buff);
+            if (iter <= 0) break;
         }
-        printf ("Z8LLib::writepads*: 11 / %08X  > ", zynqpage[11]);
-        fflush (stdout);
-        char buff[1];
-        int rc = read (STDIN_FILENO, buff, sizeof buff);
-        if (rc <= 0) break;
-        if (buff[0] != '\n') break;
     }
-    write (STDOUT_FILENO, "\n", 1);
 }
