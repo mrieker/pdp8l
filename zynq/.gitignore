@@ -7,7 +7,6 @@ pdp8l.ip_user_files
 pdp8l.runs
 pdp8l.sim
 pdp8l.srcs
-myboard/hdl
 myboard/hw_handoff
 myboard/ip
 myboard/ipshared
