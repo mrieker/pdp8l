@@ -165,7 +165,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C0009";   -- '8L' ##
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C0010";   -- '8L' ##
 
     constant BURSTLEN : natural := 10;
 
