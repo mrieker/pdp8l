@@ -30,6 +30,8 @@
 
 #include "readprompt.h"
 
+void logflush ();
+
 char const *readprompt (char const *prompt)
 {
     fflush (stdout);
@@ -98,7 +100,7 @@ char const *readprompt (char const *prompt)
     if (tcsetattr (STDIN_FILENO, TCSANOW, &newattrs) < 0) abort ();
 
 readit:
-    if (initted < 0) usleep (333333);  // hopefully enough time for tee to catch up displaying everything sent to it
+    logflush ();    // make sure anything written to log pipe by this thread has been written to the tty before prompting
     line = readline (prompt);
     FILE *echoto = (rl_outstream == NULL) ? stdout : rl_outstream;
     if (line == NULL) {

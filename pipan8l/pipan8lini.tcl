@@ -165,7 +165,7 @@ proc loadbin {fname} {
         # 03x0 sets field to 'x'
         # not counted in checksum
         if {($ch & 0300) == 0300} {
-            set field [expr ($ch & 0070) << 9]
+            set field [expr ($ch & 0070) >> 3]
             setsw ifld $field
             setsw dfld $field
             set nextaddr -1
@@ -193,8 +193,9 @@ proc loadbin {fname} {
         # it also invalidates the last address as being a start address
         # and it means the next word is the first of a data pair
         if {$state == 4} {
-            dict set verify $addr $data
-            puts -nonewline [format "  %o.%04o / %04o\r" $field $addr $data]
+            set xaddr [expr {($field << 12) | $addr}]
+            dict set verify $xaddr $data
+            puts -nonewline [format "  %05o / %04o\r" $xaddr $data]
             flush stdout
 
             # do 'load address' if not sequential
@@ -214,7 +215,7 @@ proc loadbin {fname} {
             if {($actea != $field) || ($actma != $addr) || ($actmb != $data)} {
                 close $fp
                 puts ""
-                return [format "%o.%04o %04o showed %o.%04o %04o" $field $addr $data $actea $actma $actmb]
+                return [format "%o%04o %04o showed %o%04o %04o" $field $addr $data $actea $actma $actmb]
             }
 
             # set up for next byte
@@ -248,7 +249,7 @@ proc loadbin {fname} {
                 # bottom 6 bits of address are followed by top 6 bits data
                 # it is also the start address if it is last address on tape and is not followed by any data other than checksum
                 incr addr $ch
-                set start [expr {$field | $addr}]
+                set start [expr {($field << 12) | $addr}]
                 set state 2
             }
 
@@ -395,13 +396,16 @@ proc loadrim {fname} {
 #            else: $retifok
 proc loadverify {verify retifok} {
     puts "loadverify: verifying..."
-    dict for {addr expect} $verify {
-        set actual [rdmem $addr]
-        puts -nonewline [format "  %04o / %04o\r" $addr $actual]
+    dict for {xaddr expect} $verify {
+        if {[ctrlcflag]} {
+            return "control-C"
+        }
+        set actual [rdmem $xaddr]
+        puts -nonewline [format "  %05o / %04o\r" $xaddr $actual]
         flush stdout
         if {$actual != $expect} {
             puts ""
-            return [format "%04o was %04o expected %04o" $addr $actual $expect]
+            return [format "%05o was %04o expected %04o" $xaddr $actual $expect]
         }
     }
     puts ""
@@ -415,6 +419,7 @@ proc octal {val} {
 }
 
 # increment a variable but return its previous value
+# useful for doing series of assem commands
 # http://www.tcl.tk/man/tcl8.6/TclCmd/upvar.htm
 proc postinc name {
     upvar $name x
@@ -426,15 +431,20 @@ proc postinc name {
 # read memory location
 # - does loadaddress which reads the location
 proc rdmem {addr} {
-    setsw sr $addr
+    setsw ifld [expr {$addr >> 12}]
+    setsw dfld [expr {$addr >> 12}]
+    setsw sr [expr {$addr & 07777}]
     flicksw ldad
     return [getreg mb]
 }
 
 # load PC and start at given address
+# preserves switchregister contents
 proc startat {addr} {
     set savesr [getsw sr]
-    setsw sr $addr
+    setsw ifld [expr {$addr >> 12}]
+    setsw dfld [expr {$addr >> 12}]
+    setsw sr [expr {$addr & 07777}]
     flicksw ldad
     setsw sr $savesr
     flicksw start
@@ -462,7 +472,9 @@ proc steploop {} {
 # write memory location
 # - does loadaddress, then deposit to write
 proc wrmem {addr data args} {
-    setsw sr $addr
+    setsw ifld [expr {$addr >> 12}]
+    setsw dfld [expr {$addr >> 12}]
+    setsw sr [expr {$addr & 07777}]
     flicksw ldad
     setsw sr $data
     flicksw dep

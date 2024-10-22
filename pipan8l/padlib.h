@@ -32,6 +32,7 @@ struct PadLib {
     virtual int writepin (int pinnum, int pinval) { return -1; }
 };
 
+// use I2C-based board plugged into the PDP-8/L front panel slot
 struct I2CLib : PadLib {
     I2CLib ();
     virtual ~I2CLib ();
@@ -51,6 +52,7 @@ private:
     void write16 (uint8_t addr, uint8_t reg, uint16_t word);
 };
 
+// use C++ PDP-8/L simulator
 struct SimLib : PadLib {
     SimLib ();
     virtual void openpads ();
@@ -92,6 +94,20 @@ private:
     void dooperate ();
     void doioinst ();
     char const *ststr ();
+};
+
+// access Zynq PDP-8/L code
+// the Zynq contains an emulated PDP-8/L
+struct Z8LLib : PadLib {
+    Z8LLib ();
+    virtual ~Z8LLib ();
+    virtual void openpads ();
+    virtual void readpads (uint16_t *pads);
+    virtual void writepads (uint16_t const *pads);
+
+private:
+    int zynqfd;
+    uint32_t volatile *zynqpage;
 };
 
 #endif

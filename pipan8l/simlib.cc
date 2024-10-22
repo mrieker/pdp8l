@@ -304,20 +304,18 @@ void SimLib::singlestep ()
             // irtop = top 3 bits of instruction
             // pcreg = incremented
 
-            // if instruction is direct JMP or OPR, it has already been executed, so do another fetch
-            if (((mbreg & 07400) == 05000) || (irtop == 7)) {
+            // if instruction is direct JMP, IOT or OPR, it has already been executed, so do another fetch
+            if (((mbreg & 07400) == 05000) || (irtop >= 6)) {
                 dofetch ();
                 break;
             }
 
-            // if memory reference, set up memory address
-            if (irtop < 6) {
-                mareg = ((mbreg & 00200) ? (mareg & 07600) : 0) | (mbreg & 00177);
-            }
+            // memory reference, set up memory address
+            mareg = ((mbreg & 00200) ? (mareg & 07600) : 0) | (mbreg & 00177);
 
             // if indirect memory reference, do defer cycle
             // and if it's a JMP, do the jump at end of defer cycle
-            if ((irtop < 6) && (mbreg & 00400)) {
+            if (mbreg & 00400) {
                 state = DEF;
                 ASSERT (eareg == ifreg);
                 uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
@@ -331,15 +329,9 @@ void SimLib::singlestep ()
                 break;
             }
 
-            // if direct memory reference, do the exec cycle
-            if (irtop < 6) {
-                ASSERT (eareg == ifreg);
-                domemref ();
-                break;
-            }
-
-            // the only thing left is an I/O instruction
-            doioinst ();
+            // direct memory reference, do the exec cycle
+            ASSERT (eareg == ifreg);
+            domemref ();
             break;
         }
 
@@ -383,9 +375,11 @@ void SimLib::dofetch ()
     irtop = mbreg >> 9;
     pcreg = (pcreg + 1) & 07777;
 
-    // we can do direct JMP and OPR as part of the fetch
+    // we can do direct JMP, IOT and OPR as part of the fetch
     if ((mbreg & 07400) == 05000) {
         pcreg = ((mbreg & 00200) ? (mareg & 07600) : 0) | (mbreg & 00177);
+    } else if (irtop == 6) {
+        doioinst ();
     } else if (irtop == 7) {
         dooperate ();
     }
@@ -498,10 +492,9 @@ void SimLib::dooperate ()
     }
 }
 
-// end of fetch with I/O instruction, do the I/O as part of the next execute cycle
+// end of fetch with I/O instruction, do the I/O as part of the fetch cycle
 void SimLib::doioinst ()
 {
-    state = EXE;
     if (mbreg == 06001) ionreg = true;
     if (mbreg == 06002) ionreg = false;
 }

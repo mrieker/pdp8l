@@ -24,7 +24,8 @@ lib.$(MACH).a: \
 		disassemble.$(MACH).o \
 		i2clib.$(MACH).o \
 		readprompt.$(MACH).o \
-		simlib.$(MACH).o
+		simlib.$(MACH).o \
+		z8llib.$(MACH).o
 	rm -f lib.$(MACH).a
 	ar rc $@ $^
 

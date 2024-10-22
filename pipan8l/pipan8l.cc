@@ -19,7 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // run via pipan8l shell script:
-//  ./pipan8l [-sim] [<scriptfile.tcl>]
+//  ./pipan8l [-sim | -z8l] [<scriptfile.tcl>]
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -112,11 +112,14 @@ static PermSw const permsws[] = {
 static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
 
 static bool volatile ctrlcflag;
+static bool logflushed;
 static bool rdpadsvalid;
 static bool wrpadsdirty;
 static char *inihelp;
 static int logfd, pipefds[2], oldstdoutfd;
 static PadLib *padlib;
+static pthread_cond_t logflcond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t logflmutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t padmutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t logtid;
 static sigset_t sigintmask;
@@ -143,6 +146,7 @@ int main (int argc, char **argv)
     sigaddset (&sigintmask, SIGINT);
 
     bool simit = false;
+    bool z8lit = false;
     char const *fn = NULL;
     char const *logname = NULL;
     for (int i = 0; ++ i < argc;) {
@@ -156,16 +160,22 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-sim") == 0) {
             simit = true;
+            z8lit = false;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-z8l") == 0) {
+            simit = false;
+            z8lit = true;
             continue;
         }
         if ((argv[i][0] == '-') || (fn != NULL)) {
-            fprintf (stderr, "usage: %s [-log <logfilename>] [-simit] [<tclfilename>]\n", argv[0]);
+            fprintf (stderr, "usage: %s [-log <logfilename>] [-sim | -z8l] [<tclfilename>]\n", argv[0]);
             return 1;
         }
         fn = argv[i];
     }
 
-    padlib = simit ? (PadLib *) new SimLib () : (PadLib *) new I2CLib ();
+    padlib = z8lit ? (PadLib *) new Z8LLib () : simit ? (PadLib *) new SimLib () : (PadLib *) new I2CLib ();
     padlib->openpads ();
     // initialize switches from existing switch states
     padlib->readpads (rdpads);
@@ -310,19 +320,25 @@ static void *logthread (void *dummy)
     char buff[4096];
     int rc;
     while ((rc = read (pipefds[0], buff, sizeof buff)) > 0) {
-        struct timeval nowtv;
-        if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
-        struct tm nowtm = *localtime (&nowtv.tv_sec);
 
         int ofs = 0;
         int len;
         while ((len = rc - ofs) > 0) {
 
             // \377 means write following line only to log file, don't echo to old stdout
-            char *p = (char *) memchr (buff + ofs, '\377', len);
+            char *p = (char *) memchr (buff + ofs, 0377, len);
             if (p != NULL) len = p - buff - ofs;
             if (len == 0) {
                 echoit = false;
+                ofs ++;
+                continue;
+            }
+
+            // but \377\000 means set logflushed flag
+            if (! echoit && (buff[ofs] == 0)) {
+                logflushed = true;
+                if (pthread_cond_broadcast (&logflcond) != 0) ABORT ();
+                echoit = true;
                 ofs ++;
                 continue;
             }
@@ -338,7 +354,12 @@ static void *logthread (void *dummy)
             }
 
             // always wtite to log file with timestamp
-            if (atbol) dprintf (logfd, "%02d:%02d:%02d.%06d ", nowtm.tm_hour, nowtm.tm_min, nowtm.tm_sec, (int) nowtv.tv_usec);
+            if (atbol) {
+                struct timeval nowtv;
+                if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
+                struct tm nowtm = *localtime (&nowtv.tv_sec);
+                dprintf (logfd, "%02d:%02d:%02d.%06d ", nowtm.tm_hour, nowtm.tm_min, nowtm.tm_sec, (int) nowtv.tv_usec);
+            }
             if (writepipe (logfd, buff + ofs, len) < 0) {
                 fprintf (stderr, "logthread: error writing to logfile: %m\n");
                 ABORT ();
@@ -352,6 +373,21 @@ static void *logthread (void *dummy)
     }
     close (logfd);
     return NULL;
+}
+
+// make sure all written by calling thread has been written to original stdout
+// ie, not sitting in logthread's pipe
+void logflush ()
+{
+    if (logfd > 0) {
+        if (pthread_mutex_lock (&logflmutex) != 0) ABORT ();
+        logflushed = false;
+        if (writepipe (STDOUT_FILENO, "\377", 2) < 0) ABORT ();
+        while (! logflushed) {
+            if (pthread_cond_wait (&logflcond, &logflmutex) != 0) ABORT ();
+        }
+        if (pthread_mutex_unlock (&logflmutex) != 0) ABORT ();
+    }
 }
 
 // make sure log file gets last bit written to stdout
@@ -867,7 +903,7 @@ static void *udpthread (void *dummy)
     server.sin_family = AF_INET;
     server.sin_port   = htons (UDPPORT);
     if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
-        fprintf (stderr, "error binding to %d: %m\n", UDPPORT);
+        fprintf (stderr, "udpthread: error binding to %d: %m\n", UDPPORT);
         ABORT ();
     }
 
@@ -878,9 +914,9 @@ static void *udpthread (void *dummy)
         int rc = recvfrom (udpfd, &udppkt, sizeof udppkt, 0, (struct sockaddr *) &client, &clilen);
         if (rc != sizeof udppkt) {
             if (rc < 0) {
-                fprintf (stderr, "error receiving udp packet: %m\n");
+                fprintf (stderr, "udpthread: error receiving udp packet: %m\n");
             } else {
-                fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                fprintf (stderr, "udpthread: only received %d of %d bytes\n", rc, (int) sizeof udppkt);
             }
             continue;
         }
@@ -920,9 +956,9 @@ static void *udpthread (void *dummy)
         rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &client, sizeof client);
         if (rc != sizeof udppkt) {
             if (rc < 0) {
-                fprintf (stderr, "error sending udp packet: %m\n");
+                fprintf (stderr, "udpthread: error sending udp packet: %m\n");
             } else {
-                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+                fprintf (stderr, "udpthread: only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
             }
         }
     }
