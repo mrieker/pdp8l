@@ -22,7 +22,7 @@ while true {
         break
     }
     flushit
-    puts [dumppan]
+    puts [dumpit]
     if {! [getreg run]} {
         puts "stopped"
         break
