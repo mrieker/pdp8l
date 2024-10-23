@@ -34,8 +34,6 @@ entity Zynq is
             LEDoutG : out STD_LOGIC;     -- IO_B34_LP7 Y16
             LEDoutB : out STD_LOGIC;     -- IO_B34_LN7 Y17
 
-            LEDS : out std_logic_vector (7 downto 0);
-
             -- arm processor memory bus interface (AXI)
             -- we are a slave for accessing the control registers (read & write)
             saxi_ARADDR : in std_logic_vector (11 downto 0);
@@ -165,7 +163,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4018";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4019";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -360,12 +358,10 @@ component pdp8l port (
     swSTOP  : in std_logic;
     swSR    : in std_logic_vector (11 downto 0);
     swSTART : in std_logic
-    ;state    : out std_logic_vector (2 downto 0)
-    ;memodify : out std_logic_vector (1 downto 0)
-    ;memstate : out std_logic_vector (2 downto 0)
-    ;timedelay : out std_logic_vector (2 downto 0)
-    ;timestate : out std_logic_vector (3 downto 0)
-    ;cyclectr  : out std_logic_vector (9 downto 0)
+    ;majstate  : out std_logic_vector ( 2 downto 0)
+    ;timedelay : out std_logic_vector (10 downto 0)
+    ;timestate : out std_logic_vector ( 4 downto 0)
+    ;cyclectr  : out std_logic_vector ( 9 downto 0)
 );
 end component;
 
@@ -841,15 +837,13 @@ begin
         swSR          => swSR,
         swSTART       => swSTART
 
-        ,state     => regctlk(02 downto 00)
-        ,memodify  => regctlk(04 downto 03)
-        ,memstate  => regctlk(07 downto 05)
-        ,timedelay => regctlk(10 downto 08)
-        ,timestate => regctlk(14 downto 11)
-        ,cyclectr  => regctlk(24 downto 15)
+        ,majstate  => regctlk(02 downto 00)
+        ,timedelay => regctlk(13 downto 03)
+        ,timestate => regctlk(18 downto 14)
+        ,cyclectr  => regctlk(28 downto 19)
     );
 
-    regctlk(31 downto 25) <= (others => '0');
+    regctlk(31 downto 29) <= (others => '0');
 
     -- teletype interfaces
 
