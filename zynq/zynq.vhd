@@ -165,7 +165,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4015";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4018";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -268,14 +268,21 @@ architecture rtl of Zynq is
     signal swSTOP  : std_logic;
     signal swSR    : std_logic_vector (11 downto 0);
     signal swSTART : std_logic;
-    
+
     signal softenab, softclock, softreset : std_logic;
     signal inuseclock, inusereset : std_logic;
+
+    -- arm interface signals
+    signal arm_acclr, arm_intrq, arm_ioskip : std_logic;
+    signal armibus : std_logic_vector (11 downto 0);
 
     -- tty interface signals
     signal ttardata : std_logic_vector (31 downto 0);
     signal ttibus : std_logic_vector (11 downto 0);
     signal ttawpuls, ttacclr, ttintrq, ttioskip : std_logic;
+    signal tt40ardata : std_logic_vector (31 downto 0);
+    signal tt40ibus : std_logic_vector (11 downto 0);
+    signal tt40awpuls, tt40acclr, tt40intrq, tt40ioskip : std_logic;
 
 component pdp8l port (
     CLOCK : in std_logic;
@@ -362,26 +369,26 @@ component pdp8l port (
 );
 end component;
 
-component pdp8ltty port (
-    CLOCK, RESET : in std_logic;
-    armwpulse : in std_logic;
-    armraddr, armwaddr : in std_logic_vector (1 downto 0);
-    armwdata : in std_logic_vector (31 downto 0);
-    armrdata : in std_logic_vector (31 downto 0);
-
-    INPUTBUS : out std_logic_vector (11 downto 0);
-    AC_CLEAR : out std_logic;
-    INT_RQST : out std_logic;
-    IO_SKIP : out std_logic;
-
-    BAC : in std_logic_vector (11 downto 0);
-    BIOP1 : in std_logic;
-    BIOP2 : in std_logic;
-    BIOP4 : in std_logic;
-    BMB : in std_logic_vector (11 downto 0);
-    BUSINIT : in std_logic
-);
-end component;
+ -- component pdp8ltty port (
+ --     CLOCK, RESET : in std_logic;
+ --     armwpulse : in std_logic;
+ --     armraddr, armwaddr : in std_logic_vector (1 downto 0);
+ --     armwdata : in std_logic_vector (31 downto 0);
+ --     armrdata : out std_logic_vector (31 downto 0);
+ --
+ --     INPUTBUS : out std_logic_vector (11 downto 0);
+ --     AC_CLEAR : out std_logic;
+ --     INT_RQST : out std_logic;
+ --     IO_SKIP : out std_logic;
+ --
+ --     BAC : in std_logic_vector (11 downto 0);
+ --     BIOP1 : in std_logic;
+ --     BIOP2 : in std_logic;
+ --     BIOP4 : in std_logic;
+ --     BMB : in std_logic_vector (11 downto 0);
+ --     BUSINIT : in std_logic
+ -- );
+ -- end component;
 
 begin
 
@@ -461,7 +468,8 @@ begin
                     regctli when readaddr = b"0000001001" else
                     regctlj when readaddr = b"0000001010" else
                     regctlk when readaddr = b"0000001011" else
-                    ttardata when readaddr(11 downto 4) = b"00001000" else  -- 00001000xx00
+                    ttardata   when readaddr(11 downto 4) = b"00001000" else  -- 00001000xx00
+                    tt40ardata when readaddr(11 downto 4) = b"00001001" else  -- 00001001xx00
                     x"DEADBEEF";
 
     -- A3.3.1 Read transaction dependencies
@@ -476,7 +484,7 @@ begin
             saxiAWREADY <= '1';                             -- we are ready to accept write address
             saxiWREADY <= '0';                              -- we are not ready to accept write data
             saxiBVALID <= '0';                              -- we are not acknowledging any write
-            
+
             softenab  <= '1';                               -- by default, software provides clock
             softclock <= '0';                               -- by default, software clock is low
             softreset <= '1';                               -- by default, software reset asserted
@@ -523,13 +531,13 @@ begin
                         iMEMINCR      <= saxi_WDATA(03);
                         iMEM_P        <= saxi_WDATA(04);
                         iTHREECYCLE   <= saxi_WDATA(05);
-                        i_AC_CLEAR    <= saxi_WDATA(06);
+                        arm_acclr     <= saxi_WDATA(06);
                         i_BRK_RQST    <= saxi_WDATA(07);
                         i_EA          <= saxi_WDATA(08);
                         i_EMA         <= saxi_WDATA(09);
                         i_INT_INHIBIT <= saxi_WDATA(10);
-                        i_INT_RQST    <= saxi_WDATA(11);
-                        i_IO_SKIP     <= saxi_WDATA(12);
+                        arm_intrq     <= saxi_WDATA(11);
+                        arm_ioskip    <= saxi_WDATA(12);
                         i_MEMDONE     <= saxi_WDATA(13);
                         i_STROBE      <= saxi_WDATA(14);
                         softreset     <= saxi_WDATA(29);
@@ -549,7 +557,7 @@ begin
                         swSTART       <= saxi_WDATA(09);
 
                     when b"00000011" =>
-                        iINPUTBUS <= saxi_WDATA(11 downto 00);
+                        armibus   <= saxi_WDATA(11 downto 00);
                         iMEM      <= saxi_WDATA(27 downto 16);
 
                     when b"00000100" =>
@@ -752,6 +760,11 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not softenab;
 
+    iINPUTBUS  <= ttibus or tt40ibus; -- or armibus
+    i_AC_CLEAR <= not (ttacclr and not tt40acclr); -- and arm_acclr
+    i_INT_RQST <= not (ttintrq and not tt40intrq); -- and arm_intrq
+    i_IO_SKIP  <= not (ttioskip and not tt40ioskip); -- and arm_ioskip
+
     pdp8linst: pdp8l port map (
         CLOCK         => inuseclock,
         RESET         => inusereset,
@@ -798,7 +811,7 @@ begin
         o_DF_ENABLE   => o_DF_ENABLE,
         o_KEY_CLEAR   => o_KEY_CLEAR,
         o_KEY_DF      => o_KEY_DF,
-        o_KEY_IF      => o_KEY_IF, 
+        o_KEY_IF      => o_KEY_IF,
         o_KEY_LOAD    => o_KEY_LOAD,
         o_LOAD_SF     => o_LOAD_SF,
         o_SP_CYC_NEXT => o_SP_CYC_NEXT,
@@ -827,7 +840,7 @@ begin
         swSTOP        => swSTOP,
         swSR          => swSR,
         swSTART       => swSTART
-        
+
         ,state     => regctlk(02 downto 00)
         ,memodify  => regctlk(04 downto 03)
         ,memstate  => regctlk(07 downto 05)
@@ -837,10 +850,11 @@ begin
     );
 
     regctlk(31 downto 25) <= (others => '0');
-    
-    -- teletype interface
 
-    ttawpuls <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"08") else '0';
+    -- teletype interfaces
+
+    ttawpuls   <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"08") else '0';
+    tt40awpuls <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"09") else '0';
 
     ttinst: pdp8ltty port map (
         CLOCK => inuseclock,
@@ -862,5 +876,28 @@ begin
         BMB => oBMB,
         BUSINIT => oBUSINIT
     );
+
+    tt40inst: pdp8ltty
+        generic map (KBDEV => std_logic_vector (to_unsigned (8#40#, 6)))
+        port map (
+            CLOCK => inuseclock,
+            RESET => inusereset,
+            armwpulse => tt40awpuls,
+            armraddr => readaddr(3 downto 2),
+            armwaddr => writeaddr(3 downto 2),
+            armwdata => saxi_WDATA,
+            armrdata => tt40ardata,
+
+            INPUTBUS => tt40ibus,
+            AC_CLEAR => tt40acclr,
+            INT_RQST => tt40intrq,
+            IO_SKIP  => tt40ioskip,
+            BAC => oBAC,
+            BIOP1 => oBIOP1,
+            BIOP2 => oBIOP2,
+            BIOP4 => oBIOP4,
+            BMB => oBMB,
+            BUSINIT => oBUSINIT
+        );
 
 end rtl;

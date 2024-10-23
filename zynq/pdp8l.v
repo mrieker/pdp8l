@@ -507,7 +507,7 @@ module pdp8l (
     end
 
     // perform a memory cycle
-    // trigger by setting memstate = MS_STSRT
+    // trigger by setting memstate = MS_START
     // completed when memstate == MS_IDLE
     // uses contents of MA for memory address
     // reads contents of memory into MB then sets ts2 = 1 via tp1

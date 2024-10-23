@@ -20,7 +20,8 @@
 
 // PDP-8/L teletype interface
 
-module pdp8ltty (
+module pdp8ltty
+    #(parameter[8:3] KBDEV=6'o03) (
     input CLOCK, RESET,
     input armwpulse,
     input[1:0] armraddr, armwaddr,
@@ -40,13 +41,16 @@ module pdp8ltty (
     input BUSINIT
 );
 
+    localparam[11:00] kbio = 12'o6000 + (KBDEV << 3);
+    localparam[11:00] ttio = 12'o6010 + (KBDEV << 3);
+
     reg intenab, kbflag, lastiop, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = 32'h87654321;/** (armraddr == 0) ? 32'h54541001 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541002 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, 19'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
-                      32'hDEADBEEF;**/
+                      { 26'b0, KBDEV };
 
     assign INT_RQST = intenab & (kbflag | prflag);
 
@@ -83,16 +87,16 @@ module pdp8ltty (
                 // ...but leave output signals to PDP-8/L in place until IOP negates
                 if (~ lastiop) begin
                     case (BMB)
-                        12'o6031: begin IO_SKIP <= kbflag; end                                  // skip if kb char ready
-                        12'o6032: begin AC_CLEAR <= 1; kbflag <= 0; end                         // clear accum, clear flag
-                        12'o6034: begin INPUTBUS <= { 4'b0, kbchar }; end                       // read kb char
-                        12'o6035: begin intenab <= BAC[00]; end                                 // enable/disable interrupts
-                        12'o6036: begin AC_CLEAR <= 1; INPUTBUS <= kbchar; kbflag <= 0; end     // read kb char, clear flag
-                        12'o6041: begin IO_SKIP <= prflag; end                                  // skip if done printing
-                        12'o6042: begin prflag <= 0; end                                        // stop saying done printing
-                        12'o6044: begin prchar <= BAC; prfull <= 1; end                         // start printing char
-                        12'o6045: begin IO_SKIP <= INT_RQST; end                                // skip if requesting interrupt
-                        12'o6046: begin prchar <= BAC[07:00]; prflag <= 0; prfull <= 1; end     // start printing char, clear done flag
+                        kbio+1: begin IO_SKIP <= kbflag; end                                  // skip if kb char ready
+                        kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                         // clear accum, clear flag
+                        kbio+4: begin INPUTBUS <= { 4'b0, kbchar }; end                       // read kb char
+                        kbio+5: begin intenab <= BAC[00]; end                                 // enable/disable interrupts
+                        kbio+6: begin AC_CLEAR <= 1; INPUTBUS <= kbchar; kbflag <= 0; end     // read kb char, clear flag
+                        ttio+1: begin IO_SKIP <= prflag; end                                  // skip if done printing
+                        ttio+2: begin prflag <= 0; end                                        // stop saying done printing
+                        ttio+4: begin prchar <= BAC; prfull <= 1; end                         // start printing char
+                        ttio+5: begin IO_SKIP <= INT_RQST; end                                // skip if requesting interrupt
+                        ttio+6: begin prchar <= BAC[07:00]; prflag <= 0; prfull <= 1; end     // start printing char, clear done flag
                     endcase
                 end
             end
