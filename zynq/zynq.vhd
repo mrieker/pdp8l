@@ -34,6 +34,10 @@ entity Zynq is
             LEDoutG : out STD_LOGIC;     -- IO_B34_LP7 Y16
             LEDoutB : out STD_LOGIC;     -- IO_B34_LN7 Y17
 
+            xnanostep : out STD_LOGIC;
+            xlastnano : out STD_LOGIC;
+            xnanocycle : out STD_LOGIC;
+
             -- arm processor memory bus interface (AXI)
             -- we are a slave for accessing the control registers (read & write)
             saxi_ARADDR : in std_logic_vector (11 downto 0);
@@ -163,7 +167,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4019";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C401D";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -267,7 +271,7 @@ architecture rtl of Zynq is
     signal swSR    : std_logic_vector (11 downto 0);
     signal swSTART : std_logic;
 
-    signal softenab, softclock, softreset : std_logic;
+    signal lastnanostep, nanocycle, nanostep, softreset : std_logic;
     signal inuseclock, inusereset : std_logic;
 
     -- arm interface signals
@@ -285,6 +289,7 @@ architecture rtl of Zynq is
 component pdp8l port (
     CLOCK : in std_logic;
     RESET : in std_logic;
+
     iBEMA         : in std_logic;
     iCA_INCREMENT : in std_logic;
     iDATA_IN      : in std_logic;
@@ -358,10 +363,15 @@ component pdp8l port (
     swSTOP  : in std_logic;
     swSR    : in std_logic_vector (11 downto 0);
     swSTART : in std_logic
+
     ;majstate  : out std_logic_vector ( 2 downto 0)
     ;timedelay : out std_logic_vector (10 downto 0)
     ;timestate : out std_logic_vector ( 4 downto 0)
     ;cyclectr  : out std_logic_vector ( 9 downto 0)
+
+    ;nanocycle : in std_logic
+    ;nanostep  : in std_logic
+    ;lastnanostep : out std_logic
 );
 end component;
 
@@ -387,6 +397,9 @@ end component;
  -- end component;
 
 begin
+    xnanostep <= nanostep;
+    xlastnano <= lastnanostep;
+    xnanocycle <= nanocycle;
 
     -- bus values that are constants
     saxi_BRESP <= b"00";        -- A3.4.4/A10.3 transfer OK
@@ -481,8 +494,8 @@ begin
             saxiWREADY <= '0';                              -- we are not ready to accept write data
             saxiBVALID <= '0';                              -- we are not acknowledging any write
 
-            softenab  <= '1';                               -- by default, software provides clock
-            softclock <= '0';                               -- by default, software clock is low
+            nanocycle <= '1';                               -- by default, software provides clock
+            nanostep  <= '0';                               -- by default, software clock is low
             softreset <= '1';                               -- by default, software reset asserted
 
             -- reset dma read registers
@@ -537,8 +550,8 @@ begin
                         i_MEMDONE     <= saxi_WDATA(13);
                         i_STROBE      <= saxi_WDATA(14);
                         softreset     <= saxi_WDATA(29);
-                        softclock     <= saxi_WDATA(30);
-                        softenab      <= saxi_WDATA(31);
+                        nanostep      <= saxi_WDATA(30);
+                        nanocycle     <= saxi_WDATA(31);
 
                     when b"00000010" =>
                         swCONT        <= saxi_WDATA(00);
@@ -679,8 +692,8 @@ begin
     regctla(14) <= i_STROBE;
     regctla(28 downto 15) <= (others => '0');
     regctla(29) <= softreset;
-    regctla(30) <= softclock;
-    regctla(31) <= softenab;
+    regctla(30) <= nanostep;
+    regctla(31) <= nanocycle;
 
     regctlb(00) <= swCONT;
     regctlb(01) <= swDEP;
@@ -749,12 +762,12 @@ begin
     regctlj(15 downto 00) <= x"0" & lbMA;
     regctlj(31 downto 16) <= x"0" & lbMB;
 
-    inuseclock <= CLOCK; -- softclock when softenab = '1' else CLOCK;
+    inuseclock <= nanostep when nanocycle = '1' else CLOCK;
     inusereset <= softreset or not RESET_N;
 
     LEDoutR <= not inusereset;
     LEDoutG <= not inuseclock;
-    LEDoutB <= not softenab;
+    LEDoutB <= not nanocycle;
 
     iINPUTBUS  <= ttibus or tt40ibus; -- or armibus
     i_AC_CLEAR <= not (ttacclr and not tt40acclr); -- and arm_acclr
@@ -762,7 +775,7 @@ begin
     i_IO_SKIP  <= not (ttioskip and not tt40ioskip); -- and arm_ioskip
 
     pdp8linst: pdp8l port map (
-        CLOCK         => inuseclock,
+        CLOCK         => CLOCK,
         RESET         => inusereset,
         iBEMA         => iBEMA,
         iCA_INCREMENT => iCA_INCREMENT,
@@ -841,6 +854,10 @@ begin
         ,timedelay => regctlk(13 downto 03)
         ,timestate => regctlk(18 downto 14)
         ,cyclectr  => regctlk(28 downto 19)
+
+        ,nanocycle => nanocycle
+        ,nanostep  => nanostep
+        ,lastnanostep => lastnanostep
     );
 
     regctlk(31 downto 29) <= (others => '0');

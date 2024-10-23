@@ -102,16 +102,40 @@ module pdp8l (
     ,output reg[10:0] timedelay
     ,output reg[ 4:0] timestate
     ,output reg[ 9:0] cyclectr
+
+    ,input nanocycle    // 0=normal; 1=use nanostep for clocking
+    ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
+    ,output reg lastnanostep
 );
 
-    localparam MS_START = 0;
-    localparam MS_FETCH = 1;
-    localparam MS_DEFER = 2;
-    localparam MS_EXEC  = 3;
-    localparam MS_WC    = 4;
-    localparam MS_CA    = 5;
-    localparam MS_BRK   = 6;
-    localparam MS_DEPOS = 7;
+    localparam MS_START = 0;        // figure out what to do next (also for exam & ldad switches)
+    localparam MS_FETCH = 1;        // memory cycle is fetching instruction
+    localparam MS_DEFER = 2;        // memory cycle is reading pointer
+    localparam MS_EXEC  = 3;        // memory cycle is for executing instruction
+    localparam MS_WC    = 4;        // memory cycle is for incrementing dma word count
+    localparam MS_CA    = 5;        // memory cycle is for reading dma address
+    localparam MS_BRK   = 6;        // memory cycle is for dma data word transfer
+    localparam MS_DEPOS = 7;        // memory cycle is for deposit switch
+
+    localparam TS_IDLE    =  0;     // figure out what to do next, does console switch processing if not running
+    localparam TS_TS1BODY =  1;     // tell memory to start reading location addressed by MA
+    localparam TS_TP1BEG  =  2;
+    localparam TS_TP1END  =  3;
+    localparam TS_TS2BODY =  4;     // get contents of memory into MB and modify according to majstate S_...
+    localparam TS_TP2BEG  =  5;
+    localparam TS_TP2END  =  6;
+    localparam TS_TS3BODY =  7;     // write contents of MB back to memory
+    localparam TS_TP3BEG  =  8;
+    localparam TS_TP3END  =  9;
+    localparam TS_BEGIOP1 = 10;
+    localparam TS_DOIOP1  = 11;     // maybe output IOP1
+    localparam TS_BEGIOP2 = 12;
+    localparam TS_DOIOP2  = 13;     // maybe output IOP2
+    localparam TS_BEGIOP4 = 14;
+    localparam TS_DOIOP4  = 15;     // maybe output IOP4
+    localparam TS_TS4BODY = 16;     // finish up instruction (modify ac, link, pc, etc)
+    localparam TS_TP4BEG  = 17;
+    localparam TS_TP4END  = 18;
 
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
@@ -211,26 +235,6 @@ module pdp8l (
     // set tp1 near end of ts1, then this circuit will transition to ts2 then clear tp1
     // likewise for ts2, 3, 4, but do not enter ts4 is 'withio' is set
 
-    localparam TS_IDLE    =  0;     // figure out what to do next, does console switch processing if not running
-    localparam TS_TS1BODY =  1;     // tell memory to start reading location addressed by MA
-    localparam TS_TP1BEG  =  2;
-    localparam TS_TP1END  =  3;
-    localparam TS_TS2BODY =  4;     // get contents of memory into MB and modify according to majstate S_...
-    localparam TS_TP2BEG  =  5;
-    localparam TS_TP2END  =  6;
-    localparam TS_TS3BODY =  7;     // write contents of MB back to memory
-    localparam TS_TP3BEG  =  8;
-    localparam TS_TP3END  =  9;
-    localparam TS_BEGIOP1 = 10;
-    localparam TS_DOIOP1  = 11;     // maybe output IOP1
-    localparam TS_BEGIOP2 = 12;
-    localparam TS_DOIOP2  = 13;     // maybe output IOP2
-    localparam TS_BEGIOP4 = 14;
-    localparam TS_DOIOP4  = 15;     // maybe output IOP4
-    localparam TS_TS4BODY = 16;     // finish up instruction (modify ac, link, pc, etc)
-    localparam TS_TP4BEG  = 17;
-    localparam TS_TP4END  = 18;
-
     assign tp1 = (timestate == TS_TP1BEG) | (timestate == TS_TP1END);
     assign tp2 = (timestate == TS_TP2BEG) | (timestate == TS_TP2END);
     assign tp3 = (timestate == TS_TP3BEG) | (timestate == TS_TP3END);
@@ -242,6 +246,7 @@ module pdp8l (
     assign ts4 = ((timestate == TS_TP3END) & ~ withio) | (timestate == TS_TS4BODY) | (timestate == TS_TP4BEG);
 
     always @(posedge CLOCK) begin
+
         if (RESET) begin
             timedelay <= 0;
             timestate <= TS_IDLE;
@@ -264,7 +269,7 @@ module pdp8l (
             o_LOAD_SF     <= 1;
 
             cyclectr      <= 0;
-        end else begin
+        end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
             cyclectr      <= cyclectr + 1;
 
             case (timestate)
@@ -414,6 +419,10 @@ module pdp8l (
                     if (timedelay != 21) timedelay <= timedelay + 1;
                     else begin
                         case (majstate)
+                            MS_FETCH: begin
+                                ir <= mb[11:09];
+                                irusedf <= ~ mb[11] & mb[08];
+                            end
                             MS_DEFER: if (ma[11:03] == 1) mb <= mb + 1;
                             MS_EXEC: case (ir)
                                 2: mb <= mb + 1;  // isz
@@ -482,7 +491,7 @@ module pdp8l (
                 end
 
                 //////////////////////////////////////////////////
-                //  if io instruciton, output the three pulses  //
+                //  if io instruction, output the three pulses  //
                 //////////////////////////////////////////////////
 
                 // delay between end of memory cycle and start of first io pulse
@@ -543,90 +552,92 @@ module pdp8l (
                 // finish up this cycle (400nS if did io, otherwise 480nS)
                 TS_TS4BODY: begin
                     if (timedelay != 48) timedelay <= timedelay + 1;
-                    else case (majstate)
-
-                        // end of FETCH cycle
-                        MS_FETCH: begin
-                            case (ir)
-
-                                // add, tad, isz, dca, jms
-                                0, 1, 2, 3, 4: begin
-                                    ma       <= effaddr;
-                                    majstate <= mb[08] ? MS_DEFER : MS_EXEC;
-                                end
-
-                                // jmp
-                                5: begin
-                                    if (mb[08]) begin
+                    else begin
+                        case (majstate)
+    
+                            // end of FETCH cycle
+                            MS_FETCH: begin
+                                case (ir)
+    
+                                    // add, tad, isz, dca, jms
+                                    0, 1, 2, 3, 4: begin
                                         ma       <= effaddr;
-                                        majstate <= MS_DEFER;
-                                    end else begin
-                                        pctr     <= effaddr;
+                                        majstate <= mb[08] ? MS_DEFER : MS_EXEC;
+                                    end
+    
+                                    // jmp
+                                    5: begin
+                                        if (mb[08]) begin
+                                            ma       <= effaddr;
+                                            majstate <= MS_DEFER;
+                                        end else begin
+                                            pctr     <= effaddr;
+                                            majstate <= MS_START;
+                                        end
+                                    end
+    
+                                    // iot - io cycles were already performed as part of this mem cycle so start another fetch
+                                    6: majstate <= MS_START;
+    
+                                    // opr - perform operation and start another fetch
+                                    7: begin
+                                        if (~ mb[08]) begin
+                                            acum  <= g1acum;
+                                            link  <= g1link;
+                                        end else if (~ mb[00]) begin
+                                            if (g2skip) pctr <= pctr + 1;
+                                            acum  <= g2acum;
+                                            runff <= ~ mb[01];
+                                        end
                                         majstate <= MS_START;
                                     end
-                                end
-
-                                // iot - i/o cycle was already performed by memory control so start another fetch
-                                6: majstate <= MS_START;
-
-                                // opr - perform operation and start another fetch
-                                7: begin
-                                    if (~ mb[08]) begin
-                                        acum  <= g1acum;
-                                        link  <= g1link;
-                                    end else if (~ mb[00]) begin
-                                        if (g2skip) pctr <= pctr + 1;
-                                        acum  <= g2acum;
-                                        runff <= ~ mb[01];
-                                    end
-                                    majstate <= MS_START;
-                                end
-                            endcase
-                        end
-
-                        // end of DEFER cycle
-                        MS_DEFER: begin
-                            if (ir == 5) begin
-                                pctr     <= ma;
-                                majstate <= MS_START;
-                            end else begin
-                                majstate <= MS_EXEC;
+                                endcase
                             end
-                        end
-
-                        // end of EXEC cycle
-                        MS_EXEC: begin
-                            case (ir)
-                                0: acum <= acum & mb;                           // and
-                                1: begin link <= tadlink; acum <= tadacum; end  // tad
-                                2: if (mb == 0) pctr <= pctr + 1;               // isz
-                                3: acum <= 0;                                   // dca
-                                4: pctr <= ma + 1;                              // jms
-                            endcase
-                            o_LOAD_SF <= 1;
-                            majstate  <= MS_START;
-                        end
-
-                        // end of wordcount
-                        MS_WC: begin
-                            ma       <= ma + 1;
-                            majstate <= MS_CA;
-                        end
-
-                        // end of currentaddress
-                        MS_CA: begin
-                            ma       <= mb;     // set up value as address for dma transfer
-                            majstate <= MS_BRK;
-                        end
-
-                        // end of break
-                        MS_BRK: begin
-                            o_ADDR_ACCEPT <= 1;
-                            majstate      <= MS_START;
-                        end
-                    endcase
-                    timedelay <= 0;
-                    timestate <= TS_TP4BEG;
+    
+                            // end of DEFER cycle
+                            MS_DEFER: begin
+                                if (ir == 5) begin
+                                    pctr     <= ma;
+                                    majstate <= MS_START;
+                                end else begin
+                                    majstate <= MS_EXEC;
+                                end
+                            end
+    
+                            // end of EXEC cycle
+                            MS_EXEC: begin
+                                case (ir)
+                                    0: acum <= acum & mb;                           // and
+                                    1: begin link <= tadlink; acum <= tadacum; end  // tad
+                                    2: if (mb == 0) pctr <= pctr + 1;               // isz
+                                    3: acum <= 0;                                   // dca
+                                    4: pctr <= ma + 1;                              // jms
+                                endcase
+                                o_LOAD_SF <= 1;
+                                majstate  <= MS_START;
+                            end
+    
+                            // end of wordcount
+                            MS_WC: begin
+                                ma       <= ma + 1;
+                                majstate <= MS_CA;
+                            end
+    
+                            // end of currentaddress
+                            MS_CA: begin
+                                ma       <= mb;     // set up value as address for dma transfer
+                                majstate <= MS_BRK;
+                            end
+    
+                            // end of break
+                            MS_BRK: begin
+                                o_ADDR_ACCEPT <= 1;
+                                majstate      <= MS_START;
+                            end
+                        endcase
+                        timedelay <= 0;
+                        timestate <= TS_TP4BEG;
+                    end
                 end
 
                 TS_TP4BEG: begin
@@ -639,17 +650,19 @@ module pdp8l (
                     else timestate <= TS_IDLE;
                 end
             endcase
+
+            // debounce front-panel momentary switches
+            if (~ (swCONT | swDEP | swEXAM | swLDAD | swSTART)) debounce <= 0;
+            else if (~ debounce[23]) debounce <= debounce + 24'h400000;  // ~84mS
+
+            // save these for transition testing
+            lastswCONT  <= swCONT;
+            lastswDEP   <= swDEP;
+            lastswEXAM  <= swEXAM;
+            lastswLDAD  <= swLDAD;
+            lastswSTART <= swSTART;
         end
 
-        // debounce front-panel momentary switches
-        if (~ (swCONT | swDEP | swEXAM | swLDAD | swSTART)) debounce <= 0;
-        else if (~ debounce[23]) debounce <= debounce + 24'h400000;  // ~84mS
-
-        // save these for transition testing
-        lastswCONT  <= swCONT;
-        lastswDEP   <= swDEP;
-        lastswEXAM  <= swEXAM;
-        lastswLDAD  <= swLDAD;
-        lastswSTART <= swSTART;
+        lastnanostep <= nanostep;
     end
 endmodule
