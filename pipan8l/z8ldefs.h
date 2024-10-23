@@ -53,8 +53,8 @@
 #define a_i_MEMDONE     (1U << 13)
 #define a_i_STROBE      (1U << 14)
 #define a_softreset     (1U << 29)
-#define a_softclock     (1U << 30)
-#define a_softenab      (1U << 31)
+#define a_nanostep      (1U << 30)
+#define a_nanocycle     (1U << 31)
 
 #define b_swCONT        (1U <<  0)
 #define b_swDEP         (1U <<  1)
@@ -118,12 +118,10 @@
 #define j_lbMA      (07777U <<  0)
 #define j_lbMB      (07777U << 16)
 
-#define k_state     (   7U <<  0)
-#define k_memodify  (   3U <<  3)
-#define k_memstate  (   7U <<  5)
-#define k_timedelay (   7U <<  8)
-#define k_timestate (  15U << 11)
-#define k_cyclectr  (1023U << 15)
+#define k_majstate  (    7U <<  0)
+#define k_timedelay (03777U <<  3)
+#define k_timestate (  037U << 14)
+#define k_cyclectr  (01777U << 19)
 
 #define c_iINPUTBUS0 (c_iINPUTBUS & - c_iINPUTBUS)
 #define c_iMEM0      (c_iMEM      & - c_iMEM)

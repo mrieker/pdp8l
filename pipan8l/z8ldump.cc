@@ -20,6 +20,9 @@
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 
+//  ./z8ldump.armv7l [-nano]
+//    -nano - press enter to do one fpga cycle at a time
+
 #include <fcntl.h>
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
@@ -53,15 +56,28 @@
 #define EOL ESC_EREOL "\n"
 #define EOP ESC_EREOP
 
-static char const *const memodifynames[4] = { "NONE", "DEPOS", "STATE", "???3" };
-static char const *const memstatenames[8] = { "IDLE", "START", "LOCAL", "EXTERN", "STARTIO", "DOIO", "FINISH", "???7" };
-static char const *const statenames[8] = { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "INTAK" };
-static char const *const timestatenames[16] = { "IDLE", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY", "TP3BEG", "TP3END", "TS4BODY", "TP4BEG", "TP4END", "???13", "???14", "???15" };
+static char const *const majstatenames[8] =
+    { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "DEPOS" };
+static char const *const timestatenames[32] =
+    { "IDLE", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
+        "TP3BEG", "TP3END", "BEGIOP1", "DOIOP1", "BEGIOP2", "DOIOP2", "BEGIOP4", "DOIOP4",
+        "TS4BODY", "TP4BEG", "TP4END", "???19", "???20", "???21", "???22", "???23",
+        "???24", "???25", "???26", "???27", "???28", "???29", "???30", "???31" };
 
 #define FIELD(index,mask) ((z8ls[index] & mask) / (mask & - mask))
 
-int main ()
+int main (int argc, char **argv)
 {
+    bool nanocycle = false;
+    for (int i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-nano") == 0) {
+            nanocycle = true;
+            continue;
+        }
+        fprintf (stderr, "unknown argument %s\n", argv[i]);
+        return 1;
+    }
+
     int zynqfd = open ("/proc/zynqgpio", O_RDWR);
     if (zynqfd < 0) {
         fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
@@ -81,6 +97,11 @@ int main ()
         fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
         ABORT ();
     }
+
+    // make sure nanostep (the clocking pulse) is clear
+    // set nanocycle (enables clocking via nanostep) only if -nano option given
+    uint32_t rega = zynqpage[Z_RA];
+    zynqpage[Z_RA] = (rega & ~ a_nanocycle & ~ a_nanostep) | (nanocycle ? a_nanocycle : 0);
 
     while (true) {
         usleep (1000);
@@ -107,8 +128,8 @@ int main ()
         printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
         printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
         printf ("  softreset=%o", FIELD (Z_RA, a_softreset));
-        printf ("  softclock=%o", FIELD (Z_RA, a_softclock));
-        printf ("  softenab=%o", FIELD (Z_RA, a_softenab));
+        printf ("  nanostep=%o", FIELD (Z_RA, a_nanostep));
+        printf ("  nanocycle=%o", FIELD (Z_RA, a_nanocycle));
 
         printf ("  swCONT=%o", FIELD (Z_RB, b_swCONT));
         printf ("  swDEP=%o", FIELD (Z_RB, b_swDEP));
@@ -172,13 +193,30 @@ int main ()
         printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
 
-        printf ("  state=%-5s", statenames[FIELD(Z_RK,k_state)]);
-        printf ("  memodify=%-5s", memodifynames[FIELD(Z_RK,k_memodify)]);
-        printf ("  memstate=%-7s", memstatenames[FIELD(Z_RK,k_memstate)]);
-        printf ("  timedelay=%u", FIELD (Z_RK, k_timedelay));
+        printf ("  state=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
+        printf ("  timedelay=%04u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
         printf ("  cyclectr=%05u", FIELD (Z_RK, k_cyclectr));
 
         printf (EOL EOP);
+
+        if (nanocycle) {
+            char temp[8];
+            printf ("\n > ");
+            fflush (stdout);
+            if (fgets (temp, sizeof temp, stdin) == NULL) break;
+            uint32_t startcount = zynqpage[Z_RK] & k_cyclectr;
+            zynqpage[Z_RA] &= ~ a_nanostep;
+            zynqpage[Z_RA] |=   a_nanostep;
+            for (int i = 0; (zynqpage[Z_RK] & k_cyclectr) == startcount; i ++) {
+                if (i > 1000) {
+                    fprintf (stderr, "timed out waiting for cycle count increment\n");
+                    break;
+                }
+            }
+            zynqpage[Z_RA] &= ~ a_nanostep;
+        }
     }
+    printf ("\n");
+    return 0;
 }

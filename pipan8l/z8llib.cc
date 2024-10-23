@@ -19,6 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
+// We get signals that look a lot like the B,C,D 34,35,36 connectors and the front panel
 
 #include <fcntl.h>
 #include <linux/i2c.h>
@@ -167,21 +168,13 @@ void Z8LLib::openpads ()
         ABORT ();
     }
 
-    usleep (10);
-    zynqpage[Z_RA] = a_softenab | a_softreset;
-    usleep (10);
-    zynqpage[Z_RA] = a_softenab | a_softreset | a_softclock;
-    usleep (10);
-    zynqpage[Z_RA] = a_softenab | a_softreset;
-
     for (int i = 0; i < Z_N; i ++) {
-        usleep (10);
-        zynqpage[i] = ((i == Z_RA) ? (a_softenab | a_softreset) : 0) | forceons[i];
+        zynqpage[i] = ((i == Z_RA) ? a_softreset : 0) | forceons[i];
     }
     usleep (10);
 }
 
-// read pins from zynq pdp8l
+// read pins from zynq pdp8l.v
 void Z8LLib::readpads (uint16_t *pads)
 {
     uint32_t z8ls[Z_N];
@@ -204,7 +197,7 @@ void Z8LLib::readpads (uint16_t *pads)
     }
 }
 
-// write values to zynq pdp8l
+// write values to zynq pdp8l.v
 void Z8LLib::writepads (uint16_t const *pads)
 {
     uint32_t z8ls[Z_N];
@@ -221,43 +214,9 @@ void Z8LLib::writepads (uint16_t const *pads)
         }
     }
 
-    z8ls[Z_RA] = (z8ls[Z_RA] | a_softenab) & ~ a_softreset & ~ a_softclock;
+    z8ls[Z_RA] |= zynqpage[Z_RA] & a_nanocycle;
 
     for (int i = 0; i < Z_N; i ++) {
         zynqpage[i] = z8ls[i];
-    }
-
-    // if envar z8lclocks defined, clock it that many times silently
-    int clocks = 0;
-    char const *env = getenv ("z8lclocks");
-    if (env != NULL) clocks = atoi (env);
-    if (clocks > 0) {
-        while (-- clocks > 0) {
-            usleep (10);
-            zynqpage[Z_RA] = z8ls[Z_RA] | a_softclock;
-            usleep (10);
-            zynqpage[Z_RA] = z8ls[Z_RA];
-        }
-        usleep (10);
-        return;
-    }
-
-    // otherwise, output prompt for clocking
-    printf ("Z8LLib::writepads*: = = = = = = = =\n");
-    int iter = 0;
-    while (true) {
-        usleep (10);
-        zynqpage[Z_RA] ^= a_softclock;
-        usleep (10);
-        if (-- iter <= 0) {
-            printf ("Z8LLib::writepads*: > ");
-            fflush (stdout);
-            char buff[8];
-            int rc = read (STDIN_FILENO, buff, sizeof buff);
-            if (rc <= 0) break;
-            if (buff[0] == '\n') continue;
-            iter = atoi (buff);
-            if (iter <= 0) break;
-        }
     }
 }
