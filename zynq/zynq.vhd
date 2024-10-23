@@ -165,7 +165,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C0010";   -- '8L' ##
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4015";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -272,6 +272,11 @@ architecture rtl of Zynq is
     signal softenab, softclock, softreset : std_logic;
     signal inuseclock, inusereset : std_logic;
 
+    -- tty interface signals
+    signal ttardata : std_logic_vector (31 downto 0);
+    signal ttibus : std_logic_vector (11 downto 0);
+    signal ttawpuls, ttacclr, ttintrq, ttioskip : std_logic;
+
 component pdp8l port (
     CLOCK : in std_logic;
     RESET : in std_logic;
@@ -357,6 +362,27 @@ component pdp8l port (
 );
 end component;
 
+component pdp8ltty port (
+    CLOCK, RESET : in std_logic;
+    armwpulse : in std_logic;
+    armraddr, armwaddr : in std_logic_vector (1 downto 0);
+    armwdata : in std_logic_vector (31 downto 0);
+    armrdata : in std_logic_vector (31 downto 0);
+
+    INPUTBUS : out std_logic_vector (11 downto 0);
+    AC_CLEAR : out std_logic;
+    INT_RQST : out std_logic;
+    IO_SKIP : out std_logic;
+
+    BAC : in std_logic_vector (11 downto 0);
+    BIOP1 : in std_logic;
+    BIOP2 : in std_logic;
+    BIOP4 : in std_logic;
+    BMB : in std_logic_vector (11 downto 0);
+    BUSINIT : in std_logic
+);
+end component;
+
 begin
 
     -- bus values that are constants
@@ -423,7 +449,7 @@ begin
     -- send register being read to ARM --
     -------------------------------------
 
-    saxi_RDATA <=   VERSION when readaddr = b"0000000000" else
+    saxi_RDATA <=   VERSION when readaddr = b"0000000000" else              -- 00000000xx00
                     regctla when readaddr = b"0000000001" else
                     regctlb when readaddr = b"0000000010" else
                     regctlc when readaddr = b"0000000011" else
@@ -435,6 +461,7 @@ begin
                     regctli when readaddr = b"0000001001" else
                     regctlj when readaddr = b"0000001010" else
                     regctlk when readaddr = b"0000001011" else
+                    ttardata when readaddr(11 downto 4) = b"00001000" else  -- 00001000xx00
                     x"DEADBEEF";
 
     -- A3.3.1 Read transaction dependencies
@@ -718,7 +745,7 @@ begin
     regctlj(15 downto 00) <= x"0" & lbMA;
     regctlj(31 downto 16) <= x"0" & lbMB;
 
-    inuseclock <= softclock when softenab = '1' else CLOCK;
+    inuseclock <= CLOCK; -- softclock when softenab = '1' else CLOCK;
     inusereset <= softreset or not RESET_N;
 
     LEDoutR <= not inusereset;
@@ -810,5 +837,30 @@ begin
     );
 
     regctlk(31 downto 25) <= (others => '0');
+    
+    -- teletype interface
+
+    ttawpuls <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"08") else '0';
+
+    ttinst: pdp8ltty port map (
+        CLOCK => inuseclock,
+        RESET => inusereset,
+        armwpulse => ttawpuls,
+        armraddr => readaddr(3 downto 2),
+        armwaddr => writeaddr(3 downto 2),
+        armwdata => saxi_WDATA,
+        armrdata => ttardata,
+
+        INPUTBUS => ttibus,
+        AC_CLEAR => ttacclr,
+        INT_RQST => ttintrq,
+        IO_SKIP  => ttioskip,
+        BAC => oBAC,
+        BIOP1 => oBIOP1,
+        BIOP2 => oBIOP2,
+        BIOP4 => oBIOP4,
+        BMB => oBMB,
+        BUSINIT => oBUSINIT
+    );
 
 end rtl;

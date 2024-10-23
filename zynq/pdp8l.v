@@ -21,54 +21,54 @@
 // PDP-8/L-like processor, using the signals on the B,C,D 34,35,36 connectors plus front panel
 
 module pdp8l (
-    input CLOCK, RESET,
-    input iBEMA,          // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
-    input iCA_INCREMENT,  // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
-    input iDATA_IN,       // C36-M2,p15 B-2,J11-32,,,
-    input[11:00] iINPUTBUS,      // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
-    input iMEMINCR,       // C36-T2,p15 B-1,J11-18,,,
-    input iMEM,           // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
-    input iMEM_P,         // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
-    input iTHREECYCLE,    // C35-K2,p15 A-3,J11-38,,C22,
-    input i_AC_CLEAR,     // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
-    input i_BRK_RQST,     // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
-    input[11:00] i_DMAADDR,      // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
-    input[11:00] i_DMADATA,      // C35-B1,p15 A-8,DMABUSA,,,gated out to CPU by x_DMADATA
-    input i_EA,           // B34-B1,p18 C-8,J11-53,,B30,high: use CPU core stack for mem cycle; low: block using CPU core stack
-    input i_EMA,          // B35-V2,p5 B-7,J11-51,,B29,goes to EA light bulb on front panel
-    input i_INT_INHIBIT,  // B36-L1,p9 B-3,J12-66,,,
-    input i_INT_RQST,     // D34-M2,p15 C-3,J12-23,,D32,open collector out to CPU
-    input i_IO_SKIP,      // D34-K2,p15 C-3,J12-28,,D30,gated out to CPU by x_INPUTBUS
-    input i_MEMDONE,      // B34-V2,p4 C-7,J11-55,,B32,gated out to CPU by x_MEM
-    input i_STROBE,       // B34-S2,p4 C-6,J11-59,,B35,gated out to CPU by x_MEM
-    output[11:00] oBAC,           // D36-B1,p15 D-8,PIOBUSA,,,gated onto PIOBUS by r_BAC
-    output oBIOP1,         // D36-K2,p15 D-3,J12-34,,,
-    output oBIOP2,         // D36-M2,p15 D-3,J12-32,,,
-    output oBIOP4,         // D36-P2,p15 D-2,J12-26,,,
-    output[11:00] oBMB,           // D35-B1,p15 D-8,PIOBUSH,,,gated from CPU onto PIOBUS by r_BMB
-    output oBTP2,          // B34-T2,p4 C-5,J11-61,,B36,
-    output oBTP3,          // B36-H1,p4 C-4,J12-73,,,
-    output oBTS_1,         // D36-T2,p15 D-1,J12-25,,,
-    output oBTS_3,         // D36-S2,p15 D-2,J12-22,,,
-    output oBUSINIT,       // D36-V2,p15 D-1,,,,redundant bus init
-    output reg oBWC_OVERFLOW,  // C35-P2,p15 A-2,J11-16,,C33,
-    output oB_BREAK,       // C36-P2,p15 B-2,J11-26,,,
-    output oE_SET_F_SET,   // B36-D2,p22 C-3,J12-72,,,
-    output oJMP_JMS,       // B36-E2,p22 C-3,J11-63,,,
-    output oLINE_LOW,      // B36-V2,p18 B-7,J12-43,,,?? op amp output maybe needs clipping diodes
-    output[11:00] oMA,            // B34-D1,p22 D-8,MEMBUSH,,,gated from CPU onto MEMBUS by r_MA
-    output reg oMEMSTART,      // B34-P2,p4 D-8,J11-57,,B33,
-    output reg o_ADDR_ACCEPT,  // C36-S2,p15 S-2,J11-22,,,
-    output o_BF_ENABLE,    // B36-E1,p22 C-6,J12-69,,,
-    output o_BUSINIT,      // C36-V2,p15 B-1,J11-9,,,?? active low bus init
-    output o_B_RUN,        // D34-S2,p15 C-1,J12-29,,D36,run flipflop on p4 B-2
-    output o_DF_ENABLE,    // B36-B1,p22 C-7,J12-65,,,
-    output o_KEY_CLEAR,    // B36-J1,p22 C-5,J12-68,,,
-    output o_KEY_DF,       // B36-S1,p22 C-4,J12-44,,,
-    output o_KEY_IF,       // B36-P1,p22 C-4,J12-46,,,
-    output o_KEY_LOAD,     // B36-H2,p22 C-3,J11-85,,,
-    output reg o_LOAD_SF,      // B36-M1,p22 C-5,J12-52,,,
-    output o_SP_CYC_NEXT,  // B36-D1,p22 C-6,J12-67,,,
+    input CLOCK, RESET,         // fpga 100MHz clock and reset
+    input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
+    input iCA_INCREMENT,        // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
+    input iDATA_IN,             // C36-M2,p15 B-2,J11-32,,,
+    input[11:00] iINPUTBUS,     // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
+    input iMEMINCR,             // C36-T2,p15 B-1,J11-18,,,
+    input[11:00] iMEM,          // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
+    input iMEM_P,               // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
+    input iTHREECYCLE,          // C35-K2,p15 A-3,J11-38,,C22,
+    input i_AC_CLEAR,           // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
+    input i_BRK_RQST,           // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
+    input[11:00] i_DMAADDR,     // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
+    input[11:00] i_DMADATA,     // C35-B1,p15 A-8,DMABUSA,,,gated out to CPU by x_DMADATA
+    input i_EA,                 // B34-B1,p18 C-8,J11-53,,B30,high: use CPU core stack for mem cycle; low: block using CPU core stack
+    input i_EMA,                // B35-V2,p5 B-7,J11-51,,B29,goes to EA light bulb on front panel
+    input i_INT_INHIBIT,        // B36-L1,p9 B-3,J12-66,,,
+    input i_INT_RQST,           // D34-M2,p15 C-3,J12-23,,D32,open collector out to CPU
+    input i_IO_SKIP,            // D34-K2,p15 C-3,J12-28,,D30,gated out to CPU by x_INPUTBUS
+    input i_MEMDONE,            // B34-V2,p4 C-7,J11-55,,B32,gated out to CPU by x_MEM
+    input i_STROBE,             // B34-S2,p4 C-6,J11-59,,B35,gated out to CPU by x_MEM
+    output[11:00] oBAC,         // D36-B1,p15 D-8,PIOBUSA,,,gated onto PIOBUS by r_BAC
+    output oBIOP1,              // D36-K2,p15 D-3,J12-34,,,
+    output oBIOP2,              // D36-M2,p15 D-3,J12-32,,,
+    output oBIOP4,              // D36-P2,p15 D-2,J12-26,,,
+    output[11:00] oBMB,         // D35-B1,p15 D-8,PIOBUSH,,,gated from CPU onto PIOBUS by r_BMB
+    output oBTP2,               // B34-T2,p4 C-5,J11-61,,B36,
+    output oBTP3,               // B36-H1,p4 C-4,J12-73,,,
+    output oBTS_1,              // D36-T2,p15 D-1,J12-25,,,
+    output oBTS_3,              // D36-S2,p15 D-2,J12-22,,,
+    output oBUSINIT,            // D36-V2,p15 D-1,,,,redundant bus init
+    output reg oBWC_OVERFLOW,   // C35-P2,p15 A-2,J11-16,,C33,
+    output oB_BREAK,            // C36-P2,p15 B-2,J11-26,,,
+    output oE_SET_F_SET,        // B36-D2,p22 C-3,J12-72,,,
+    output oJMP_JMS,            // B36-E2,p22 C-3,J11-63,,,
+    output oLINE_LOW,           // B36-V2,p18 B-7,J12-43,,,?? op amp output maybe needs clipping diodes
+    output[11:00] oMA,          // B34-D1,p22 D-8,MEMBUSH,,,gated from CPU onto MEMBUS by r_MA
+    output reg oMEMSTART,       // B34-P2,p4 D-8,J11-57,,B33,
+    output reg o_ADDR_ACCEPT,   // C36-S2,p15 S-2,J11-22,,,
+    output o_BF_ENABLE,         // B36-E1,p22 C-6,J12-69,,,
+    output o_BUSINIT,           // C36-V2,p15 B-1,J11-9,,,?? active low bus init
+    output o_B_RUN,             // D34-S2,p15 C-1,J12-29,,D36,run flipflop on p4 B-2
+    output o_DF_ENABLE,         // B36-B1,p22 C-7,J12-65,,,
+    output o_KEY_CLEAR,         // B36-J1,p22 C-5,J12-68,,,
+    output o_KEY_DF,            // B36-S1,p22 C-4,J12-44,,,
+    output o_KEY_IF,            // B36-P1,p22 C-4,J12-46,,,
+    output o_KEY_LOAD,          // B36-H2,p22 C-3,J11-85,,,
+    output reg o_LOAD_SF,       // B36-M1,p22 C-5,J12-52,,,
+    output o_SP_CYC_NEXT,       // B36-D1,p22 C-6,J12-67,,,
 
     // front panel
     output[11:00] lbAC,
@@ -79,7 +79,7 @@ module pdp8l (
     output lbEXE,
     output lbFET,
     output lbION,
-    output lbIR,
+    output[2:0] lbIR,
     output lbLINK,
     output[11:00] lbMA,
     output[11:00] lbMB,
