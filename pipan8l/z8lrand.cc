@@ -114,7 +114,7 @@ int main (int argc, char **argv)
     // select manual clocking and reset the pdp8l.v processor
     // disable the io boards so we can generate random io instructions
     // this should also clear accumulator and link
-    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_testioins | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_testioins | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     zynqpage[Z_RB] = 0;
     zynqpage[Z_RC] = 0;
     zynqpage[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
@@ -137,32 +137,47 @@ int main (int argc, char **argv)
     dostart ();
 
     // run random instructions, verifying the cycles
-    long long unsigned instrno = 0;
+    uint32_t instrno = 0;
     while (true) {
+
+        // once through this loop per instruction
+
         uint32_t startclockno = clockno;
 
         uint16_t effaddr = 0;
         uint16_t opcode  = 0;
         uint16_t randsr  = 0;
 
+        // clock to TS_IDLE so we know it is about to check for breaks and interrupt requests
+        for (int i = 0; (zynqpage[Z_RK] & k_timestate) == (TS_IDLE * k_timestate0); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before fetch\n");
+            clockit ();
+        }
+
         // maybe interrupt request is next
-        if (intrequest & intenabled) {
+        if (intrequest && intenabled && (zynqpage[Z_RA] & a_i_INT_INHIBIT) && ((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0))) {
+            for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
+                if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
+                clockit ();
+            }
+            printf ("%10u  L.AC=%o.%04o PC=%04o : interrupt acknowledge", ++ instrno, linc, acum, pctr);
+
+            intrequest = false; //TODO: drop request random number of cycles later
+            zynqpage[Z_RA] |= a_i_INT_RQST;
+
+            // disable interrupts then execute a JMS 0 instruction
             intdelayed = false;
             intenabled = false;
             opcode     = 04000;
-            for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
-                if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
-            }
-            printf ("%12llu  L.AC=%o.%04o PC=%04o : interrupt acknowledge", ++ instrno, linc, acum, pctr);
-
-            intrequest = false;
-            zynqpage[Z_RA] |= a_i_INT_RQST;
         } else {
+
+            // delayed ION active now that we are about to do a fetch
             intenabled = intdelayed;
 
             // send random opcode
-            opcode = randbits (12);
-            printf ("%12llu  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
+            do opcode = randbits (12);  // HLT with interrupt barfs
+            while (intrequest && intenabled && (opcode & 07402) == 07402);
+            printf ("%10u  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
 
             // set random switch register contents if about to do an OSR instruction
             if (((opcode & 07401) == 07400) && (opcode & 0004)) {
@@ -496,15 +511,14 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
     zynqpage[Z_RA] |= a_i_MEMDONE;
 
     // maybe start requesting an interrupt
-    /***
-    if (! intrequest) {
+    // don't do it if we are about to execute an HLT instruction or it will puque
+    if (! intrequest && ((state != g_lbFET) || ((rdata & 07402) != 07402))) {
         intrequest = randbits (10) == 0;
         if (intrequest) {
             printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
             zynqpage[Z_RA] &= ~ a_i_INT_RQST;
         }
     }
-    ***/
 }
 
 static void debounce ()
@@ -597,6 +611,7 @@ static void dumpstate ()
     uint32_t majstate  = (zynqpage[Z_RK] & k_majstate)  / k_majstate0;
     uint32_t timestate = (zynqpage[Z_RK] & k_timestate) / k_timestate0;
     uint32_t timedelay = (zynqpage[Z_RK] & k_timedelay) / k_timedelay0;
-    printf ("majstate=%s timestate=%s timedelay=%u\n",
-        majstatenames[majstate], timestatenames[timestate], timedelay);
+    uint32_t ir = (zynqpage[Z_RG] & g_lbIR) / g_lbIR0;
+    printf ("clockno=%u ir=%o majstate=%s timestate=%s timedelay=%u\n",
+        clockno, ir, majstatenames[majstate], timestatenames[timestate], timedelay);
 }
