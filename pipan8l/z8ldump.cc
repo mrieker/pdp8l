@@ -112,6 +112,7 @@ int main (int argc, char **argv)
         }
 
         printf (ESC_HOMEC);
+        printf ("VERSION=%08X", z8ls[Z_VER]);
         printf ("  iBEMA=%o", FIELD (Z_RA, a_iBEMA));
         printf ("  iCA_INCREMENT=%o", FIELD (Z_RA, a_iCA_INCREMENT));
         printf ("  iDATA_IN=%o", FIELD (Z_RA, a_iDATA_IN));
@@ -193,10 +194,10 @@ int main (int argc, char **argv)
         printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
 
-        printf ("  state=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
+        printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
         printf ("  timedelay=%04u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
-        printf ("  cyclectr=%05u", FIELD (Z_RK, k_cyclectr));
+        printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
 
         printf (EOL EOP);
 

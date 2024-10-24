@@ -135,5 +135,37 @@
 #define i_lbAC0      (i_lbAC      & - i_lbAC)
 #define j_lbMA0      (j_lbMA      & - j_lbMA)
 #define j_lbMB0      (j_lbMB      & - j_lbMB)
+#define k_majstate0  (k_majstate  & - k_majstate)
+#define k_timedelay0 (k_timedelay & - k_timedelay)
+#define k_timestate0 (k_timestate & - k_timestate)
+
+#define MS_START 0        // figure out what to do next (also for exam & ldad switches)
+#define MS_FETCH 1        // memory cycle is fetching instruction
+#define MS_DEFER 2        // memory cycle is reading pointer
+#define MS_EXEC  3        // memory cycle is for executing instruction
+#define MS_WC    4        // memory cycle is for incrementing dma word count
+#define MS_CA    5        // memory cycle is for reading dma address
+#define MS_BRK   6        // memory cycle is for dma data word transfer
+#define MS_DEPOS 7        // memory cycle is for deposit switch
+
+#define TS_IDLE     0     // figure out what to do next, does console switch processing if not running
+#define TS_TS1BODY  1     // tell memory to start reading location addressed by MA
+#define TS_TP1BEG   2
+#define TS_TP1END   3
+#define TS_TS2BODY  4     // get contents of memory into MB and modify according to majstate S_...
+#define TS_TP2BEG   5
+#define TS_TP2END   6
+#define TS_TS3BODY  7     // write contents of MB back to memory
+#define TS_TP3BEG   8
+#define TS_TP3END   9
+#define TS_BEGIOP1 10
+#define TS_DOIOP1  11     // maybe output IOP1
+#define TS_BEGIOP2 12
+#define TS_DOIOP2  13     // maybe output IOP2
+#define TS_BEGIOP4 14
+#define TS_DOIOP4  15     // maybe output IOP4
+#define TS_TS4BODY 16     // finish up instruction (modify ac, link, pc, etc)
+#define TS_TP4BEG  17
+#define TS_TP4END  18
 
 #endif

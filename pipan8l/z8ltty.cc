@@ -63,13 +63,15 @@ int main (int argc, char **argv)
 
     uint32_t volatile *zynqpage = (uint32_t volatile *) zynqptr;
 
-    for (int i = 0; i < 1024; i += 16) {
-        printf ("%03X:", i);
-        for (int j = 0; j < 16; j ++) {
-            printf (" %08X", zynqpage[i+j]);
+    /***
+        for (int i = 0; i < 1024; i += 16) {
+            printf ("%03X:", i);
+            for (int j = 0; j < 16; j ++) {
+                printf (" %08X", zynqpage[i+j]);
+            }
+            printf ("\n");
         }
-        printf ("\n");
-    }
+    ***/
 
     uint32_t volatile *ttyat = NULL;
     for (int i = 0; i < 1024;) {
@@ -108,8 +110,13 @@ found:;
             uint32_t prreg = ttyat[Z_TTYPR];
             if (prreg & 0x40000000) {
                 uint8_t prchar = prreg & 0x7F;
-                int rc = write (STDOUT_FILENO, &prchar, 1);
-                if (rc <= 0) ABORT ();
+                if (prchar == 7) {
+                    int rc = write (STDOUT_FILENO, "<BEL>", 5);
+                    if (rc <= 0) ABORT ();
+                } else {
+                    int rc = write (STDOUT_FILENO, &prchar, 1);
+                    if (rc <= 0) ABORT ();
+                }
                 setprintdoneat = nowus + 100000;
             }
         }
@@ -130,5 +137,7 @@ found:;
     }
 
     if (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0) ABORT ();
+    printf ("\n");
+
     return 0;
 }
