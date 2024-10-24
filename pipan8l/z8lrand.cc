@@ -142,6 +142,8 @@ int main (int argc, char **argv)
 
         // once through this loop per instruction
 
+        printf ("%10u  L.AC=%o.%04o PC=%04o : ", ++ instrno, linc, acum, pctr);
+
         uint32_t startclockno = clockno;
 
         uint16_t effaddr = 0;
@@ -154,220 +156,257 @@ int main (int argc, char **argv)
             clockit ();
         }
 
-        // maybe interrupt request is next
-        if (intrequest && intenabled && (zynqpage[Z_RA] & a_i_INT_INHIBIT) && ((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0))) {
-            for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
-                if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
-                clockit ();
+        // maybe do a dma cycle
+        if (((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0)) && (randbits (8) == 0)) {
+
+            // have both TS_IDLE and MS_START, raise BRK_RQST and next clock should be in it
+            bool threecycle = randbits (1);
+            uint16_t dmaaddr = randbits (12);
+            printf ("DMA %d-cycle", (threecycle ? 3 : 1));
+            zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
+            zynqpage[Z_RD] = (zynqpage[Z_RD] | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
+            clockit ();
+            if (threecycle) {
+                uint16_t oldwordcount = randbits (12);
+                uint16_t newwordcount = (oldwordcount + 1) & 07777;
+                printf ("  WC:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
+                memorycycle (g_lbWC, dmaaddr, oldwordcount, newwordcount);
+                verifybit (Z_RF, f_oBWC_OVERFLOW, newwordcount == 0, "BWC OVERFLOW at end of WC cycle");
+                dmaaddr = (dmaaddr + 1) & 07777;
+                bool cainc = randbits (1);
+                uint16_t oldcuraddr = randbits (12);
+                uint16_t newcuraddr = (oldcuraddr + cainc) & 07777;
+                printf ("  CA:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
+                zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_iCA_INCREMENT) | (cainc ? a_iCA_INCREMENT : 0);
+                memorycycle (g_lbCA, dmaaddr, oldcuraddr, newcuraddr);
+                dmaaddr = newcuraddr;
             }
-            printf ("%10u  L.AC=%o.%04o PC=%04o : interrupt acknowledge", ++ instrno, linc, acum, pctr);
-
-            intrequest = false; //TODO: drop request random number of cycles later
-            zynqpage[Z_RA] |= a_i_INT_RQST;
-
-            // disable interrupts then execute a JMS 0 instruction
-            intdelayed = false;
-            intenabled = false;
-            opcode     = 04000;
+            bool dmadatain  = true;  //TODO// randbits (1);  // true: just reading memory; false: writing memory
+            bool dmameminc  = false; //TODO// randbits (1);  // true: increment value read; false: leave value as read
+            uint16_t dmardata = randbits (12);
+            uint16_t dmawdata = ((dmadatain ? dmardata : randbits (12)) + dmameminc) & 07777;
+            printf ("  BRK:%04o / %04o <= %04o", dmaaddr, dmardata, dmawdata);
+            zynqpage[Z_RA]  = (zynqpage[Z_RA] & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
+            zynqpage[Z_RD]  = (zynqpage[Z_RD] | d_i_DMADATA) & ~ (dmawdata * d_i_DMADATA0);
+            memorycycle (g_lbBRK, dmaaddr, dmardata, dmawdata);
+            zynqpage[Z_RA] |= a_i_BRK_RQST;
         } else {
 
-            // delayed ION active now that we are about to do a fetch
-            intenabled = intdelayed;
+            // maybe interrupt request is next
+            if (intrequest && intenabled && (zynqpage[Z_RA] & a_i_INT_INHIBIT) && ((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0))) {
+                for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
+                    if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
+                    clockit ();
+                }
+                printf ("interrupt acknowledge");
 
-            // send random opcode
-            do opcode = randbits (12);  // HLT with interrupt barfs
-            while (intrequest && intenabled && (opcode & 07402) == 07402);
-            printf ("%10u  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
+                intrequest = false; //TODO: drop request random number of cycles later
+                zynqpage[Z_RA] |= a_i_INT_RQST;
 
-            // set random switch register contents if about to do an OSR instruction
-            if (((opcode & 07401) == 07400) && (opcode & 0004)) {
-                randsr = randbits (12);
-                zynqpage[Z_RE] = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+                // disable interrupts then execute a JMS 0 instruction
+                intdelayed = false;
+                intenabled = false;
+                opcode     = 04000;
+            } else {
+
+                // delayed ION active now that we are about to do a fetch
+                intenabled = intdelayed;
+
+                // send random opcode
+                do opcode = randbits (12);  // HLT with interrupt barfs
+                while (intrequest && intenabled && (opcode & 07402) == 07402);
+                printf ("OP=%04o  %s", opcode, disassemble (opcode, pctr).c_str ());
+
+                // set random switch register contents if about to do an OSR instruction
+                if (((opcode & 07401) == 07400) && (opcode & 0004)) {
+                    randsr = randbits (12);
+                    zynqpage[Z_RE] = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+                }
+
+                // perform fetch memory cycle
+                memorycycle (g_lbFET, pctr, opcode, opcode);
+                effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
+                pctr = (pctr + 1) & 07777;
+
+                // maybe do a defer cycle
+                if (((opcode & 07000) < 06000) && (opcode & 0400)) {
+                    uint16_t pointer = randbits (12);
+                    uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
+                    printf (" / %04o", autoinc);
+                    memorycycle (g_lbDEF, effaddr, pointer, autoinc);
+                    effaddr = autoinc;
+                }
             }
 
-            // perform fetch memory cycle
-            memorycycle (g_lbFET, pctr, opcode, opcode);
-            effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
-            pctr = (pctr + 1) & 07777;
+            // do the exec cycle
+            switch (opcode >> 9) {
 
-            // maybe do a defer cycle
-            if (((opcode & 07000) < 06000) && (opcode & 0400)) {
-                uint16_t pointer = randbits (12);
-                uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
-                printf (" / %04o", autoinc);
-                memorycycle (g_lbDEF, effaddr, pointer, autoinc);
-                effaddr = autoinc;
-            }
-        }
-
-        // do the exec cycle
-        switch (opcode >> 9) {
-
-            // and, tad, isz, dca, jms
-            case 0: case 1: case 2: case 3: case 4: {
-                uint16_t operand = randbits (12);
-                printf (" / %04o", operand);
-                switch (opcode >> 9) {
-                    case 0: {
-                        memorycycle (g_lbEXE, effaddr, operand, operand);
-                        acum &= operand;
-                        printf (" => %04o", acum);
-                        break;
+                // and, tad, isz, dca, jms
+                case 0: case 1: case 2: case 3: case 4: {
+                    uint16_t operand = randbits (12);
+                    printf (" / %04o", operand);
+                    switch (opcode >> 9) {
+                        case 0: {
+                            memorycycle (g_lbEXE, effaddr, operand, operand);
+                            acum &= operand;
+                            printf (" => %04o", acum);
+                            break;
+                        }
+                        case 1: {
+                            memorycycle (g_lbEXE, effaddr, operand, operand);
+                            uint16_t sum = acum + (linc ? 010000 : 0) + operand;
+                            acum = sum & 07777;
+                            linc = (sum >> 12) & 1;
+                            printf (" => %o.%04o", linc, acum);
+                            break;
+                        }
+                        case 2: {
+                            uint16_t incd = (operand + 1) & 07777;
+                            printf (" => %04o", incd);
+                            memorycycle (g_lbEXE, effaddr, operand, incd);
+                            if (incd == 0) pctr = (pctr + 1) & 07777;
+                            break;
+                        }
+                        case 3: {
+                            printf (" <= %04o", acum);
+                            memorycycle (g_lbEXE, effaddr, operand, acum);
+                            acum = 0;
+                            break;
+                        }
+                        case 4: {
+                            printf (" <= %04o", pctr);
+                            memorycycle (g_lbEXE, effaddr, operand, pctr);
+                            pctr = (effaddr + 1) & 07777;
+                            break;
+                        }
+                        default: ABORT ();
                     }
-                    case 1: {
-                        memorycycle (g_lbEXE, effaddr, operand, operand);
-                        uint16_t sum = acum + (linc ? 010000 : 0) + operand;
-                        acum = sum & 07777;
-                        linc = (sum >> 12) & 1;
+                    break;
+                }
+
+                // jmp
+                case 5: {
+                    pctr = effaddr;
+                    break;
+                }
+
+                // iot
+                case 6: {
+                    ASSERT ((f_oBIOP1 == 1) && (f_oBIOP2 == 2) && (f_oBIOP4 == 4));
+                    for (uint16_t m = 1; m <= 4; m += m) {
+                        if (opcode & m) {
+
+                            printf (" / IOP%u <= %04o", m, acum);
+
+                            // wait for processor to assert IOPm
+                            for (int i = 0; ! (zynqpage[Z_RF] & m); i ++) {
+                                if (i > 1000) fatalerr ("timed out waiting for IOP%u asserted\n", m);
+                                clockit ();
+                            }
+
+                            // it should be sending the accumulator out
+                            verify12 (Z_RH, h_oBAC, acum, "AC invalid going out during IOP");
+
+                            // get random bits for acclear, ioskip, acbits
+                            bool acclear    = randbits  (1);
+                            bool ioskip     = randbits  (1);
+                            uint16_t acbits = randbits (12);
+                            printf (" => %c%c%04o", (acclear ? 'C' : ' '), (ioskip ? 'S' : ' '), acbits);
+
+                            // send those random bits to the processor
+                            zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
+                            zynqpage[Z_RC] = (zynqpage[Z_RC] & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
+
+                            // wait for processor to drop IOPm
+                            for (int i = 0; zynqpage[Z_RF] & m; i ++) {
+                                if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
+                                clockit ();
+                            }
+
+                            // clear the random bits so it won't clock them again during nulled-out io pulses
+                            zynqpage[Z_RA] |= a_i_AC_CLEAR | a_i_IO_SKIP;
+                            zynqpage[Z_RC] &= ~ c_iINPUTBUS;
+
+                            // update our shadow registers
+                            if (acclear) acum = 0;
+                            if (ioskip)  pctr = (pctr + 1) & 07777;
+                            acum |= acbits;
+                        }
+                    }
+                    if (opcode == 06001) {
+                        if (! intdelayed) printf ("  <<intdelayed=1 intrequest=%d>>  ", intrequest);
+                        intdelayed = true;
+                    }
+                    if (opcode == 06002) {
+                        if (  intdelayed) printf ("  <<intdelayed=0 intrequest=%d>>  ", intrequest);
+                        intdelayed = false;
+                        intenabled = false;
+                    }
+                    break;
+                }
+
+                // opr
+                case 7: {
+                    verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
+                    if (! (opcode & 0400)) {
+                        if (opcode & 00200) acum  = 0;
+                        if (opcode & 00100) linc  = false;
+                        if (opcode & 00040) acum ^= 07777;
+                        if (opcode & 00020) linc ^= true;
+                        if (opcode & 00001) {
+                            acum = (acum + 1) & 07777;
+                            if (acum == 0) linc ^= true;
+                        }
+                        switch ((opcode >> 1) & 7) {
+                            case 1: {                           // BSW
+                                acum = ((acum & 077) << 6) | (acum >> 6);
+                                break;
+                            }
+                            case 2: {                           // RAL
+                                acum = (acum << 1) | (linc ? 1 : 0);
+                                linc = (acum & 010000) != 0;
+                                acum &= 07777;
+                                break;
+                            }
+                            case 3: {                           // RTL
+                                acum = (acum << 2) | (linc ? 2 : 0) | (acum >> 11);
+                                linc = (acum & 010000) != 0;
+                                acum &= 07777;
+                                break;
+                            }
+                            case 4: {                           // RAR
+                                uint16_t oldac = acum;
+                                acum = (acum >> 1) | (linc ? 04000 : 0);
+                                linc = (oldac & 1) != 0;
+                                break;
+                            }
+                            case 5: {                           // RTR
+                                acum = (acum >> 2) | (linc ? 02000 : 0) | ((acum & 3) << 11);
+                                linc = (acum & 010000) != 0;
+                                acum &= 07777;
+                                break;
+                            }
+                        }
                         printf (" => %o.%04o", linc, acum);
-                        break;
-                    }
-                    case 2: {
-                        uint16_t incd = (operand + 1) & 07777;
-                        printf (" => %04o", incd);
-                        memorycycle (g_lbEXE, effaddr, operand, incd);
-                        if (incd == 0) pctr = (pctr + 1) & 07777;
-                        break;
-                    }
-                    case 3: {
-                        printf (" <= %04o", acum);
-                        memorycycle (g_lbEXE, effaddr, operand, acum);
-                        acum = 0;
-                        break;
-                    }
-                    case 4: {
-                        printf (" <= %04o", pctr);
-                        memorycycle (g_lbEXE, effaddr, operand, pctr);
-                        pctr = (effaddr + 1) & 07777;
-                        break;
-                    }
-                    default: ABORT ();
-                }
-                break;
-            }
-
-            // jmp
-            case 5: {
-                pctr = effaddr;
-                break;
-            }
-
-            // iot
-            case 6: {
-                ASSERT ((f_oBIOP1 == 1) && (f_oBIOP2 == 2) && (f_oBIOP4 == 4));
-                for (uint16_t m = 1; m <= 4; m += m) {
-                    if (opcode & m) {
-
-                        printf (" / IOP%u <= %04o", m, acum);
-
-                        // wait for processor to assert IOPm
-                        for (int i = 0; ! (zynqpage[Z_RF] & m); i ++) {
-                            if (i > 1000) fatalerr ("timed out waiting for IOP%u asserted\n", m);
-                            clockit ();
+                    } else if (! (opcode & 0001)) {
+                        if (g2skip (opcode)) {
+                            printf (" SKIP");
+                            pctr = (pctr + 1) & 07777;
                         }
-
-                        // it should be sending the accumulator out
-                        verify12 (Z_RH, h_oBAC, acum, "AC invalid going out during IOP");
-
-                        // get random bits for acclear, ioskip, acbits
-                        bool acclear    = randbits  (1);
-                        bool ioskip     = randbits  (1);
-                        uint16_t acbits = randbits (12);
-                        printf (" => %c%c%04o", (acclear ? 'C' : ' '), (ioskip ? 'S' : ' '), acbits);
-
-                        // send those random bits to the processor
-                        zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
-                        zynqpage[Z_RC] = (zynqpage[Z_RC] & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
-
-                        // wait for processor to drop IOPm
-                        for (int i = 0; zynqpage[Z_RF] & m; i ++) {
-                            if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
-                            clockit ();
+                        if (opcode & 0200) acum  = 0;
+                        if (opcode & 0004) acum |= randsr;
+                        printf (" => %04o", acum);
+                        if (opcode & 0002) {
+                            for (int i = 0; ! (zynqpage[Z_RF] & f_o_B_RUN); i ++) {
+                                if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
+                                clockit ();
+                            }
+                            printf ("  cont");
+                            docont ();
                         }
-
-                        // clear the random bits so it won't clock them again during nulled-out io pulses
-                        zynqpage[Z_RA] |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                        zynqpage[Z_RC] &= ~ c_iINPUTBUS;
-
-                        // update our shadow registers
-                        if (acclear) acum = 0;
-                        if (ioskip)  pctr = (pctr + 1) & 07777;
-                        acum |= acbits;
+                    } else {
+                        printf (" ignored");
                     }
-                }
-                if (opcode == 06001) {
-                    if (! intdelayed) printf ("  <<intdelayed=1 intrequest=%d>>  ", intrequest);
-                    intdelayed = true;
-                }
-                if (opcode == 06002) {
-                    if (  intdelayed) printf ("  <<intdelayed=0 intrequest=%d>>  ", intrequest);
-                    intdelayed = false;
-                    intenabled = false;
-                }
-                break;
-            }
-
-            // opr
-            case 7: {
-                verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
-                if (! (opcode & 0400)) {
-                    if (opcode & 00200) acum  = 0;
-                    if (opcode & 00100) linc  = false;
-                    if (opcode & 00040) acum ^= 07777;
-                    if (opcode & 00020) linc ^= true;
-                    if (opcode & 00001) {
-                        acum = (acum + 1) & 07777;
-                        if (acum == 0) linc ^= true;
-                    }
-                    switch ((opcode >> 1) & 7) {
-                        case 1: {                           // BSW
-                            acum = ((acum & 077) << 6) | (acum >> 6);
-                            break;
-                        }
-                        case 2: {                           // RAL
-                            acum = (acum << 1) | (linc ? 1 : 0);
-                            linc = (acum & 010000) != 0;
-                            acum &= 07777;
-                            break;
-                        }
-                        case 3: {                           // RTL
-                            acum = (acum << 2) | (linc ? 2 : 0) | (acum >> 11);
-                            linc = (acum & 010000) != 0;
-                            acum &= 07777;
-                            break;
-                        }
-                        case 4: {                           // RAR
-                            uint16_t oldac = acum;
-                            acum = (acum >> 1) | (linc ? 04000 : 0);
-                            linc = (oldac & 1) != 0;
-                            break;
-                        }
-                        case 5: {                           // RTR
-                            acum = (acum >> 2) | (linc ? 02000 : 0) | ((acum & 3) << 11);
-                            linc = (acum & 010000) != 0;
-                            acum &= 07777;
-                            break;
-                        }
-                    }
-                    printf (" => %o.%04o", linc, acum);
-                } else if (! (opcode & 0001)) {
-                    if (g2skip (opcode)) {
-                        printf (" SKIP");
-                        pctr = (pctr + 1) & 07777;
-                    }
-                    if (opcode & 0200) acum  = 0;
-                    if (opcode & 0004) acum |= randsr;
-                    printf (" => %04o", acum);
-                    if (opcode & 0002) {
-                        for (int i = 0; ! (zynqpage[Z_RF] & f_o_B_RUN); i ++) {
-                            if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
-                            clockit ();
-                        }
-                        printf ("  cont");
-                        docont ();
-                    }
-                } else {
-                    printf (" ignored");
                 }
             }
         }
