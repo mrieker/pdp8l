@@ -167,7 +167,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4021";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4022";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -271,7 +271,7 @@ architecture rtl of Zynq is
     signal swSR    : std_logic_vector (11 downto 0);
     signal swSTART : std_logic;
 
-    signal lastnanostep, nanocycle, nanostep, softreset : std_logic;
+    signal lastnanostep, nanocycle, nanostep, softreset, testioins : std_logic;
     signal inuseclock, inusereset : std_logic;
 
     -- arm interface signals
@@ -497,6 +497,7 @@ begin
             nanocycle <= '1';                               -- by default, software provides clock
             nanostep  <= '0';                               -- by default, software clock is low
             softreset <= '1';                               -- by default, software reset asserted
+            testioins <= '0';                               -- by default, not testing io instruction
 
             -- reset dma read registers
             dmardaddr <= (others => '0');
@@ -549,6 +550,7 @@ begin
                         arm_ioskip    <= saxi_WDATA(12);
                         i_MEMDONE     <= saxi_WDATA(13);
                         i_STROBE      <= saxi_WDATA(14);
+                        testioins     <= saxi_WDATA(28);
                         softreset     <= saxi_WDATA(29);
                         nanostep      <= saxi_WDATA(30);
                         nanocycle     <= saxi_WDATA(31);
@@ -690,7 +692,8 @@ begin
     regctla(12) <= i_IO_SKIP;
     regctla(13) <= i_MEMDONE;
     regctla(14) <= i_STROBE;
-    regctla(28 downto 15) <= (others => '0');
+    regctla(27 downto 15) <= (others => '0');
+    regctla(28) <= testioins;
     regctla(29) <= softreset;
     regctla(30) <= nanostep;
     regctla(31) <= nanocycle;
@@ -769,10 +772,10 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not nanocycle;
 
-    iINPUTBUS  <= ttibus or tt40ibus or armibus;
-    i_AC_CLEAR <= not (ttacclr  or tt40acclr  or not arm_acclr);
-    i_INT_RQST <= not (ttintrq  or tt40intrq  or not arm_intrq);
-    i_IO_SKIP  <= not (ttioskip or tt40ioskip or not arm_ioskip);
+    iINPUTBUS  <= ttibus or tt40ibus when testioins = '0' else armibus;
+    i_AC_CLEAR <= not (ttacclr  or tt40acclr)  when testioins = '0' else arm_acclr;
+    i_INT_RQST <= not (ttintrq  or tt40intrq)  when testioins = '0' else arm_intrq;
+    i_IO_SKIP  <= not (ttioskip or tt40ioskip) when testioins = '0' else arm_ioskip;
 
     pdp8linst: pdp8l port map (
         CLOCK         => CLOCK,
