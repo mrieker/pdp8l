@@ -359,7 +359,7 @@ module pdp8l (
                         else if (~ i_INT_RQST & i_INT_INHIBIT & intenabled) begin
                             intdelayed <= 0;
                             intenabled <= 0;
-                            ir         <= 0;
+                            ir         <= 4;
                             madr       <= 0;
                             o_LOAD_SF  <= 0;
                             majstate   <= MS_EXEC;
