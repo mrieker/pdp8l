@@ -45,9 +45,14 @@ static char const *const timestatenames[32] =
         "TS4BODY", "TP4BEG", "TP4END", "???19", "???20", "???21", "???22", "???23",
         "???24", "???25", "???26", "???27", "???28", "???29", "???30", "???31" };
 
+static bool intdelayed;
+static bool intenabled;
+static bool intrequest;
 static bool linc;
+static int nseqs;
 static uint16_t acum;
 static uint16_t pctr;
+static uint16_t *seqs;
 static uint32_t clockno;
 static uint32_t volatile *zynqpage;
 
@@ -68,6 +73,23 @@ int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
+    // if numbers given on command line, use them instead of randoms
+    // exit when the randoms are used up
+    nseqs = -1;
+    if (argc > 1) {
+        char *p;
+        nseqs = argc - 1;
+        seqs = (uint16_t *) malloc (nseqs * sizeof *seqs);
+        for (int i = 0; ++ i < argc;) {
+            seqs[nseqs-i] = strtoul (argv[i], &p, 0);
+            if (*p != 0) {
+                fprintf (stderr, "z8lrand: bad number %s\n", argv[i]);
+                return -1;
+            }
+        }
+    }
+
+    // access the zynq io page
     int zynqfd = open ("/proc/zynqgpio", O_RDWR);
     if (zynqfd < 0) {
         fprintf (stderr, "z8lrand: error opening /proc/zynqgpio: %m\n");
@@ -80,6 +102,7 @@ int main (int argc, char **argv)
         ABORT ();
     }
 
+    // hopefully it has our pdp8l.v code indicated by magic number in first word
     zynqpage = (uint32_t volatile *) zynqptr;
     uint32_t ver = zynqpage[Z_VER];
     printf ("version %08X\n", ver);
@@ -107,8 +130,8 @@ int main (int argc, char **argv)
     // release the reset
     zynqpage[Z_RA] &= ~ a_softreset;
 
-    // set program counter to zero and give it some random bits for the contents of that memory location
-    doldad (0, randbits (12));
+    // set program counter to zero
+    doldad (0, 0);
 
     // flick the start switch to clear accumulator, link and start it running
     dostart ();
@@ -118,24 +141,48 @@ int main (int argc, char **argv)
     while (true) {
         uint32_t startclockno = clockno;
 
-        // set random switch register contents
-        uint16_t randsr = randbits (12);
-        zynqpage[Z_RE]  = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+        uint16_t effaddr = 0;
+        uint16_t opcode  = 0;
+        uint16_t randsr  = 0;
 
-        // send random opcode
-        uint16_t opcode = randbits (12);
-        printf ("%12llu  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
-        memorycycle (g_lbFET, pctr, opcode, opcode);
-        uint16_t effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
-        pctr = (pctr + 1) & 07777;
+        // maybe interrupt request is next
+        if (intrequest & intenabled) {
+            intdelayed = false;
+            intenabled = false;
+            opcode     = 04000;
+            for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
+                if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
+            }
+            printf ("%12llu  L.AC=%o.%04o PC=%04o : interrupt acknowledge", ++ instrno, linc, acum, pctr);
 
-        // maybe do a defer cycle
-        if (((opcode & 07000) < 06000) && (opcode & 0400)) {
-            uint16_t pointer = randbits (12);
-            uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
-            printf (" / %04o", autoinc);
-            memorycycle (g_lbDEF, effaddr, pointer, autoinc);
-            effaddr = autoinc;
+            intrequest = false;
+            zynqpage[Z_RA] |= a_i_INT_RQST;
+        } else {
+            intenabled = intdelayed;
+
+            // send random opcode
+            opcode = randbits (12);
+            printf ("%12llu  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
+
+            // set random switch register contents if about to do an OSR instruction
+            if (((opcode & 07401) == 07400) && (opcode & 0004)) {
+                randsr = randbits (12);
+                zynqpage[Z_RE] = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+            }
+
+            // perform fetch memory cycle
+            memorycycle (g_lbFET, pctr, opcode, opcode);
+            effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
+            pctr = (pctr + 1) & 07777;
+
+            // maybe do a defer cycle
+            if (((opcode & 07000) < 06000) && (opcode & 0400)) {
+                uint16_t pointer = randbits (12);
+                uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
+                printf (" / %04o", autoinc);
+                memorycycle (g_lbDEF, effaddr, pointer, autoinc);
+                effaddr = autoinc;
+            }
         }
 
         // do the exec cycle
@@ -233,6 +280,15 @@ int main (int argc, char **argv)
                         acum |= acbits;
                     }
                 }
+                if (opcode == 06001) {
+                    if (! intdelayed) printf ("  <<intdelayed=1 intrequest=%d>>  ", intrequest);
+                    intdelayed = true;
+                }
+                if (opcode == 06002) {
+                    if (  intdelayed) printf ("  <<intdelayed=0 intrequest=%d>>  ", intrequest);
+                    intdelayed = false;
+                    intenabled = false;
+                }
                 break;
             }
 
@@ -292,7 +348,7 @@ int main (int argc, char **argv)
                             if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
                             clockit ();
                         }
-                        printf (" cont");
+                        printf ("  cont");
                         docont ();
                     }
                 } else {
@@ -438,6 +494,17 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
 
     // drop memdone now that we know processor has seen it
     zynqpage[Z_RA] |= a_i_MEMDONE;
+
+    // maybe start requesting an interrupt
+    /***
+    if (! intrequest) {
+        intrequest = randbits (10) == 0;
+        if (intrequest) {
+            printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
+            zynqpage[Z_RA] &= ~ a_i_INT_RQST;
+        }
+    }
+    ***/
 }
 
 static void debounce ()
@@ -470,6 +537,19 @@ static bool g2skip (uint16_t opcode)
 static uint16_t randbits (int nbits)
 {
     static uint64_t seed = 0x123456789ABCDEF0ULL;
+
+    if (nseqs > 0) {
+        uint16_t randval = seqs[--nseqs];
+        if (randval >= 1U << nbits) {
+            fprintf (stderr, "randbits: value 0%o too big for %d bits\n", randval, nbits);
+            ABORT ();
+        }
+        return randval;
+    }
+    if (nseqs == 0) {
+        printf ("\nrandbits: end of numbers on command line\n");
+        exit (0);
+    }
 
     uint16_t randval = 0;
 

@@ -196,7 +196,7 @@ int main (int argc, char **argv)
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
 
         printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
-        printf ("  timedelay=%04u", FIELD (Z_RK, k_timedelay));
+        printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
         printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
 

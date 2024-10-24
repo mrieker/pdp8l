@@ -120,9 +120,9 @@
 #define j_lbMB      (07777U << 16)
 
 #define k_majstate  (    7U <<  0)
-#define k_timedelay (03777U <<  3)
-#define k_timestate (  037U << 14)
-#define k_cyclectr  (01777U << 19)
+#define k_timedelay (  077U <<  3)
+#define k_timestate (  037U <<  9)
+#define k_cyclectr  (01777U << 14)
 
 #define c_iINPUTBUS0 (c_iINPUTBUS & - c_iINPUTBUS)
 #define c_iMEM0      (c_iMEM      & - c_iMEM)
