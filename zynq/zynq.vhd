@@ -167,7 +167,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4022";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4024";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -364,10 +364,10 @@ component pdp8l port (
     swSR    : in std_logic_vector (11 downto 0);
     swSTART : in std_logic
 
-    ;majstate  : out std_logic_vector ( 2 downto 0)
-    ;timedelay : out std_logic_vector (10 downto 0)
-    ;timestate : out std_logic_vector ( 4 downto 0)
-    ;cyclectr  : out std_logic_vector ( 9 downto 0)
+    ;majstate  : out std_logic_vector (2 downto 0)
+    ;timedelay : out std_logic_vector (5 downto 0)
+    ;timestate : out std_logic_vector (4 downto 0)
+    ;cyclectr  : out std_logic_vector (9 downto 0)
 
     ;nanocycle : in std_logic
     ;nanostep  : in std_logic
@@ -854,9 +854,9 @@ begin
         swSTART       => swSTART
 
         ,majstate  => regctlk(02 downto 00)
-        ,timedelay => regctlk(13 downto 03)
-        ,timestate => regctlk(18 downto 14)
-        ,cyclectr  => regctlk(28 downto 19)
+        ,timedelay => regctlk(08 downto 03)
+        ,timestate => regctlk(13 downto 09)
+        ,cyclectr  => regctlk(23 downto 14)
 
         ,nanocycle => nanocycle
         ,nanostep  => nanostep

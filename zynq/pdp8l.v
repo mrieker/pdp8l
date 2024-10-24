@@ -98,10 +98,10 @@ module pdp8l (
     input swSTART
     
     // debug
-    ,output reg[ 2:0] majstate
-    ,output reg[10:0] timedelay
-    ,output reg[ 4:0] timestate
-    ,output reg[ 9:0] cyclectr
+    ,output reg[2:0] majstate
+    ,output reg[5:0] timedelay
+    ,output reg[4:0] timestate
+    ,output reg[9:0] cyclectr
 
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
@@ -387,7 +387,7 @@ module pdp8l (
                 // memory is being read at address in MA, either internal or external memory
                 TS_TS1BODY: begin
                     if (i_EA) begin
-                        if (timedelay != 65) timedelay <= timedelay + 1;
+                        if (timedelay != 62) timedelay <= timedelay + 1;
                         else begin timedelay <= 0; timestate <= TS_TP1BEG; end
                     end else begin
                         if (! i_STROBE) timestate <= TS_TP1BEG;
@@ -496,44 +496,53 @@ module pdp8l (
                 // delay between end of memory cycle and start of first io pulse
                 TS_BEGIOP1: begin
                     if (timedelay != 33) timedelay <= timedelay + 1;
-                    else timestate <= TS_DOIOP1;
+                    else begin timedelay <= 0; timestate <= TS_DOIOP1; end
                 end
 
                 // output first io pulse for 580nS
                 TS_DOIOP1: begin
-                    if (timedelay != 33+58) timedelay <= timedelay + 1;
+                    if (timedelay != 58) timedelay <= timedelay + 1;
                     else begin
+                        if (mbuf[08:00] == 1) begin  // 06001 = ION
+                            intdelayed <= 1;
+                        end
                         acum <= ioac;
                         if (~ i_IO_SKIP) pctr <= pctr + 1;
+                        timedelay <= 0;
                         timestate <= TS_BEGIOP2;
                     end
                 end
 
                 // delay 280nS between first and second io pulse
                 TS_BEGIOP2: begin
-                    if (timedelay != 33+58+28) timedelay <= timedelay + 1;
-                    else timestate <= TS_DOIOP2;
+                    if (timedelay != 28) timedelay <= timedelay + 1;
+                    else begin timedelay <= 0; timestate <= TS_DOIOP2; end
                 end
 
                 // output second io pulse for 580nS
                 TS_DOIOP2: begin
-                    if (timedelay != 33+58+28+58) timedelay <= timedelay + 1;
+                    if (timedelay != 58) timedelay <= timedelay + 1;
                     else begin
+                        if (mbuf[08:00] == 2) begin  // 06002 = IOF
+                            intdelayed <= 0;
+                            intenabled <= 0;
+                        end
                         acum <= ioac;
                         if (~ i_IO_SKIP) pctr <= pctr + 1;
+                        timedelay <= 0;
                         timestate <= TS_BEGIOP4;
                     end
                 end
 
                 // delay 280nS between second and third io pulse
                 TS_BEGIOP4: begin
-                    if (timedelay != 33+58+28+58+28) timedelay <= timedelay + 1;
-                    else timestate <= TS_DOIOP4;
+                    if (timedelay != 28) timedelay <= timedelay + 1;
+                    else begin timedelay <= 0; timestate <= TS_DOIOP4; end
                 end
 
                 // output third io pulse for 500nS
                 TS_DOIOP4: begin
-                    if (timedelay != 33+58+28+58+28+50) timedelay <= timedelay + 1;
+                    if (timedelay != 50) timedelay <= timedelay + 1;
                     else begin
                         acum <= ioac;
                         if (~ i_IO_SKIP) pctr <= pctr + 1;
