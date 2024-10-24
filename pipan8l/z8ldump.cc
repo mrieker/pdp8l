@@ -128,6 +128,7 @@ int main (int argc, char **argv)
         printf ("  i_IO_SKIP=%o", FIELD (Z_RA, a_i_IO_SKIP));
         printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
         printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
+        printf ("  testioins=%o", FIELD (Z_RA, a_testioins));
         printf ("  softreset=%o", FIELD (Z_RA, a_softreset));
         printf ("  nanostep=%o", FIELD (Z_RA, a_nanostep));
         printf ("  nanocycle=%o", FIELD (Z_RA, a_nanocycle));

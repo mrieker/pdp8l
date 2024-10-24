@@ -48,6 +48,7 @@ static char const *const timestatenames[32] =
 static bool linc;
 static uint16_t acum;
 static uint16_t pctr;
+static uint32_t clockno;
 static uint32_t volatile *zynqpage;
 
 static void doldad (uint16_t addr, uint16_t data);
@@ -88,8 +89,9 @@ int main (int argc, char **argv)
     }
 
     // select manual clocking and reset the pdp8l.v processor
+    // disable the io boards so we can generate random io instructions
     // this should also clear accumulator and link
-    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_testioins | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     zynqpage[Z_RB] = 0;
     zynqpage[Z_RC] = 0;
     zynqpage[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
@@ -112,30 +114,17 @@ int main (int argc, char **argv)
     dostart ();
 
     // run random instructions, verifying the cycles
-    long long unsigned cycleno = 0;
+    long long unsigned instrno = 0;
     while (true) {
-
-        // step to MS_START state so we know AC,LINK have been updated
-        for (int i = 0; (zynqpage[Z_RK] & k_majstate) != (MS_START * k_majstate0); i ++) {
-            if (i > 1000) fatalerr ("timed out clocking to MS_START\n");
-            clockit ();
-        }
-
-        // the accumulator and link should be up to date
-        verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at beginning of memory cycle");
-        verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at beginning of memory cycle");
+        uint32_t startclockno = clockno;
 
         // set random switch register contents
         uint16_t randsr = randbits (12);
         zynqpage[Z_RE]  = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
 
         // send random opcode
-        uint16_t opcode;
-        do opcode = randbits (12);
-        while (((opcode & 07007) == 06000) || ((opcode & 07401) == 07401));
-        ////while (((opcode & 07000) == 06000) || ((opcode & 07401) == 07401));
-        ////if ((opcode & 07000) < 06000) opcode &= 07377;  //????temp no defer????//
-        printf ("%12llu  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ cycleno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
+        uint16_t opcode = randbits (12);
+        printf ("%12llu  L.AC=%o.%04o PC=%04o : OP=%04o  %s", ++ instrno, linc, acum, pctr, opcode, disassemble (opcode, pctr).c_str ());
         memorycycle (g_lbFET, pctr, opcode, opcode);
         uint16_t effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
         pctr = (pctr + 1) & 07777;
@@ -160,7 +149,7 @@ int main (int argc, char **argv)
                     case 0: {
                         memorycycle (g_lbEXE, effaddr, operand, operand);
                         acum &= operand;
-                        printf (" => %04o\n", acum);
+                        printf (" => %04o", acum);
                         break;
                     }
                     case 1: {
@@ -168,24 +157,24 @@ int main (int argc, char **argv)
                         uint16_t sum = acum + (linc ? 010000 : 0) + operand;
                         acum = sum & 07777;
                         linc = (sum >> 12) & 1;
-                        printf (" => %o.%04o\n", linc, acum);
+                        printf (" => %o.%04o", linc, acum);
                         break;
                     }
                     case 2: {
                         uint16_t incd = (operand + 1) & 07777;
-                        printf (" => %04o\n", incd);
+                        printf (" => %04o", incd);
                         memorycycle (g_lbEXE, effaddr, operand, incd);
                         if (incd == 0) pctr = (pctr + 1) & 07777;
                         break;
                     }
                     case 3: {
-                        printf (" <= %04o\n", acum);
+                        printf (" <= %04o", acum);
                         memorycycle (g_lbEXE, effaddr, operand, acum);
                         acum = 0;
                         break;
                     }
                     case 4: {
-                        printf (" <= %04o\n", pctr);
+                        printf (" <= %04o", pctr);
                         memorycycle (g_lbEXE, effaddr, operand, pctr);
                         pctr = (effaddr + 1) & 07777;
                         break;
@@ -197,7 +186,6 @@ int main (int argc, char **argv)
 
             // jmp
             case 5: {
-                printf ("\n");
                 pctr = effaddr;
                 break;
             }
@@ -245,29 +233,13 @@ int main (int argc, char **argv)
                         acum |= acbits;
                     }
                 }
-                printf ("\n");
                 break;
             }
 
             // opr
             case 7: {
                 verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
-                if (opcode & 0400) {
-                    if (g2skip (opcode)) {
-                        printf (" SKIP");
-                        pctr = (pctr + 1) & 07777;
-                    }
-                    if (opcode & 0200) acum  = 0;
-                    if (opcode & 0004) acum |= randsr;
-                    printf (" => %04o\n", acum);
-                    if (opcode & 0002) {
-                        for (int i = 0; ! (zynqpage[Z_RF] & f_o_B_RUN); i ++) {
-                            if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
-                            clockit ();
-                        }
-                        docont ();
-                    }
-                } else {
+                if (! (opcode & 0400)) {
                     if (opcode & 00200) acum  = 0;
                     if (opcode & 00100) linc  = false;
                     if (opcode & 00040) acum ^= 07777;
@@ -306,10 +278,42 @@ int main (int argc, char **argv)
                             break;
                         }
                     }
-                    printf (" => %o.%04o\n", linc, acum);
+                    printf (" => %o.%04o", linc, acum);
+                } else if (! (opcode & 0001)) {
+                    if (g2skip (opcode)) {
+                        printf (" SKIP");
+                        pctr = (pctr + 1) & 07777;
+                    }
+                    if (opcode & 0200) acum  = 0;
+                    if (opcode & 0004) acum |= randsr;
+                    printf (" => %04o", acum);
+                    if (opcode & 0002) {
+                        for (int i = 0; ! (zynqpage[Z_RF] & f_o_B_RUN); i ++) {
+                            if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
+                            clockit ();
+                        }
+                        printf (" cont");
+                        docont ();
+                    }
+                } else {
+                    printf (" ignored");
                 }
             }
         }
+
+        // step to MS_START state so we know AC,LINK have been updated
+        for (int i = 0; (zynqpage[Z_RK] & k_majstate) != (MS_START * k_majstate0); i ++) {
+            if (i > 1000) fatalerr ("timed out clocking to MS_START\n");
+            clockit ();
+        }
+
+        // the accumulator and link should be up to date
+        verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
+        verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
+
+        // print how many cycles it took (each clock is 10nS)
+        uint32_t clocks = clockno - startclockno;
+        printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
     }
 
     return 0;
@@ -446,11 +450,9 @@ static void debounce ()
 // gate through one fpga clock cycle
 static void clockit ()
 {
-    usleep (10);
     zynqpage[Z_RA] |=   a_nanostep;
-    usleep (10);
     zynqpage[Z_RA] &= ~ a_nanostep;
-    usleep (10);
+    clockno ++;
 }
 
 // compute if a Group 2 instruction would skip
