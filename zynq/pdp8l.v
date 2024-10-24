@@ -57,7 +57,7 @@ module pdp8l (
     output oJMP_JMS,            // B36-E2,p22 C-3,J11-63,,,
     output oLINE_LOW,           // B36-V2,p18 B-7,J12-43,,,?? op amp output maybe needs clipping diodes
     output[11:00] oMA,          // B34-D1,p22 D-8,MEMBUSH,,,gated from CPU onto MEMBUS by r_MA
-    output reg oMEMSTART,       // B34-P2,p4 D-8,J11-57,,B33,
+    output oMEMSTART,           // B34-P2,p4 D-8,J11-57,,B33,
     output reg o_ADDR_ACCEPT,   // C36-S2,p15 S-2,J11-22,,,
     output o_BF_ENABLE,         // B36-E1,p22 C-6,J12-69,,,
     output o_BUSINIT,           // C36-V2,p15 B-1,J11-9,,,?? active low bus init
@@ -143,24 +143,25 @@ module pdp8l (
     reg irusedf, link, runff;
     wire tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ir;
-    reg[11:00] acum, ma, mb, pctr;
+    reg[11:00] acum, madr, mbuf, pctr;
     reg[23:00] debounce;
 
     // various outputs that can be derived with a few gates or passthrough
     assign oBAC          = acum;
-    assign oBIOP1        = (timestate == TS_DOIOP1) & mb[00];
-    assign oBIOP2        = (timestate == TS_DOIOP2) & mb[01];
-    assign oBIOP4        = (timestate == TS_DOIOP4) & mb[02];
-    assign oBMB          = mb;
+    assign oBIOP1        = (timestate == TS_DOIOP1) & mbuf[00];
+    assign oBIOP2        = (timestate == TS_DOIOP2) & mbuf[01];
+    assign oBIOP4        = (timestate == TS_DOIOP4) & mbuf[02];
+    assign oBMB          = mbuf;
     assign oBTP2         = tp2;
     assign oBTP3         = tp3;
     assign oBTS_1        = ts1;
     assign oBTS_3        = ts3;
     assign oBUSINIT      = RESET | (~ runff & swSTART);             // power-on reset or start switch and mftp0 (p4 A-3)
+    assign oB_BREAK      = (majstate == MS_BRK);                    //?? not sure if active high or low??
     assign oJMP_JMS      = (ir[2:1] == 2);                          // JMP or JMS is loaded in IR (p22 C-2, p5 C-6)
     assign oLINE_LOW     = RESET;
-    assign oMA           = ma;
-    assign oB_BREAK      = (majstate == MS_BRK);                    //?? not sure if active high or low??
+    assign oMA           = madr;
+    assign oMEMSTART     = (timestate == TS_TS1BODY);
     assign o_BF_ENABLE   = ~ (majstate == MS_BRK);                  // next memory cycle is MS_BRK, use break frame (dma extended address bits) for next mem access (p5 D-2)
     assign o_BUSINIT     = ~ oBUSINIT;
     assign o_B_RUN       = ~ runff;
@@ -182,8 +183,8 @@ module pdp8l (
     assign lbION  = intenabled;
     assign lbIR   = ir;
     assign lbLINK = link;
-    assign lbMA   = ma;
-    assign lbMB   = mb;
+    assign lbMA   = madr;
+    assign lbMB   = mbuf;
     assign lbRUN  = runff;
     assign lbWC   = (majstate == MS_WC);
 
@@ -191,12 +192,12 @@ module pdp8l (
     reg[11:00] localcore[4095:0000];
 
     // calculate effective address for memory reference instructions
-    wire[11:00] effaddr = { (mb[07] ? ma[11:07] : 5'b0), mb[06:00] };
+    wire[11:00] effaddr = { (mbuf[07] ? madr[11:07] : 5'b0), mbuf[06:00] };
 
     // calculate accumulator and link for tad instruction
     wire[11:00] tadacum;
     wire tadlink;
-    assign { tadlink, tadacum } = { link, acum } + { 1'b0, mb };
+    assign { tadlink, tadacum } = { link, acum } + { 1'b0, mbuf };
 
     // calculate accumulator and link for group 1 instruction
     reg[11:00] g1acum, g1acumraw;
@@ -204,9 +205,9 @@ module pdp8l (
 
     always @(*) begin
         // handle cla, cll, cma, cll, iac bits
-        { g1linkraw, g1acumraw } = { (mb[06] ? 1'b0 : link) ^ mb[04], (mb[07] ? 12'b0 : acum) ^ (mb[05] ? 12'o7777 : 12'o0000) } + { 12'b0, mb[00] };
+        { g1linkraw, g1acumraw } = { (mbuf[06] ? 1'b0 : link) ^ mbuf[04], (mbuf[07] ? 12'b0 : acum) ^ (mbuf[05] ? 12'o7777 : 12'o0000) } + { 12'b0, mbuf[00] };
         // handle rotate bits
-        case (mb[03:01])
+        case (mbuf[03:01])
             1: { g1link, g1acum } = { g1linkraw, g1acumraw[05:00], g1acumraw[11:06] };  // bsw
             2: { g1link, g1acum } = { g1acumraw, g1linkraw };                           // rol 1
             3: { g1link, g1acum } = { g1acumraw[10:00], g1linkraw, g1acumraw[11] };     // rol 2
@@ -217,16 +218,16 @@ module pdp8l (
     end
     
     // calculate skip condition for group 2 instruction
-    wire g2skip = ((mb[06] & acum[11]) |    // SMA
-                   (mb[05] & (acum == 0)) | // SZA
-                   (mb[04] & link)) ^       // SNL
-                    mb[03];                 // reverse
+    wire g2skip = ((mbuf[06] & acum[11]) |    // SMA
+                   (mbuf[05] & (acum == 0)) | // SZA
+                   (mbuf[04] & link)) ^       // SNL
+                    mbuf[03];                 // reverse
 
     // calculate accumulator for group 2 instruction
-    wire[11:00] g2acum = (mb[07] ? 0 : acum) | (mb[02] ? swSR : 0);
+    wire[11:00] g2acum = (mbuf[07] ? 0 : acum) | (mbuf[02] ? swSR : 0);
 
     // this memory cycle will do io
-    wire withio = (majstate == MS_FETCH) & (mb[11:09] == 6);
+    wire withio = (majstate == MS_FETCH) & (mbuf[11:09] == 6);
 
     // get incoming ac bits from io bus
     wire[11:00] ioac = (i_AC_CLEAR ? acum : 0) | iINPUTBUS;
@@ -290,7 +291,7 @@ module pdp8l (
                         // load address switch
                         if (debounce[23] & lastswLDAD & ~ swLDAD) begin
                             ldad      <= 1;
-                            ma        <= swSR;
+                            madr      <= swSR;
                             pctr      <= swSR;
                             majstate  <= MS_START;
                             timestate <= TS_TS1BODY;
@@ -299,7 +300,7 @@ module pdp8l (
                         // examine switch
                         else if (debounce[23] & lastswEXAM & ~ swEXAM) begin
                             ldad      <= 0;
-                            ma        <= pctr;
+                            madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_START;
                             timestate <= TS_TS1BODY;
@@ -308,7 +309,7 @@ module pdp8l (
                         // deposit switch
                         else if (debounce[23] & lastswDEP & ~ swDEP) begin
                             ldad      <= 0;
-                            ma        <= pctr;
+                            madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_DEPOS;
                             timestate <= TS_TS1BODY;
@@ -341,17 +342,17 @@ module pdp8l (
                     // if majstate MS_START, check for DMA request, STOP switch, interrupt request, else start a fetch
                     else if (majstate == MS_START) begin
 
-                        // if there is a dma request pending, start doing the dma
-                        if (~ i_BRK_RQST) begin
-                            ma        <= ~ i_DMAADDR;
-                            majstate  <= iTHREECYCLE ? MS_WC : MS_BRK;
-                            timestate <= TS_TS1BODY;
+                        // maybe the stop switch is being pressed or step switch is on
+                        if (swSTOP | swSTEP & ~ hidestep) begin
+                            madr  <= pctr;
+                            runff <= 0;
                         end
 
-                        // maybe the stop switch is being pressed or step switch is on
-                        else if (swSTOP | swSTEP & ~ hidestep) begin
-                            ma    <= pctr;
-                            runff <= 0;
+                        // if there is a dma request pending, start doing the dma
+                        else if (~ i_BRK_RQST) begin
+                            madr      <= ~ i_DMAADDR;
+                            majstate  <= iTHREECYCLE ? MS_WC : MS_BRK;
+                            timestate <= TS_TS1BODY;
                         end
 
                         // if interrupt request pending, disable interrupts, and do a JMS 0 to field 0
@@ -359,7 +360,7 @@ module pdp8l (
                             intdelayed <= 0;
                             intenabled <= 0;
                             ir         <= 0;
-                            ma         <= 0;
+                            madr       <= 0;
                             o_LOAD_SF  <= 0;
                             majstate   <= MS_EXEC;
                             timestate  <= TS_TS1BODY;
@@ -368,7 +369,7 @@ module pdp8l (
                         // none of the above, start a fetch going
                         else begin
                             intenabled <= intdelayed;
-                            ma         <= pctr;
+                            madr       <= pctr;
                             pctr       <= pctr + 1;
                             majstate   <= MS_FETCH;
                             timestate  <= TS_TS1BODY;
@@ -385,7 +386,6 @@ module pdp8l (
 
                 // memory is being read at address in MA, either internal or external memory
                 TS_TS1BODY: begin
-                    oMEMSTART <= 1;
                     if (i_EA) begin
                         if (timedelay != 65) timedelay <= timedelay + 1;
                         else begin timedelay <= 0; timestate <= TS_TP1BEG; end
@@ -396,10 +396,9 @@ module pdp8l (
 
                 // clock read data from internal or external memory into MB
                 TS_TP1BEG: begin
-                    oMEMSTART <= 0;
                     if (timedelay != 2) timedelay <= timedelay + 1;
                     else begin
-                        mb <= i_EA ? localcore[ma] : iMEM;
+                        mbuf <= i_EA ? localcore[madr] : iMEM;
                         timedelay <= 0;
                         timestate <= TS_TP1END;
                     end
@@ -420,27 +419,27 @@ module pdp8l (
                     else begin
                         case (majstate)
                             MS_FETCH: begin
-                                ir <= mb[11:09];
-                                irusedf <= ~ mb[11] & mb[08];
+                                ir <= mbuf[11:09];
+                                irusedf <= ~ mbuf[11] & mbuf[08];
                             end
-                            MS_DEFER: if (ma[11:03] == 1) mb <= mb + 1;
+                            MS_DEFER: if (madr[11:03] == 1) mbuf <= mbuf + 1;
                             MS_EXEC: case (ir)
-                                2: mb <= mb + 1;  // isz
-                                3: mb <= acum;    // dca
-                                4: mb <= pctr;    // jms
+                                2: mbuf <= mbuf + 1;  // isz
+                                3: mbuf <= acum;      // dca
+                                4: mbuf <= pctr;      // jms
                             endcase
                             MS_WC: begin
-                                mb <= mb + 1;
+                                mbuf <= mbuf + 1;
                                 // middle of wc with count just read, detect count overflow
-                                oBWC_OVERFLOW <= (mb == 12'o7777);
+                                oBWC_OVERFLOW <= (mbuf == 12'o7777);
                                 o_ADDR_ACCEPT <= 0;
                             end
-                            MS_CA:  mb <= mb + iCA_INCREMENT;
+                            MS_CA:  mbuf <= mbuf + iCA_INCREMENT;
                             MS_BRK: begin
-                                mb <= (iDATA_IN ? ~ i_DMADATA : mb) + { 11'b0, iMEMINCR };
+                                mbuf <= (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, iMEMINCR };
                                 o_ADDR_ACCEPT <= 0;
                             end
-                            MS_DEPOS: mb <= swSR;
+                            MS_DEPOS: mbuf <= swSR;
                         endcase
                         timedelay <= 0;
                         timestate <= TS_TP2BEG;
@@ -468,9 +467,9 @@ module pdp8l (
                     if (i_EA) begin
                         if (timedelay != 28) timedelay <= timedelay + 1;
                         else begin
-                            localcore[ma] <= mb;
-                            timedelay     <= 0;
-                            timestate     <= TS_TP3BEG;
+                            localcore[madr] <= mbuf;
+                            timedelay       <= 0;
+                            timestate       <= TS_TP3BEG;
                         end
                     end else begin
                         if (! i_MEMDONE) timestate <= TS_TP3BEG;
@@ -561,14 +560,14 @@ module pdp8l (
     
                                     // add, tad, isz, dca, jms
                                     0, 1, 2, 3, 4: begin
-                                        ma       <= effaddr;
-                                        majstate <= mb[08] ? MS_DEFER : MS_EXEC;
+                                        madr     <= effaddr;
+                                        majstate <= mbuf[08] ? MS_DEFER : MS_EXEC;
                                     end
     
                                     // jmp
                                     5: begin
-                                        if (mb[08]) begin
-                                            ma       <= effaddr;
+                                        if (mbuf[08]) begin
+                                            madr     <= effaddr;
                                             majstate <= MS_DEFER;
                                         end else begin
                                             pctr     <= effaddr;
@@ -581,13 +580,13 @@ module pdp8l (
     
                                     // opr - perform operation and start another fetch
                                     7: begin
-                                        if (~ mb[08]) begin
+                                        if (~ mbuf[08]) begin
                                             acum  <= g1acum;
                                             link  <= g1link;
-                                        end else if (~ mb[00]) begin
+                                        end else if (~ mbuf[00]) begin
                                             if (g2skip) pctr <= pctr + 1;
                                             acum  <= g2acum;
-                                            runff <= ~ mb[01];
+                                            runff <= ~ mbuf[01];
                                         end
                                         majstate <= MS_START;
                                     end
@@ -597,9 +596,10 @@ module pdp8l (
                             // end of DEFER cycle
                             MS_DEFER: begin
                                 if (ir == 5) begin
-                                    pctr     <= ma;
+                                    pctr     <= mbuf;
                                     majstate <= MS_START;
                                 end else begin
+                                    madr     <= mbuf;
                                     majstate <= MS_EXEC;
                                 end
                             end
@@ -607,11 +607,11 @@ module pdp8l (
                             // end of EXEC cycle
                             MS_EXEC: begin
                                 case (ir)
-                                    0: acum <= acum & mb;                           // and
+                                    0: acum <= acum & mbuf;                         // and
                                     1: begin link <= tadlink; acum <= tadacum; end  // tad
-                                    2: if (mb == 0) pctr <= pctr + 1;               // isz
+                                    2: if (mbuf == 0) pctr <= pctr + 1;             // isz
                                     3: acum <= 0;                                   // dca
-                                    4: pctr <= ma + 1;                              // jms
+                                    4: pctr <= madr + 1;                            // jms
                                 endcase
                                 o_LOAD_SF <= 1;
                                 majstate  <= MS_START;
@@ -619,13 +619,13 @@ module pdp8l (
     
                             // end of wordcount
                             MS_WC: begin
-                                ma       <= ma + 1;
+                                madr     <= madr + 1;
                                 majstate <= MS_CA;
                             end
     
                             // end of currentaddress
                             MS_CA: begin
-                                ma       <= mb;     // set up value as address for dma transfer
+                                madr     <= mbuf;   // set up value as address for dma transfer
                                 majstate <= MS_BRK;
                             end
     

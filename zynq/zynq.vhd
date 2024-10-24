@@ -167,7 +167,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C401D";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4021";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -769,10 +769,10 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not nanocycle;
 
-    iINPUTBUS  <= ttibus or tt40ibus; -- or armibus
-    i_AC_CLEAR <= not (ttacclr and not tt40acclr); -- and arm_acclr
-    i_INT_RQST <= not (ttintrq and not tt40intrq); -- and arm_intrq
-    i_IO_SKIP  <= not (ttioskip and not tt40ioskip); -- and arm_ioskip
+    iINPUTBUS  <= ttibus or tt40ibus or armibus;
+    i_AC_CLEAR <= not (ttacclr  or tt40acclr  or not arm_acclr);
+    i_INT_RQST <= not (ttintrq  or tt40intrq  or not arm_intrq);
+    i_IO_SKIP  <= not (ttioskip or tt40ioskip or not arm_ioskip);
 
     pdp8linst: pdp8l port map (
         CLOCK         => CLOCK,
