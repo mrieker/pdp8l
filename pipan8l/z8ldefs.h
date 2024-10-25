@@ -35,7 +35,8 @@
 #define Z_RI 9
 #define Z_RJ 10
 #define Z_RK 11
-#define Z_N 12      // total number of registers
+#define Z_RL 12
+#define Z_N 13      // total number of registers
 
 #define a_iBEMA         (1U <<  0)
 #define a_iCA_INCREMENT (1U <<  1)
@@ -123,6 +124,7 @@
 #define k_timedelay (  077U <<  3)
 #define k_timestate (  037U <<  9)
 #define k_cyclectr  (01777U << 14)
+#define l_breakdata (07777U <<  0)
 
 #define c_iINPUTBUS0 (c_iINPUTBUS & - c_iINPUTBUS)
 #define c_iMEM0      (c_iMEM      & - c_iMEM)
@@ -139,6 +141,7 @@
 #define k_majstate0  (k_majstate  & - k_majstate)
 #define k_timedelay0 (k_timedelay & - k_timedelay)
 #define k_timestate0 (k_timestate & - k_timestate)
+#define l_breakdata0 (l_breakdata & - l_breakdata)
 
 #define MS_START 0        // figure out what to do next (also for exam & ldad switches)
 #define MS_FETCH 1        // memory cycle is fetching instruction

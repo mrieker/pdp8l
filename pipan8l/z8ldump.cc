@@ -194,6 +194,7 @@ int main (int argc, char **argv)
         printf ("  lbAC=%04o", FIELD (Z_RI, i_lbAC));
         printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
+        printf ("  breakdata=%04o", FIELD (Z_RL, l_breakdata));
 
         printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
         printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));

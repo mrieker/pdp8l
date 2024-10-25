@@ -37,6 +37,8 @@
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
 
+#define FIELD(index,mask) ((zynqpage[index] & mask) / (mask & - mask))
+
 static char const *const majstatenames[8] =
     { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "DEPOS" };
 static char const *const timestatenames[32] =
@@ -151,13 +153,13 @@ int main (int argc, char **argv)
         uint16_t randsr  = 0;
 
         // clock to TS_IDLE so we know it is about to check for breaks and interrupt requests
-        for (int i = 0; (zynqpage[Z_RK] & k_timestate) == (TS_IDLE * k_timestate0); i ++) {
+        for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
             if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before fetch\n");
             clockit ();
         }
 
         // maybe do a dma cycle
-        if (((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0)) && (randbits (8) == 0)) {
+        if ((FIELD (Z_RK, k_majstate) == MS_START) && (randbits (8) == 0)) {
 
             // have both TS_IDLE and MS_START, raise BRK_RQST and next clock should be in it
             bool threecycle = randbits (1);
@@ -167,11 +169,16 @@ int main (int argc, char **argv)
             zynqpage[Z_RD] = (zynqpage[Z_RD] | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
             clockit ();
             if (threecycle) {
+
+                // WC state reads wordcount from dmaaddr, increments it and writes it back
                 uint16_t oldwordcount = randbits (12);
                 uint16_t newwordcount = (oldwordcount + 1) & 07777;
                 printf ("  WC:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
                 memorycycle (g_lbWC, dmaaddr, oldwordcount, newwordcount);
                 verifybit (Z_RF, f_oBWC_OVERFLOW, newwordcount == 0, "BWC OVERFLOW at end of WC cycle");
+
+                // CA state reads pointer from dmaaddr + 1, increments it and writes it back
+                // then we use the incremented pointer for the transfer address
                 dmaaddr = (dmaaddr + 1) & 07777;
                 bool cainc = randbits (1);
                 uint16_t oldcuraddr = randbits (12);
@@ -181,20 +188,26 @@ int main (int argc, char **argv)
                 memorycycle (g_lbCA, dmaaddr, oldcuraddr, newcuraddr);
                 dmaaddr = newcuraddr;
             }
-            bool dmadatain  = true;  //TODO// randbits (1);  // true: just reading memory; false: writing memory
-            bool dmameminc  = false; //TODO// randbits (1);  // true: increment value read; false: leave value as read
-            uint16_t dmardata = randbits (12);
-            uint16_t dmawdata = ((dmadatain ? dmardata : randbits (12)) + dmameminc) & 07777;
+
+            // transfer word at address dmaaddr
+            bool dmadatain    = randbits (1);       // true: writing memory from d_i_DMADATA; false: writing MB as is back to memory
+            bool dmameminc    = randbits (1);       // true: increment value read; false: leave value as read
+            uint16_t dmardata = randbits (12);      // fake value we read from from memory location dmaaddr
+                                                    // - processor will put this in its MB register at end of TS1
+            uint16_t dmawrand = randbits (12);      // random value to send out over dmadata bus
+                                                    // - ignored by processor when dmadatain = false
+                                                    //   written to MB by processor at end of TS2 when dmadatain = true
+            zynqpage[Z_RA]    = (zynqpage[Z_RA] & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
+            zynqpage[Z_RD]    = (zynqpage[Z_RD] | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
+            uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%04o / %04o <= %04o", dmaaddr, dmardata, dmawdata);
-            zynqpage[Z_RA]  = (zynqpage[Z_RA] & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
-            zynqpage[Z_RD]  = (zynqpage[Z_RD] | d_i_DMADATA) & ~ (dmawdata * d_i_DMADATA0);
             memorycycle (g_lbBRK, dmaaddr, dmardata, dmawdata);
-            zynqpage[Z_RA] |= a_i_BRK_RQST;
+            zynqpage[Z_RA]   |= a_i_BRK_RQST;
         } else {
 
             // maybe interrupt request is next
-            if (intrequest && intenabled && (zynqpage[Z_RA] & a_i_INT_INHIBIT) && ((zynqpage[Z_RK] & k_majstate) == (MS_START * k_majstate0))) {
-                for (int i = 0; zynqpage[Z_RF] & f_o_LOAD_SF; i ++) {
+            if (intrequest && intenabled && FIELD (Z_RA, a_i_INT_INHIBIT) && (FIELD (Z_RK, k_majstate) == MS_START)) {
+                for (int i = 0; FIELD (Z_RF, f_o_LOAD_SF); i ++) {
                     if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
                     clockit ();
                 }
@@ -397,7 +410,7 @@ int main (int argc, char **argv)
                         if (opcode & 0004) acum |= randsr;
                         printf (" => %04o", acum);
                         if (opcode & 0002) {
-                            for (int i = 0; ! (zynqpage[Z_RF] & f_o_B_RUN); i ++) {
+                            for (int i = 0; ! FIELD (Z_RF, f_o_B_RUN); i ++) {
                                 if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
                                 clockit ();
                             }
@@ -412,7 +425,7 @@ int main (int argc, char **argv)
         }
 
         // step to MS_START state so we know AC,LINK have been updated
-        for (int i = 0; (zynqpage[Z_RK] & k_majstate) != (MS_START * k_majstate0); i ++) {
+        for (int i = 0; FIELD (Z_RK, k_majstate) != MS_START; i ++) {
             if (i > 1000) fatalerr ("timed out clocking to MS_START\n");
             clockit ();
         }
@@ -461,13 +474,13 @@ static void dostart ()
     zynqpage[Z_RB] &= ~ b_swSTART;
 
     // clock until the run flipflop sets
-    for (int i = 0; zynqpage[Z_RF] & f_o_B_RUN; i ++) {
+    for (int i = 0; FIELD (Z_RF, f_o_B_RUN); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for RUN after ficking START switch\n");
         clockit ();
     }
 
     verify12 (Z_RI, i_lbAC, 0, "AC not zero after START switch");
-    if (zynqpage[Z_RG] & g_lbLINK) fatalerr ("LINK not zero after START switch\n");
+    if (FIELD (Z_RG, g_lbLINK)) fatalerr ("LINK not zero after START switch\n");
 }
 
 // do a 'continue' operation
@@ -483,7 +496,7 @@ static void docont ()
     zynqpage[Z_RB] &= ~ b_swCONT;
 
     // clock until the run flipflop sets
-    for (int i = 0; zynqpage[Z_RB] & f_o_B_RUN; i ++) {
+    for (int i = 0; FIELD (Z_RB, f_o_B_RUN); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for RUN after ficking CONT switch\n");
         clockit ();
     }
@@ -502,26 +515,26 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
 {
     // clock until we see TS1
     // give it extra time cuz it could be at end of TS3 for previous instruction
-    for (int i = 0; ! (zynqpage[Z_RF] & f_oBTS_1); i ++) {
+    for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
         if (i > 3000) fatalerr ("timed out waiting for TS1 asserted\n");
         clockit ();
     }
 
     // we should have MEMSTART now
-    if (! (zynqpage[Z_RF] & f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
+    if (! FIELD (Z_RF, f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
 
     // it should be outputting address we expect
     verify12 (Z_RI, i_oMA, addr, "MA bad at beginning of mem cycle");
 
     // should now be fully transitioned to the major state
-    if ((state != 0) && ! (zynqpage[Z_RG] & state)) fatalerr ("not in state %08X during mem cycle\n", state);
+    if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
 
     // send the read data and strobe to indicate data is valid
     zynqpage[Z_RC]  = (zynqpage[Z_RC] & ~ c_iMEM) | (rdata * c_iMEM0);
     zynqpage[Z_RA] &= ~ a_i_STROBE;
 
     // end of TS1 means it got the data into MB
-    for (int i = 0; zynqpage[Z_RF] & f_oBTS_1; i ++) {
+    for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS1 negated\n");
         clockit ();
     }
@@ -530,7 +543,7 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
     zynqpage[Z_RA] |= a_i_STROBE;
 
     // wait for it to enter TS3, it should be sending the write data
-    for (int i = 0; ! (zynqpage[Z_RF] & f_oBTS_3); i ++) {
+    for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting fot TS3 asserted\n");
         clockit ();
     }
@@ -541,7 +554,7 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
     zynqpage[Z_RA] &= ~ a_i_MEMDONE;
 
     // wait for it to leave TS3
-    for (int i = 0; zynqpage[Z_RF] & f_oBTS_3; i ++) {
+    for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
         clockit ();
     }
@@ -620,7 +633,7 @@ static uint16_t randbits (int nbits)
 
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg)
 {
-    uint16_t actual = (zynqpage[index] & mask) / (mask & - mask);
+    uint16_t actual = FIELD (index, mask);
     if (actual != expect) {
         fatalerr ("%s, is %04o should be %04o\n", msg, actual, expect);
     }
@@ -628,7 +641,7 @@ static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg
 
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg)
 {
-    uint16_t actual = (zynqpage[index] & mask) / (mask & - mask);
+    uint16_t actual = FIELD (index, mask);
     if (actual != expect) {
         fatalerr ("%s, is %o should be %o\n", msg, actual, expect);
     }
@@ -647,10 +660,10 @@ static void fatalerr (char const *fmt, ...)
 
 static void dumpstate ()
 {
-    uint32_t majstate  = (zynqpage[Z_RK] & k_majstate)  / k_majstate0;
-    uint32_t timestate = (zynqpage[Z_RK] & k_timestate) / k_timestate0;
-    uint32_t timedelay = (zynqpage[Z_RK] & k_timedelay) / k_timedelay0;
-    uint32_t ir = (zynqpage[Z_RG] & g_lbIR) / g_lbIR0;
+    uint32_t majstate  = FIELD (Z_RK, k_majstate);
+    uint32_t timestate = FIELD (Z_RK, k_timestate);
+    uint32_t timedelay = FIELD (Z_RK, k_timedelay);
+    uint32_t ir = FIELD (Z_RG, g_lbIR);
     printf ("clockno=%u ir=%o majstate=%s timestate=%s timedelay=%u\n",
         clockno, ir, majstatenames[majstate], timestatenames[timestate], timedelay);
 }
