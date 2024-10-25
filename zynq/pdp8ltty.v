@@ -20,34 +20,39 @@
 
 // PDP-8/L teletype interface
 
+// arm registers:
+//  [0] = ident='TT',sizecode=1,version
+//  [1] = <kbflag> 0000000000000000000 <kbchar>
+//  [2] = <prflag> <prfull> 000000000000000000 <prchar>
+//  [3] = 00000000000000000000000000 <KBDEV>
+
 module pdp8ltty
     #(parameter[8:3] KBDEV=6'o03) (
     input CLOCK, RESET,
-    input armwpulse,
+
+    input armwrite,
     input[1:0] armraddr, armwaddr,
     input[31:00] armwdata,
     output[31:00] armrdata,
 
-    output reg[11:00] INPUTBUS,
-    output reg AC_CLEAR,
-    output INT_RQST,
-    output reg IO_SKIP,
+    input iopstart,
+    input iopstop,
+    input[11:00] ioopcode,
+    input[11:00] cputodev,
 
-    input[11:00] BAC,
-    input BIOP1,
-    input BIOP2,
-    input BIOP4,
-    input[11:00] BMB,
-    input BUSINIT
+    output reg[11:00] devtocpu,
+    output reg AC_CLEAR,
+    output reg IO_SKIP,
+    output INT_RQST
 );
 
     localparam[11:00] kbio = 12'o6000 + (KBDEV << 3);
     localparam[11:00] ttio = 12'o6010 + (KBDEV << 3);
 
-    reg intenab, kbflag, lastiop, prflag, prfull;
+    reg intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541002 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541003 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, 19'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 26'b0, KBDEV };
@@ -55,17 +60,15 @@ module pdp8ltty
     assign INT_RQST = intenab & (kbflag | prflag);
 
     always @(posedge CLOCK) begin
-        if (RESET | BUSINIT) begin
+        if (RESET) begin
             intenab <= 0;
             kbflag  <= 0;
-            lastiop <= 0;
             prflag  <= 0;
             prfull  <= 0;
         end
 
-        // arm processor doing a write takes precedence over looking for IO pulse
-        // ...because armwpulse only lasts one cycle
-        else if (armwpulse) begin
+        // arm processor is writing one of the registers
+        else if (armwrite) begin
             case (armwaddr)
 
                 // arm processor is sending a keyboard char for the PDP-8/L code to read
@@ -79,37 +82,29 @@ module pdp8ltty
             endcase
         end else begin
 
-            // see if PDP-8/L is outputting one of the IOPs
-            // make sure we process only one IOP per IO instruction
-            if ((BIOP1 & (BMB[00] == 1)) | (BIOP2 & (BMB[01:00] == 2)) | (BIOP4 & (BMB[02:00] == 4))) begin
-
-                // process the IOP only on the leading edge
-                // ...but leave output signals to PDP-8/L in place until IOP negates
-                if (~ lastiop) begin
-                    case (BMB)
-                        kbio+1: begin IO_SKIP <= kbflag; end                                  // skip if kb char ready
-                        kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                         // clear accum, clear flag
-                        kbio+4: begin INPUTBUS <= { 4'b0, kbchar }; end                       // read kb char
-                        kbio+5: begin intenab <= BAC[00]; end                                 // enable/disable interrupts
-                        kbio+6: begin AC_CLEAR <= 1; INPUTBUS <= kbchar; kbflag <= 0; end     // read kb char, clear flag
-                        ttio+1: begin IO_SKIP <= prflag; end                                  // skip if done printing
-                        ttio+2: begin prflag <= 0; end                                        // stop saying done printing
-                        ttio+4: begin prchar <= BAC; prfull <= 1; end                         // start printing char
-                        ttio+5: begin IO_SKIP <= INT_RQST; end                                // skip if requesting interrupt
-                        ttio+6: begin prchar <= BAC[07:00]; prflag <= 0; prfull <= 1; end     // start printing char, clear done flag
-                    endcase
-                end
+            // process the IOP only on the leading edge
+            // ...but leave output signals to PDP-8/L in place until given the all clear
+            if (iopstart) begin
+                case (ioopcode)
+                    kbio+1: begin IO_SKIP <= kbflag; end                                    // skip if kb char ready
+                    kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                           // clear accum, clear flag
+                    kbio+4: begin devtocpu <= { 4'b0, kbchar }; end                         // read kb char
+                    kbio+5: begin intenab <= cputodev[00]; end                              // enable/disable interrupts
+                    kbio+6: begin AC_CLEAR <= 1; devtocpu <= kbchar; kbflag <= 0; end       // read kb char, clear flag
+                    ttio+1: begin IO_SKIP <= prflag; end                                    // skip if done printing
+                    ttio+2: begin prflag <= 0; end                                          // stop saying done printing
+                    ttio+4: begin prchar <= cputodev; prfull <= 1; end                      // start printing char
+                    ttio+5: begin IO_SKIP <= INT_RQST; end                                  // skip if requesting interrupt
+                    ttio+6: begin prchar <= cputodev[07:00]; prflag <= 0; prfull <= 1; end  // start printing char, clear done flag
+                endcase
             end
 
             // processor no longer sending an IOP, stop sending data over the bus so it doesn't jam other devices
-            else begin
+            else if (iopstop) begin
                 AC_CLEAR <= 0;
-                INPUTBUS <= 0;
+                devtocpu <= 0;
                 IO_SKIP  <= 0;
             end
-
-            // used to detect IOP transition
-            lastiop <= BIOP1 | BIOP2 | BIOP4;
         end
     end
 endmodule

@@ -38,6 +38,12 @@ entity Zynq is
             xlastnano : out STD_LOGIC;
             xnanocycle : out STD_LOGIC;
 
+            xbiop1, xbiop2, xbiop4 : out std_logic;
+            xfiop1, xfiop2, xfiop4 : out std_logic;
+            xiopsetct : out std_logic_vector (3 downto 0);
+            xiopclrct : out std_logic_vector (2 downto 0);
+            xiopstart, xiopstop : out std_logic;
+
             -- arm processor memory bus interface (AXI)
             -- we are a slave for accessing the control registers (read & write)
             saxi_ARADDR : in std_logic_vector (11 downto 0);
@@ -167,7 +173,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4025";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4027";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -273,6 +279,12 @@ architecture rtl of Zynq is
 
     signal lastnanostep, nanocycle, nanostep, softreset, testioins : std_logic;
     signal inuseclock, inusereset : std_logic;
+    signal ioreset, armwrite : boolean;
+    signal iopstart, iopstop : boolean;
+    signal firstiop1, firstiop2, firstiop4 : boolean;
+    signal acclr, intrq, ioskip : std_logic;
+    signal iopsetcount : natural range 0 to 15; -- count fpga cycles where an IOP is on
+    signal iopclrcount : natural range 0 to  7; -- count fpga cycles where no IOP is on
 
     -- arm interface signals
     signal arm_acclr, arm_intrq, arm_ioskip : std_logic;
@@ -282,10 +294,10 @@ architecture rtl of Zynq is
     -- tty interface signals
     signal ttardata : std_logic_vector (31 downto 0);
     signal ttibus : std_logic_vector (11 downto 0);
-    signal ttawpuls, ttacclr, ttintrq, ttioskip : std_logic;
+    signal ttawrite, ttacclr, ttintrq, ttioskip : boolean;
     signal tt40ardata : std_logic_vector (31 downto 0);
     signal tt40ibus : std_logic_vector (11 downto 0);
-    signal tt40awpuls, tt40acclr, tt40intrq, tt40ioskip : std_logic;
+    signal tt40awrite, tt40acclr, tt40intrq, tt40ioskip : boolean;
 
 component pdp8l port (
     CLOCK : in std_logic;
@@ -379,7 +391,7 @@ end component;
 
  -- component pdp8ltty port (
  --     CLOCK, RESET : in std_logic;
- --     armwpulse : in std_logic;
+ --     armwrite : in std_logic;
  --     armraddr, armwaddr : in std_logic_vector (1 downto 0);
  --     armwdata : in std_logic_vector (31 downto 0);
  --     armrdata : out std_logic_vector (31 downto 0);
@@ -402,6 +414,17 @@ begin
     xnanostep <= nanostep;
     xlastnano <= lastnanostep;
     xnanocycle <= nanocycle;
+
+    xbiop1 <= oBIOP1;
+    xbiop2 <= oBIOP2;
+    xbiop4 <= oBIOP4;
+    xfiop1 <= '1' when firstiop1 else '0';
+    xfiop2 <= '1' when firstiop2 else '0';
+    xfiop4 <= '1' when firstiop4 else '0';
+    xiopsetct <= std_logic_vector (to_unsigned (iopsetcount, 4));
+    xiopclrct <= std_logic_vector (to_unsigned (iopclrcount, 3));
+    xiopstart <= '1' when iopstart else '0';
+    xiopstop  <= '1' when iopstop  else '0';
 
     -- bus values that are constants
     saxi_BRESP <= b"00";        -- A3.4.4/A10.3 transfer OK
@@ -775,10 +798,13 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not nanocycle;
 
+    acclr      <= '1' when ttacclr  or tt40acclr  else '0';
+    intrq      <= '1' when ttintrq  or tt40intrq  else '0';
+    ioskip     <= '1' when ttioskip or tt40ioskip else '0';
     iINPUTBUS  <= ttibus or tt40ibus when testioins = '0' else armibus;
-    i_AC_CLEAR <= not (ttacclr  or tt40acclr)  when testioins = '0' else arm_acclr;
-    i_INT_RQST <= not (ttintrq  or tt40intrq)  when testioins = '0' else arm_intrq;
-    i_IO_SKIP  <= not (ttioskip or tt40ioskip) when testioins = '0' else arm_ioskip;
+    i_AC_CLEAR <= not acclr  when testioins = '0' else arm_acclr;
+    i_INT_RQST <= not intrq  when testioins = '0' else arm_intrq;
+    i_IO_SKIP  <= not ioskip when testioins = '0' else arm_ioskip;
 
     pdp8linst: pdp8l port map (
         CLOCK         => CLOCK,
@@ -869,53 +895,106 @@ begin
 
     regctlk(31 downto 29) <= (others => '0');
 
+    ---------------------
+    --  io interfaces  --
+    ---------------------
+
+    ioreset  <= inusereset = '1' or oBUSINIT = '1';         -- reset io devices
+    armwrite <= saxiWREADY = '1' and saxi_WVALID = '1';     -- arm is writing a backside register (single fpga clock cycle)
+
+    -- generate iopstart pulse for an io instruction followed by iopstop
+    --  iopstart is pulsed 140nS after the first iop for an instruction and lasts a single fpga clock cycle
+    --   it is delayed if armwrite is happening at the same time
+    --   interfaces know they can decode the io opcode in oBMB and drive the busses
+    --  iopstop is turned on 70nS after the end of that same iop and may last a long time
+    --   interfaces must stop driving busses at this time
+    --   it may happen same time as armwrite but since it lasts a long time, it will still be seen
+
+    -- interfaces are assumed to have this form:
+    --   if ioreset do ioreset processing
+    --   else if armwrite do armwrite processing
+    --   else if iopstart do iopstart processing
+    --   else if iopstop do iopstop processing
+
+    firstiop1 <= oBIOP1 = '1' and oBMB(0) = '1';
+    firstiop2 <= oBIOP2 = '1' and oBMB(1 downto 0) = b"10";
+    firstiop4 <= oBIOP4 = '1' and oBMB(2 downto 0) = b"100";
+
+    process (CLOCK)
+    begin
+        if rising_edge (CLOCK) then
+            if ioreset then
+                iopsetcount <= 0;
+                iopclrcount <= 7;
+            elsif firstiop1 or firstiop2 or firstiop4 then
+                -- somewhere inside the first IOP for an instruction
+                -- 140nS into it, blip a iopstart pulse for one fpga clock
+                --   but hold it off if there would be an armwrite at same time
+                iopclrcount <= 0;
+                if iopsetcount < 14 or (iopsetcount = 14 and not armwrite) then
+                    iopsetcount <= iopsetcount + 1;
+                end if;
+            else
+                -- somewhere outside the first IOPn for an instruction
+                -- 70nS into it, raise and hold the stop signal until next iopulse
+                iopsetcount <= 0;
+                if iopclrcount < 7 then
+                    iopclrcount <= iopclrcount + 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    iopstart <= iopsetcount = 14 and not armwrite;  -- IOP started 140nS ago, process the opcode in oBMB, start driving busses
+    iopstop  <= iopclrcount =  7;                   -- IOP finished 70nS ago, stop driving io busses
+
     -- teletype interfaces
 
-    ttawpuls   <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"08") else '0';
-    tt40awpuls <= '1' when (saxiWREADY = '1' and saxi_WVALID = '1' and writeaddr(11 downto 4) = x"09") else '0';
+    ttawrite   <= armwrite and writeaddr(11 downto 4) = x"08";
+    tt40awrite <= armwrite and writeaddr(11 downto 4) = x"09";
 
     ttinst: pdp8ltty port map (
-        CLOCK => inuseclock,
-        RESET => inusereset,
-        armwpulse => ttawpuls,
+        CLOCK => CLOCK,
+        RESET => ioreset,
+
+        armwrite => ttawrite,
         armraddr => readaddr(3 downto 2),
         armwaddr => writeaddr(3 downto 2),
         armwdata => saxi_WDATA,
         armrdata => ttardata,
 
-        INPUTBUS => ttibus,
+        iopstart => iopstart,
+        iopstop  => iopstop,
+        ioopcode => oBMB,
+        cputodev => oBAC,
+
+        devtocpu => ttibus,
         AC_CLEAR => ttacclr,
-        INT_RQST => ttintrq,
         IO_SKIP  => ttioskip,
-        BAC => oBAC,
-        BIOP1 => oBIOP1,
-        BIOP2 => oBIOP2,
-        BIOP4 => oBIOP4,
-        BMB => oBMB,
-        BUSINIT => oBUSINIT
+        INT_RQST => ttintrq
     );
 
     tt40inst: pdp8ltty
         generic map (KBDEV => std_logic_vector (to_unsigned (8#40#, 6)))
         port map (
-            CLOCK => inuseclock,
-            RESET => inusereset,
-            armwpulse => tt40awpuls,
+            CLOCK => CLOCK,
+            RESET => ioreset,
+
+            armwrite => tt40awrite,
             armraddr => readaddr(3 downto 2),
             armwaddr => writeaddr(3 downto 2),
             armwdata => saxi_WDATA,
             armrdata => tt40ardata,
 
-            INPUTBUS => tt40ibus,
+            iopstart => iopstart,
+            iopstop  => iopstop,
+            ioopcode => oBMB,
+            cputodev => oBAC,
+
+            devtocpu => tt40ibus,
             AC_CLEAR => tt40acclr,
-            INT_RQST => tt40intrq,
             IO_SKIP  => tt40ioskip,
-            BAC => oBAC,
-            BIOP1 => oBIOP1,
-            BIOP2 => oBIOP2,
-            BIOP4 => oBIOP4,
-            BMB => oBMB,
-            BUSINIT => oBUSINIT
+            INT_RQST => tt40intrq
         );
 
 end rtl;
