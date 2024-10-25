@@ -106,6 +106,7 @@ module pdp8l (
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
     ,output reg lastnanostep
+    ,output[11:00] breakdata
 );
 
     localparam MS_START = 0;        // figure out what to do next (also for exam & ldad switches)
@@ -231,6 +232,9 @@ module pdp8l (
 
     // get incoming ac bits from io bus
     wire[11:00] ioac = (i_AC_CLEAR ? acum : 0) | iINPUTBUS;
+
+    // data written back to memory during break cycle
+    assign breakdata = (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, iMEMINCR };
 
     // main processing loop
     // set tp1 near end of ts1, then this circuit will transition to ts2 then clear tp1
@@ -436,7 +440,7 @@ module pdp8l (
                             end
                             MS_CA:  mbuf <= mbuf + iCA_INCREMENT;
                             MS_BRK: begin
-                                mbuf <= (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, iMEMINCR };
+                                mbuf <= breakdata;
                                 o_ADDR_ACCEPT <= 0;
                             end
                             MS_DEPOS: mbuf <= swSR;

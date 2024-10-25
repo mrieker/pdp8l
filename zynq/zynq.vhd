@@ -277,6 +277,7 @@ architecture rtl of Zynq is
     -- arm interface signals
     signal arm_acclr, arm_intrq, arm_ioskip : std_logic;
     signal armibus : std_logic_vector (11 downto 0);
+    signal breakdata : std_logic_vector (11 downto 0);
 
     -- tty interface signals
     signal ttardata : std_logic_vector (31 downto 0);
@@ -372,6 +373,7 @@ component pdp8l port (
     ;nanocycle : in std_logic
     ;nanostep  : in std_logic
     ;lastnanostep : out std_logic
+    ;breakdata : out std_logic_vector (11 downto 0)
 );
 end component;
 
@@ -477,6 +479,7 @@ begin
                     regctli when readaddr = b"0000001001" else
                     regctlj when readaddr = b"0000001010" else
                     regctlk when readaddr = b"0000001011" else
+       x"00000" & breakdata when readaddr = b"0000001100" else
                     ttardata   when readaddr(11 downto 4) = b"00001000" else  -- 00001000xx00
                     tt40ardata when readaddr(11 downto 4) = b"00001001" else  -- 00001001xx00
                     x"DEADBEEF";
@@ -861,6 +864,7 @@ begin
         ,nanocycle => nanocycle
         ,nanostep  => nanostep
         ,lastnanostep => lastnanostep
+        ,breakdata => breakdata
     );
 
     regctlk(31 downto 29) <= (others => '0');
