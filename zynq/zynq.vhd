@@ -173,7 +173,7 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
     ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
 
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4027";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4028";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
 
     constant BURSTLEN : natural := 10;
 
@@ -282,22 +282,27 @@ architecture rtl of Zynq is
     signal ioreset, armwrite : boolean;
     signal iopstart, iopstop : boolean;
     signal firstiop1, firstiop2, firstiop4 : boolean;
-    signal acclr, intrq, ioskip : std_logic;
+    signal acclr, intrq, ioskp : std_logic;
     signal iopsetcount : natural range 0 to 15; -- count fpga cycles where an IOP is on
     signal iopclrcount : natural range 0 to  7; -- count fpga cycles where no IOP is on
 
     -- arm interface signals
-    signal arm_acclr, arm_intrq, arm_ioskip : std_logic;
+    signal arm_acclr, arm_intrq, arm_ioskp : std_logic;
     signal armibus : std_logic_vector (11 downto 0);
     signal breakdata : std_logic_vector (11 downto 0);
 
     -- tty interface signals
     signal ttardata : std_logic_vector (31 downto 0);
     signal ttibus : std_logic_vector (11 downto 0);
-    signal ttawrite, ttacclr, ttintrq, ttioskip : boolean;
+    signal ttawrite, ttacclr, ttintrq, ttioskp : boolean;
     signal tt40ardata : std_logic_vector (31 downto 0);
     signal tt40ibus : std_logic_vector (11 downto 0);
-    signal tt40awrite, tt40acclr, tt40intrq, tt40ioskip : boolean;
+    signal tt40awrite, tt40acclr, tt40intrq, tt40ioskp : boolean;
+
+    -- disk interface signals
+    signal rkardata : std_logic_vector (31 downto 0);
+    signal rkibus : std_logic_vector (11 downto 0);
+    signal rkawrite, rkacclr, rkintrq, rkioskp : boolean;
 
 component pdp8l port (
     CLOCK : in std_logic;
@@ -503,8 +508,9 @@ begin
                     regctlj when readaddr = b"0000001010" else
                     regctlk when readaddr = b"0000001011" else
        x"00000" & breakdata when readaddr = b"0000001100" else
-                    ttardata   when readaddr(11 downto 4) = b"00001000" else  -- 00001000xx00
-                    tt40ardata when readaddr(11 downto 4) = b"00001001" else  -- 00001001xx00
+                   rkardata when readaddr(11 downto 5) = b"0000100"  else  -- 0000100xxx00
+                   ttardata when readaddr(11 downto 4) = b"00001010" else  -- 00001010xx00
+                 tt40ardata when readaddr(11 downto 4) = b"00001011" else  -- 00001011xx00
                     x"DEADBEEF";
 
     -- A3.3.1 Read transaction dependencies
@@ -573,7 +579,7 @@ begin
                         i_EMA         <= saxi_WDATA(09);
                         i_INT_INHIBIT <= saxi_WDATA(10);
                         arm_intrq     <= saxi_WDATA(11);
-                        arm_ioskip    <= saxi_WDATA(12);
+                        arm_ioskp     <= saxi_WDATA(12);
                         i_MEMDONE     <= saxi_WDATA(13);
                         i_STROBE      <= saxi_WDATA(14);
                         testioins     <= saxi_WDATA(28);
@@ -798,14 +804,6 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not nanocycle;
 
-    acclr      <= '1' when ttacclr  or tt40acclr  else '0';
-    intrq      <= '1' when ttintrq  or tt40intrq  else '0';
-    ioskip     <= '1' when ttioskip or tt40ioskip else '0';
-    iINPUTBUS  <= ttibus or tt40ibus when testioins = '0' else armibus;
-    i_AC_CLEAR <= not acclr  when testioins = '0' else arm_acclr;
-    i_INT_RQST <= not intrq  when testioins = '0' else arm_intrq;
-    i_IO_SKIP  <= not ioskip when testioins = '0' else arm_ioskip;
-
     pdp8linst: pdp8l port map (
         CLOCK         => CLOCK,
         RESET         => inusereset,
@@ -948,10 +946,21 @@ begin
     iopstart <= iopsetcount = 14 and not armwrite;  -- IOP started 140nS ago, process the opcode in oBMB, start driving busses
     iopstop  <= iopclrcount =  7;                   -- IOP finished 70nS ago, stop driving io busses
 
+    -- busses - wired-or from device to processor
+
+    acclr      <= '1' when ttacclr or tt40acclr or rkacclr else '0';
+    intrq      <= '1' when ttintrq or tt40intrq or rkintrq else '0';
+    ioskp      <= '1' when ttioskp or tt40ioskp or rkioskp else '0';
+    iINPUTBUS  <= ttibus or tt40ibus or rkibus when testioins = '0' else armibus;
+
+    i_AC_CLEAR <= not acclr when testioins = '0' else arm_acclr;
+    i_INT_RQST <= not intrq when testioins = '0' else arm_intrq;
+    i_IO_SKIP  <= not ioskp when testioins = '0' else arm_ioskp;
+
     -- teletype interfaces
 
-    ttawrite   <= armwrite and writeaddr(11 downto 4) = x"08";
-    tt40awrite <= armwrite and writeaddr(11 downto 4) = x"09";
+    ttawrite   <= armwrite and writeaddr(11 downto 4) = b"00001010";    -- 00001010xx00
+    tt40awrite <= armwrite and writeaddr(11 downto 4) = b"00001011";    -- 00001011xx00
 
     ttinst: pdp8ltty port map (
         CLOCK => CLOCK,
@@ -970,7 +979,7 @@ begin
 
         devtocpu => ttibus,
         AC_CLEAR => ttacclr,
-        IO_SKIP  => ttioskip,
+        IO_SKIP  => ttioskp,
         INT_RQST => ttintrq
     );
 
@@ -993,8 +1002,33 @@ begin
 
             devtocpu => tt40ibus,
             AC_CLEAR => tt40acclr,
-            IO_SKIP  => tt40ioskip,
+            IO_SKIP  => tt40ioskp,
             INT_RQST => tt40intrq
         );
+
+    -- disk interface
+
+    rkawrite <= armwrite and writeaddr(11 downto 5) = b"0000100";       -- 0000100xxx00
+
+    rkinst: pdp8lrk8je port map (
+        CLOCK => CLOCK,
+        RESET => ioreset,
+
+        armwrite => rkawrite,
+        armraddr => readaddr(4 downto 2),
+        armwaddr => writeaddr(4 downto 2),
+        armwdata => saxi_WDATA,
+        armrdata => rkardata,
+
+        iopstart => iopstart,
+        iopstop  => iopstop,
+        ioopcode => oBMB,
+        cputodev => oBAC,
+
+        devtocpu => rkibus,
+        AC_CLEAR => rkacclr,
+        IO_SKIP  => rkioskp,
+        INT_RQST => rkintrq
+    );
 
 end rtl;
