@@ -61,51 +61,7 @@ entity Zynq is
             saxi_RVALID : out std_logic;
             saxi_WDATA : in std_logic_vector (31 downto 0);
             saxi_WREADY : out std_logic;
-            saxi_WVALID : in std_logic;
-
-            -- - we are a master for accessing the ring buffer (read only)
-            maxi_ARADDR : out std_logic_vector (31 downto 0);
-            maxi_ARBURST : out std_logic_vector (1 downto 0);
-            maxi_ARCACHE : out std_logic_vector (3 downto 0);
-            maxi_ARID : out std_logic_vector (0 downto 0);
-            maxi_ARLEN : out std_logic_vector (7 downto 0);
-            maxi_ARLOCK : out std_logic_vector (1 downto 0);
-            maxi_ARPROT : out std_logic_vector (2 downto 0);
-            maxi_ARQOS : out std_logic_vector (3 downto 0);
-            maxi_ARREADY : in std_logic;
-            maxi_ARREGION : out std_logic_vector (3 downto 0);
-            maxi_ARSIZE : out std_logic_vector (2 downto 0);
-            maxi_ARUSER : out std_logic_vector (0 downto 0);
-            maxi_ARVALID : out std_logic;
-
-            maxi_AWADDR : out std_logic_vector (31 downto 0);
-            maxi_AWBURST : out std_logic_vector (1 downto 0);
-            maxi_AWCACHE : out std_logic_vector (3 downto 0);
-            maxi_AWID : out std_logic_vector (0 downto 0);
-            maxi_AWLEN : out std_logic_vector (7 downto 0);
-            maxi_AWLOCK : out std_logic_vector (1 downto 0);
-            maxi_AWPROT : out std_logic_vector (2 downto 0);
-            maxi_AWQOS : out std_logic_vector (3 downto 0);
-            maxi_AWREADY : in std_logic;
-            maxi_AWREGION : out std_logic_vector (3 downto 0);
-            maxi_AWSIZE : out std_logic_vector (2 downto 0);
-            maxi_AWUSER : out std_logic_vector (0 downto 0);
-            maxi_AWVALID : out std_logic;
-
-            maxi_BREADY : out std_logic;
-            maxi_BVALID : in std_logic;
-
-            maxi_RDATA : in std_logic_vector (31 downto 0);
-            maxi_RLAST : in std_logic;
-            maxi_RREADY : out std_logic;
-            maxi_RVALID : in std_logic;
-
-            maxi_WDATA : out std_logic_vector (31 downto 0);
-            maxi_WLAST : out std_logic;
-            maxi_WREADY : in std_logic;
-            maxi_WSTRB : out std_logic_vector (3 downto 0);
-            maxi_WUSER : out std_logic_vector (0 downto 0);
-            maxi_WVALID : out std_logic);
+            saxi_WVALID : in std_logic);
 end Zynq;
 
 architecture rtl of Zynq is
@@ -129,75 +85,12 @@ architecture rtl of Zynq is
     ATTRIBUTE X_INTERFACE_INFO OF saxi_WREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 S00_AXI WREADY";
     ATTRIBUTE X_INTERFACE_INFO OF saxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 S00_AXI WVALID";
 
-    -- declare axi master port signals (used by this code to access ring contents via dma)
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARADDR: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARADDR";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARBURST: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARBURST";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARCACHE: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARCACHE";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARID";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARLEN: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARLEN";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARLOCK: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARLOCK";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARPROT: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARPROT";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARQOS: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARQOS";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARREADY";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARREGION: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARREGION";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARSIZE: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARSIZE";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARUSER";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_ARVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI ARVALID";
-
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWADDR: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWADDR";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWBURST: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWBURST";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWCACHE: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWCACHE";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWID";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWLEN: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWLEN";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWLOCK: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWLOCK";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWPROT: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWPROT";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWQOS: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWQOS";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWREADY";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWREGION: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWREGION";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWSIZE: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWSIZE";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWUSER";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_AWVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI AWVALID";
-
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_BREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI BREADY";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_BVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI BVALID";
-
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_RDATA: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI RDATA";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_RLAST: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI RLAST";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_RREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI RREADY";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_RVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI RVALID";
-
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WDATA: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WDATA";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WLAST: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WLAST";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WREADY: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WREADY";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WSTRB: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WSTRB";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WUSER: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WUSER";
-    ATTRIBUTE X_INTERFACE_INFO OF maxi_WVALID: SIGNAL IS "xilinx.com:interface:aximm:1.0 M00_AXI WVALID";
-
-    constant VERSION : std_logic_vector (31 downto 0) := x"384C4028";   -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-
-    constant BURSTLEN : natural := 10;
+    -- [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
+    constant VERSION : std_logic_vector (31 downto 0) := x"384C4029";
 
     signal saxiARREADY, saxiAWREADY, saxiBVALID, saxiRVALID, saxiWREADY : std_logic;
-    signal ledr, ledg, ledb : std_logic;
-
-    constant PERIOD : natural := 1024*1024*256;     -- power of 2
-
-    signal blubright, divider, fader, grnbright, ratio, redbright : natural range 0 to PERIOD-1;
-    signal countup : boolean;
-
-    signal rpi_qena, rpi_dena : std_logic;
-
-    signal fpsint, fpsclm, fpsdam, fpsdas : std_logic;
-    signal intscl, intsdai, intsdao : std_logic;
-    signal fpsda0s : std_logic;
 
     signal readaddr, writeaddr : std_logic_vector (11 downto 2);
-
-    signal dmardaddr, dmawtaddr : std_logic_vector (31 downto 0);
-    signal maxiARVALID, maxiRREADY, maxiAWVALID, maxiWVALID, maxiBREADY : std_logic;
-
-    signal dmareadsel, dmawritesel : natural range 0 to 9;
-    signal temp0, temp1, temp2, temp3, temp4, temp5, temp6, temp7, temp8, temp9 : std_logic_vector (31 downto 0);
 
     -- pdp8/l module signals
 
@@ -289,7 +182,6 @@ architecture rtl of Zynq is
     -- arm interface signals
     signal arm_acclr, arm_intrq, arm_ioskp : std_logic;
     signal armibus : std_logic_vector (11 downto 0);
-    signal breakdata : std_logic_vector (11 downto 0);
 
     -- tty interface signals
     signal ttardata : std_logic_vector (31 downto 0);
@@ -304,7 +196,7 @@ architecture rtl of Zynq is
     signal rkibus : std_logic_vector (11 downto 0);
     signal rkawrite, rkacclr, rkintrq, rkioskp : boolean;
 
-component pdp8l port (
+component pdp8lsim port (
     CLOCK : in std_logic;
     RESET : in std_logic;
 
@@ -390,7 +282,6 @@ component pdp8l port (
     ;nanocycle : in std_logic
     ;nanostep  : in std_logic
     ;lastnanostep : out std_logic
-    ;breakdata : out std_logic_vector (11 downto 0)
 );
 end component;
 
@@ -416,6 +307,8 @@ end component;
  -- end component;
 
 begin
+
+    -- debug signals
     xnanostep <= nanostep;
     xlastnano <= lastnanostep;
     xnanocycle <= nanocycle;
@@ -442,60 +335,11 @@ begin
     saxi_RVALID  <= saxiRVALID;
     saxi_WREADY  <= saxiWREADY;
 
-    ---------------------------------------------
-    --  DMA test code -- not needed for pdp8l  --
-    ---------------------------------------------
-
-    maxi_ARBURST <= b"01";      -- A3.4.1/A10.3 burst type = INCR
-    maxi_ARCACHE <= b"0000"; ----TODO---- b"0110";    -- A4.2 use read cache
-    maxi_ARID <= b"0";          -- A10.3 transaction id 0
-    maxi_ARLEN <= std_logic_vector (to_unsigned (BURSTLEN - 1, 8));  -- A3.4.1/A10.3 burst length
-    maxi_ARLOCK <= b"00";       -- A7.4/A10.3 normal access
-    maxi_ARPROT <= b"001";      -- A4.7 access permissions (privileged, secure, data)
-    maxi_ARQOS <= b"0000";      -- A8.1.1/A10.3 no QoS requirement
-    maxi_ARREGION <= b"0000";
-    maxi_ARSIZE <= b"010";      -- A3.4.1 transfer size = 4 bytes each
-    maxi_ARUSER <= b"0";
-
-    maxi_AWBURST <= b"01";      -- A3.4.1/A10.3 burst type = INCR
-    maxi_AWCACHE <= b"0000";
-    maxi_AWID <= b"0";
-    maxi_AWLEN <= std_logic_vector (to_unsigned (BURSTLEN - 1, 8));  -- A3.4.1/A10.3 burst length
-    maxi_AWLOCK <= b"00";
-    maxi_AWPROT <= b"001";      -- A4.7 access permissions (privileged, secure, data)
-    maxi_AWQOS <= b"0000";
-    maxi_AWREGION <= b"0000";
-    maxi_AWSIZE <= b"010";      -- A3.4.1 transfer size = 4 bytes each
-    maxi_AWUSER <= b"0";
-    maxi_WSTRB <= b"1111";
-    maxi_WUSER <= b"0";
-
-    maxi_ARVALID <= maxiARVALID;
-    maxi_RREADY  <= maxiRREADY;
-
-    maxi_AWVALID <= maxiAWVALID;
-    maxi_WVALID  <= maxiWVALID;
-    maxi_WLAST   <= '1' when dmawritesel = BURSTLEN - 1 else '0';
-    maxi_BREADY  <= maxiBREADY;
-
-    maxi_WDATA <=
-        temp0 when dmawritesel = 0 else
-        temp1 when dmawritesel = 1 else
-        temp2 when dmawritesel = 2 else
-        temp3 when dmawritesel = 3 else
-        temp4 when dmawritesel = 4 else
-        temp5 when dmawritesel = 5 else
-        temp6 when dmawritesel = 6 else
-        temp7 when dmawritesel = 7 else
-        temp8 when dmawritesel = 8 else
-        temp9 when dmawritesel = 9 else
-        x"DEADBEEF";
-
     -------------------------------------
     -- send register being read to ARM --
     -------------------------------------
 
-    saxi_RDATA <=   VERSION when readaddr = b"0000000000" else              -- 00000000xx00
+    saxi_RDATA <=   VERSION when readaddr = b"0000000000" else              -- 00000xxxxx00
                     regctla when readaddr = b"0000000001" else
                     regctlb when readaddr = b"0000000010" else
                     regctlc when readaddr = b"0000000011" else
@@ -507,7 +351,6 @@ begin
                     regctli when readaddr = b"0000001001" else
                     regctlj when readaddr = b"0000001010" else
                     regctlk when readaddr = b"0000001011" else
-       x"00000" & breakdata when readaddr = b"0000001100" else
                    rkardata when readaddr(11 downto 5) = b"0000100"  else  -- 0000100xxx00
                    ttardata when readaddr(11 downto 4) = b"00001010" else  -- 00001010xx00
                  tt40ardata when readaddr(11 downto 4) = b"00001011" else  -- 00001011xx00
@@ -530,17 +373,6 @@ begin
             nanostep  <= '0';                               -- by default, software clock is low
             softreset <= '1';                               -- by default, software reset asserted
             testioins <= '0';                               -- by default, not testing io instruction
-
-            -- reset dma read registers
-            dmardaddr <= (others => '0');
-            maxiARVALID <= '0';
-            maxiRREADY <= '0';
-
-            -- reset dma write registers
-            dmawtaddr <= (others => '0');
-            maxiAWVALID <= '0';
-            maxiWVALID <= '0';
-            maxiBREADY <= '0';
         elsif rising_edge (CLOCK) then
 
             ---------------------
@@ -628,81 +460,6 @@ begin
                 if saxiBVALID = '1' and saxi_BREADY = '1' then
                     saxiBVALID <= '0';
                 end if;
-            end if;
-
-            -----------------------------------------
-            --  dma read                           --
-            --  read into temp0..9 from dmardaddr  --
-            -----------------------------------------
-
-            if maxiARVALID = '0' and maxiRREADY = '0' and dmardaddr(0) = '1' then
-                maxi_ARADDR <= dmardaddr and x"FFFFF7FC";
-                dmareadsel  <= 0;
-                maxiARVALID <= '1';
-                maxiRREADY  <= '1';
-            end if;
-
-            if maxiARVALID = '1' and maxi_ARREADY = '1' then
-                maxiARVALID <= '0';
-            end if;
-
-            if maxiRREADY = '1' and maxi_RVALID = '1' then
-                case dmareadsel is
-                    when 0 => temp0 <= maxi_RDATA;
-                    when 1 => temp1 <= maxi_RDATA;
-                    when 2 => temp2 <= maxi_RDATA;
-                    when 3 => temp3 <= maxi_RDATA;
-                    when 4 => temp4 <= maxi_RDATA;
-                    when 5 => temp5 <= maxi_RDATA;
-                    when 6 => temp6 <= maxi_RDATA;
-                    when 7 => temp7 <= maxi_RDATA;
-                    when 8 => temp8 <= maxi_RDATA;
-                    when 9 => temp9 <= maxi_RDATA;
-                    when others => null;
-                end case;
-                dmardaddr(11 downto 2) <= std_logic_vector (unsigned (dmardaddr(11 downto 2)) + 1);
-                if dmareadsel = BURSTLEN - 1 then
-                    maxiRREADY   <= '0';
-                    dmardaddr(0) <= '0';
-                else
-                    dmareadsel   <= dmareadsel + 1;
-                end if;
-            end if;
-
-            ------------------------------------------
-            --  dma write                           --
-            --  write from temp0..9 into dmawtaddr  --
-            ------------------------------------------
-
-            -- if not doing anything and enabled to start, start writing
-            if maxiAWVALID = '0' and maxiWVALID = '0' and maxiBREADY = '0' and dmawtaddr(0) = '1' then
-                maxi_AWADDR <= dmawtaddr and x"FFFFF7FC";
-                dmawritesel <= 0;
-                maxiAWVALID <= '1';                     -- start sending address
-                maxiWVALID  <= '1';                     -- start sending temp0
-            end if;
-
-            -- if mem controller accepted the address, stop sending it and accept completion status
-            if maxiAWVALID = '1' and maxi_AWREADY = '1' then
-                maxiAWVALID <= '0';                     -- stop sending address
-                maxiBREADY  <= '1';                     -- able to accept completion status
-            end if;
-
-            -- if mem controller accepted data, stop sending last word or start sending next word
-            if maxiWVALID = '1' and maxi_WREADY = '1' then
-                dmawtaddr(11 downto 2) <= std_logic_vector (unsigned (dmawtaddr(11 downto 2)) + 1);
-                if dmawritesel = BURSTLEN - 1 then
-                    maxiWVALID  <= '0';                 -- stop sending last word
-                else
-                    dmawritesel <= dmawritesel + 1;     -- start sending next word
-                end if;
-            end if;
-
-            -- if mem controller completed write, start writing next burst or stop writing
-            if maxiBREADY = '1' and maxi_BVALID = '1' then
-                maxiBREADY   <= '0';                    -- no longer accepting completion status
-                dmawtaddr(1) <= '0';                    -- shift down start bit
-                dmawtaddr(0) <= dmawtaddr(1);
             end if;
         end if;
     end process;
@@ -804,7 +561,7 @@ begin
     LEDoutG <= not inuseclock;
     LEDoutB <= not nanocycle;
 
-    pdp8linst: pdp8l port map (
+    siminst: pdp8lsim port map (
         CLOCK         => CLOCK,
         RESET         => inusereset,
         iBEMA         => iBEMA,
@@ -888,7 +645,6 @@ begin
         ,nanocycle => nanocycle
         ,nanostep  => nanostep
         ,lastnanostep => lastnanostep
-        ,breakdata => breakdata
     );
 
     regctlk(31 downto 29) <= (others => '0');

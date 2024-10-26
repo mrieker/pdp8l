@@ -20,7 +20,7 @@
 
 // PDP-8/L-like processor, using the signals on the B,C,D 34,35,36 connectors plus front panel
 
-module pdp8l (
+module pdp8lsim (
     input CLOCK, RESET,         // fpga 100MHz clock and reset
     input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
     input iCA_INCREMENT,        // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
@@ -106,7 +106,6 @@ module pdp8l (
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
     ,output reg lastnanostep
-    ,output[11:00] breakdata
 );
 
     localparam MS_START = 0;        // figure out what to do next (also for exam & ldad switches)
@@ -234,7 +233,7 @@ module pdp8l (
     wire[11:00] ioac = (i_AC_CLEAR ? acum : 0) | iINPUTBUS;
 
     // data written back to memory during break cycle
-    assign breakdata = (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, iMEMINCR };
+    wire[11:00] breakdata = (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, iMEMINCR };
 
     // main processing loop
     // set tp1 near end of ts1, then this circuit will transition to ts2 then clear tp1
