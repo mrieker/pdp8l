@@ -18,7 +18,7 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Tests the pdp8l.v PDP-8/L implementation by sending random instructions and data and verifying the results
+// Tests the pdp8lsim.v PDP-8/L implementation by sending random instructions and data and verifying the results
 
 //  ./z8lrand.armv7l
 
@@ -113,10 +113,8 @@ int main (int argc, char **argv)
         ABORT ();
     }
 
-    // select manual clocking and reset the pdp8l.v processor
-    // disable the io boards so we can generate random io instructions
-    // this should also clear accumulator and link
-    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_testioins | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    // select simulator with manual clocking and reset the pdp8lsim.v processor
+    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     zynqpage[Z_RB] = 0;
     zynqpage[Z_RC] = 0;
     zynqpage[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
@@ -127,7 +125,7 @@ int main (int argc, char **argv)
     zynqpage[Z_RI] = 0;
     zynqpage[Z_RJ] = 0;
     zynqpage[Z_RK] = 0;
-    usleep (10);
+    for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
     zynqpage[Z_RA] &= ~ a_softreset;

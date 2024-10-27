@@ -42,6 +42,11 @@
 #define Z_TTYPR 2
 #define Z_TTYPN 3
 
+#define KB_FLAG 0x80000000
+#define KB_ENAB 0x40000000
+#define PR_FLAG 0x80000000
+#define PR_FULL 0x40000000
+
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 
 int main (int argc, char **argv)
@@ -63,16 +68,6 @@ int main (int argc, char **argv)
 
     uint32_t volatile *zynqpage = (uint32_t volatile *) zynqptr;
 
-    /***
-        for (int i = 0; i < 1024; i += 16) {
-            printf ("%03X:", i);
-            for (int j = 0; j < 16; j ++) {
-                printf (" %08X", zynqpage[i+j]);
-            }
-            printf ("\n");
-        }
-    ***/
-
     uint32_t volatile *ttyat = NULL;
     for (int i = 0; i < 1024;) {
         ttyat = &zynqpage[i];
@@ -90,9 +85,11 @@ found:;
     cfmakeraw (&term_modified);
     if (tcsetattr (STDIN_FILENO, TCSANOW, &term_modified) < 0) ABORT ();
 
+    ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
+
     printf ("use control-\\ for stop char\r\n");
 
-    uint64_t readnextkbat = 0;
+    uint64_t readnextkbat   = 0;
     uint64_t setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
     while (true) {
         usleep (1000);
@@ -102,13 +99,13 @@ found:;
         uint64_t nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
 
         if (nowus >= setprintdoneat) {
-            ttyat[Z_TTYPR] = 0x80000000;
+            ttyat[Z_TTYPR] = PR_FLAG;
             setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
         }
 
         if (setprintdoneat == 0xFFFFFFFFFFFFFFFFULL) {
             uint32_t prreg = ttyat[Z_TTYPR];
-            if (prreg & 0x40000000) {
+            if (prreg & PR_FULL) {
                 uint8_t prchar = prreg & 0x7F;
                 if (prchar == 7) {
                     int rc = write (STDOUT_FILENO, "<BEL>", 5);
@@ -130,7 +127,7 @@ found:;
                 rc = read (STDIN_FILENO, &kbchar, 1);
                 if (rc <= 0) ABORT ();
                 if (kbchar == '\\' - '@') break;
-                ttyat[Z_TTYKB] = 0x80000080 | kbchar;
+                ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbchar;
                 readnextkbat = nowus + 100000;
             }
         }

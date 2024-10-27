@@ -106,12 +106,13 @@ int main (int argc, char **argv)
     while (true) {
         usleep (1000);
 
-        uint32_t z8ls[Z_N];
-        for (int i = 0; i < Z_N; i ++) {
+        uint32_t z8ls[1024];
+        for (int i = 0; i < 1024; i ++) {
             z8ls[i] = zynqpage[i];
         }
 
         printf (ESC_HOMEC);
+
         printf ("VERSION=%08X", z8ls[Z_VER]);
         printf ("  iBEMA=%o", FIELD (Z_RA, a_iBEMA));
         printf ("  iCA_INCREMENT=%o", FIELD (Z_RA, a_iCA_INCREMENT));
@@ -128,7 +129,7 @@ int main (int argc, char **argv)
         printf ("  i_IO_SKIP=%o", FIELD (Z_RA, a_i_IO_SKIP));
         printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
         printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
-        printf ("  testioins=%o", FIELD (Z_RA, a_testioins));
+        printf ("  simit=%o", FIELD (Z_RA, a_simit));
         printf ("  softreset=%o", FIELD (Z_RA, a_softreset));
         printf ("  nanostep=%o", FIELD (Z_RA, a_nanostep));
         printf ("  nanocycle=%o", FIELD (Z_RA, a_nanocycle));
@@ -157,7 +158,6 @@ int main (int argc, char **argv)
         printf ("  oBTP3=%o", FIELD (Z_RF, f_oBTP3));
         printf ("  oBTS_1=%o", FIELD (Z_RF, f_oBTS_1));
         printf ("  oBTS_3=%o", FIELD (Z_RF, f_oBTS_3));
-        printf ("  oBUSINIT=%o", FIELD (Z_RF, f_oBUSINIT));
         printf ("  oBWC_OVERFLOW=%o", FIELD (Z_RF, f_oBWC_OVERFLOW));
         printf ("  oB_BREAK=%o", FIELD (Z_RF, f_oB_BREAK));
         printf ("  oE_SET_F_SET=%o", FIELD (Z_RF, f_oE_SET_F_SET));
@@ -187,6 +187,8 @@ int main (int argc, char **argv)
         printf ("  lbRUN=%o", FIELD (Z_RG, g_lbRUN));
         printf ("  lbWC=%o", FIELD (Z_RG, g_lbWC));
         printf ("  lbIR=%o", FIELD (Z_RG, g_lbIR));
+        printf ("  debounced=%o", FIELD (Z_RG, (1U << 10)));
+        printf ("  lastswLDAD=%o", FIELD (Z_RG, (1U << 11)));
 
         printf ("  oBAC=%04o", FIELD (Z_RH, h_oBAC));
         printf ("  oBMB=%04o", FIELD (Z_RH, h_oBMB));
@@ -194,14 +196,25 @@ int main (int argc, char **argv)
         printf ("  lbAC=%04o", FIELD (Z_RI, i_lbAC));
         printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
-        printf ("  breakdata=%04o", FIELD (Z_RL, l_breakdata));
 
         printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
         printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
-        printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
+        printf ("  cyclectr=%04u" EOL, FIELD (Z_RK, k_cyclectr));
 
-        printf (EOL EOP);
+        for (int i = 0; i < 1024;) {
+            uint32_t idver = z8ls[i];
+            if ((idver & 0xF000U) == 0x1000U) {
+                printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
+            }
+            if ((idver & 0xF000U) == 0x2000U) {
+                printf (EOL "VERSION=%08X %c%c %08X %08X %08X %08X %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16,
+                    z8ls[i+1], z8ls[i+2], z8ls[i+3], z8ls[i+4], z8ls[i+5], z8ls[i+6], z8ls[i+7]);
+            }
+            i += 2 << ((idver >> 12) & 15);
+        }
+
+        printf (EOP);
 
         if (nanocycle) {
             char temp[8];
