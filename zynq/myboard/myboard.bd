@@ -1527,16 +1527,16 @@
               }
             },
             "interface_nets": {
-              "auto_pc_to_s00_couplers": {
-                "interface_ports": [
-                  "M_AXI",
-                  "auto_pc/M_AXI"
-                ]
-              },
               "s00_couplers_to_auto_pc": {
                 "interface_ports": [
                   "S_AXI",
                   "auto_pc/S_AXI"
+                ]
+              },
+              "auto_pc_to_s00_couplers": {
+                "interface_ports": [
+                  "M_AXI",
+                  "auto_pc/M_AXI"
                 ]
               }
             },
@@ -1557,16 +1557,16 @@
           }
         },
         "interface_nets": {
-          "s00_couplers_to_axi_interconnect_1": {
-            "interface_ports": [
-              "M00_AXI",
-              "s00_couplers/M_AXI"
-            ]
-          },
           "axi_interconnect_1_to_s00_couplers": {
             "interface_ports": [
               "S00_AXI",
               "s00_couplers/S_AXI"
+            ]
+          },
+          "s00_couplers_to_axi_interconnect_1": {
+            "interface_ports": [
+              "M00_AXI",
+              "s00_couplers/M_AXI"
             ]
           }
         },
@@ -1638,10 +1638,10 @@
           "boundary_crc": "0x0"
         },
         "interface_ports": {
-          "S00_AXI": {
+          "saxi": {
             "mode": "Slave",
             "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
-            "memory_map_ref": "S00_AXI",
+            "memory_map_ref": "saxi",
             "parameters": {
               "ADDR_WIDTH": {
                 "value": "12",
@@ -1838,7 +1838,7 @@
             "direction": "I",
             "parameters": {
               "ASSOCIATED_BUSIF": {
-                "value": "S00_AXI",
+                "value": "saxi",
                 "value_src": "constant"
               },
               "CLK_DOMAIN": {
@@ -2124,49 +2124,6 @@
           },
           "x_MEM": {
             "direction": "O"
-          },
-          "xnanostep": {
-            "direction": "O"
-          },
-          "xlastnano": {
-            "direction": "O"
-          },
-          "xnanocycle": {
-            "direction": "O"
-          },
-          "xbiop1": {
-            "direction": "O"
-          },
-          "xbiop2": {
-            "direction": "O"
-          },
-          "xbiop4": {
-            "direction": "O"
-          },
-          "xfiop1": {
-            "direction": "O"
-          },
-          "xfiop2": {
-            "direction": "O"
-          },
-          "xfiop4": {
-            "direction": "O"
-          },
-          "xiopsetct": {
-            "direction": "O",
-            "left": "3",
-            "right": "0"
-          },
-          "xiopclrct": {
-            "direction": "O",
-            "left": "2",
-            "right": "0"
-          },
-          "xiopstart": {
-            "direction": "O"
-          },
-          "xiopstop": {
-            "direction": "O"
           }
         }
       }
@@ -2193,7 +2150,7 @@
       "axi_interconnect_1_M00_AXI": {
         "interface_ports": [
           "axi_interconnect_1/M00_AXI",
-          "Zynq_0/S00_AXI"
+          "Zynq_0/saxi"
         ]
       }
     },
@@ -2779,7 +2736,7 @@
             "width": "32",
             "segments": {
               "SEG_Zynq_0_reg0": {
-                "address_block": "/Zynq_0/S00_AXI/reg0",
+                "address_block": "/Zynq_0/saxi/reg0",
                 "offset": "0x43C00000",
                 "range": "4K"
               }
