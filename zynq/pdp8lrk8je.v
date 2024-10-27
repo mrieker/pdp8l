@@ -53,14 +53,14 @@ module pdp8lrk8je (
     localparam ST_CYLR = 00;    // cylinder error
 
     reg[11:00] command, diskaddr, memaddr, status;
-    reg stbusy, startio;
+    reg stbusy, startio, enable;
 
-    assign armrdata = (armraddr == 0) ? 32'h524B2001 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h524B2002 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { 20'b0, command  } :
                       (armraddr == 2) ? { 20'b0, diskaddr } :
                       (armraddr == 3) ? { 20'b0, memaddr  } :
                       (armraddr == 4) ? { 20'b0, status   } :
-                      (armraddr == 5) ? { 30'b0, stbusy, startio  } :
+                      (armraddr == 5) ? { 29'b0, stbusy, startio, enable } :
                        32'hDEADBEEF;
 
     wire stskip = status[ST_DONE] | status[ST_XFRX] | status[ST_SKFL] | status[ST_FLNR] | status[ST_TMER] |
@@ -72,6 +72,7 @@ module pdp8lrk8je (
         if (RESET) begin
             command  <= 0;
             diskaddr <= 0;
+            enable   <= 0;
             memaddr  <= 0;
             status   <= 0;
             startio  <= 0;
@@ -85,13 +86,13 @@ module pdp8lrk8je (
                 2: diskaddr <= armwdata[11:00];
                 3: memaddr  <= armwdata[11:00];
                 4: status   <= armwdata[11:00];
-                5: begin startio <= armwdata[00]; stbusy <= armwdata[01]; end
+                5: begin enable <= armwdata[00]; startio <= armwdata[01]; stbusy <= armwdata[02]; end
             endcase
         end
 
         // process the IOP only on the leading edge
         // ...but leave output signals to PDP-8/L in place until given the all clear
-        else if (iopstart) begin
+        else if (iopstart & enable) begin
             case (ioopcode)
 
                 // DSKP - skip if transfer done or error

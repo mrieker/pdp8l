@@ -22,7 +22,7 @@
 
 // arm registers:
 //  [0] = ident='TT',sizecode=1,version
-//  [1] = <kbflag> 0000000000000000000 <kbchar>
+//  [1] = <kbflag> <enable> 000000000000000000 <kbchar>
 //  [2] = <prflag> <prfull> 000000000000000000 <prchar>
 //  [3] = 00000000000000000000000000 <KBDEV>
 
@@ -49,10 +49,10 @@ module pdp8ltty
     localparam[11:00] kbio = 12'o6000 + (KBDEV << 3);
     localparam[11:00] ttio = 12'o6010 + (KBDEV << 3);
 
-    reg intenab, kbflag, prflag, prfull;
+    reg enable, intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541003 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541004 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, 19'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 26'b0, KBDEV };
@@ -61,6 +61,7 @@ module pdp8ltty
 
     always @(posedge CLOCK) begin
         if (RESET) begin
+            enable  <= 0;
             intenab <= 0;
             kbflag  <= 0;
             prflag  <= 0;
@@ -73,7 +74,7 @@ module pdp8ltty
 
                 // arm processor is sending a keyboard char for the PDP-8/L code to read
                 // - typically sets kbflag = 1 indicating kbchar has something in it
-                1: begin kbflag <= armwdata[31]; kbchar <= armwdata[07:00]; end
+                1: begin kbflag <= armwdata[31]; enable <= armwdata[30]; kbchar <= armwdata[07:00]; end
 
                 // arm processor is telling PDP-8/L that it has finished printing char
                 // - typically sets prflag = 1 meaning it has finished printing char
@@ -84,7 +85,7 @@ module pdp8ltty
 
             // process the IOP only on the leading edge
             // ...but leave output signals to PDP-8/L in place until given the all clear
-            if (iopstart) begin
+            if (iopstart & enable) begin
                 case (ioopcode)
                     kbio+1: begin IO_SKIP <= kbflag; end                                    // skip if kb char ready
                     kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                           // clear accum, clear flag
