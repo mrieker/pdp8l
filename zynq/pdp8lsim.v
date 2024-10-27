@@ -102,6 +102,8 @@ module pdp8lsim (
     ,output reg[5:0] timedelay
     ,output reg[4:0] timestate
     ,output reg[9:0] cyclectr
+    ,output reg lastswLDAD
+    ,output debounced
 
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
@@ -139,7 +141,7 @@ module pdp8lsim (
 
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
-    reg lastswCONT, lastswDEP, lastswEXAM, lastswLDAD, lastswSTART;
+    reg lastswCONT, lastswDEP, lastswEXAM, lastswSTART;
     reg irusedf, link, runff;
     wire tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ir;
@@ -187,6 +189,8 @@ module pdp8lsim (
     assign lbMB   = mbuf;
     assign lbRUN  = runff;
     assign lbWC   = (majstate == MS_WC);
+    
+    assign debounced = debounce[23];
 
     // local memory (presumably inferred block memory)
     reg[11:00] localcore[4095:0000];

@@ -144,9 +144,10 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4030;
+    localparam VERSION = 32'h384C4034;
 
     reg[11:02] readaddr, writeaddr;
+    wire debounced, lastswLDAD;
 
     // pdp8/l module signals
 
@@ -161,25 +162,25 @@ module Zynq (
 
     wire[31:00] regctla, regctlb, regctlc, regctld, regctle, regctlf, regctlg, regctlh, regctli, regctlj, regctlk;
 
-    reg sim_iBEMA;
-    reg sim_iCA_INCREMENT;
-    reg sim_iDATA_IN;
+    wire sim_iBEMA;
+    wire sim_iCA_INCREMENT;
+    wire sim_iDATA_IN;
     wire[11:00] sim_iINPUTBUS;
-    reg sim_iMEMINCR;
-    reg[11:00] sim_iMEM;
-    reg sim_iMEM_P;
-    reg sim_iTHREECYCLE;
+    wire sim_iMEMINCR;
+    wire[11:00] sim_iMEM;
+    wire sim_iMEM_P;
+    wire sim_iTHREECYCLE;
     wire sim_i_AC_CLEAR;
-    reg sim_i_BRK_RQST;
-    reg[11:00] sim_i_DMAADDR;
-    reg[11:00] sim_i_DMADATA;
-    reg sim_i_EA;
-    reg sim_i_EMA;
-    reg sim_i_INT_INHIBIT;
+    wire sim_i_BRK_RQST;
+    wire[11:00] sim_i_DMAADDR;
+    wire[11:00] sim_i_DMADATA;
+    wire sim_i_EA;
+    wire sim_i_EMA;
+    wire sim_i_INT_INHIBIT;
     wire sim_i_INT_RQST;
     wire sim_i_IO_SKIP;
-    reg sim_i_MEMDONE;
-    reg sim_i_STROBE;
+    wire sim_i_MEMDONE;
+    wire sim_i_STROBE;
     wire[11:00] sim_oBAC;
     wire sim_oBIOP1;
     wire sim_oBIOP2;
@@ -222,17 +223,6 @@ module Zynq (
     wire[11:00] sim_lbMB;
     wire sim_lbRUN;
     wire sim_lbWC;
-    reg sim_swCONT;
-    reg sim_swDEP;
-    reg sim_swDFLD;
-    reg sim_swEXAM;
-    reg sim_swIFLD;
-    reg sim_swLDAD;
-    reg sim_swMPRT;
-    reg sim_swSTEP;
-    reg sim_swSTOP;
-    reg[11:00] sim_swSR;
-    reg sim_swSTART;
 
     wire dev_iBEMA;
     wire dev_iCA_INCREMENT;
@@ -282,10 +272,10 @@ module Zynq (
     wire dev_o_SP_CYC_NEXT;
 
     wire[11:00] i_DMAADDR, i_DMADATA ;   // dma address, data going out to real PDP-8/L via our DMABUS
-                                                                    // ...used to access real PDP-8/L 4K core memory
+                                         // ...used to access real PDP-8/L 4K core memory
     wire[11:00] iINPUTBUS ;              // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
     wire[11:00] iMEM   ;                 // extended memory data going to real PDP-8/L MEM via our MEMBUS
-    wire iMEM_P ;                                      // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
+    wire iMEM_P ;                        // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
     wire[11:00] oBAC   ;                 // real PDP-8/L AC contents, valid only during second half of io pulse
     reg[11:00] oBMB    ;                 // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
     wire[11:00] oMA    ;                 // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
@@ -329,52 +319,80 @@ module Zynq (
     wire qLINE_LOW      ;
     wire qMEMSTART      ;
 
-    // arm interface wires
-    reg arm_acclr, arm_intrq, arm_ioskp;
-    reg[11:00] armibus ;
+    // arm interface wires;
+    reg arm_iBEMA;
+    reg arm_iCA_INCREMENT;
+    reg arm_iDATA_IN;
+    reg arm_iMEMINCR;
+    reg arm_iMEM_P;
+    reg arm_iTHREECYCLE;
+    reg arm_i_AC_CLEAR;
+    reg arm_i_BRK_RQST;
+    reg arm_i_EA;
+    reg arm_i_EMA;
+    reg arm_i_INT_INHIBIT;
+    reg arm_i_INT_RQST;
+    reg arm_i_IO_SKIP;
+    reg arm_i_MEMDONE;
+    reg arm_i_STROBE;
+    reg arm_swCONT;
+    reg arm_swDEP;
+    reg arm_swDFLD;
+    reg arm_swEXAM;
+    reg arm_swIFLD;
+    reg arm_swLDAD;
+    reg arm_swMPRT;
+    reg arm_swSTEP;
+    reg arm_swSTOP;
+    reg arm_swSTART;
+    reg[11:00] arm_iINPUTBUS;
+    reg[11:00] arm_iMEM;
+    reg[11:00] arm_i_DMAADDR;
+    reg[11:00] arm_i_DMADATA;
+    reg[11:00] arm_swSR;
 
     // tty interface wires
     wire[31:00] ttardata ;
     wire[11:00] ttibus ;
-    wire ttawrite, ttacclr, ttintrq, ttioskp;
+    wire ttacclr, ttintrq, ttioskp;
     wire[31:00] tt40ardata ;
     wire[11:00] tt40ibus ;
-    wire tt40awrite, tt40acclr, tt40intrq, tt40ioskp;
+    wire tt40acclr, tt40intrq, tt40ioskp;
 
     // disk interface wires
     wire[31:00] rkardata ;
     wire[11:00] rkibus ;
-    wire rkawrite, rkacclr, rkintrq, rkioskp;
+    wire rkacclr, rkintrq, rkioskp;
 
     // bus values that are constants
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    ////////////////////////////////////-
+    /////////////////////////////////////
     // send register being read to ARM //
-    ////////////////////////////////////-
+    /////////////////////////////////////
 
     assign saxi_RDATA =
-        (readaddr        == 10'b0000000000) ? VERSION   :   // 00000xxxxx00
-        (readaddr        == 10'b0000000001) ? regctla   : 
-        (readaddr        == 10'b0000000010) ? regctlb   : 
-        (readaddr        == 10'b0000000011) ? regctlc   : 
-        (readaddr        == 10'b0000000100) ? regctld   : 
-        (readaddr        == 10'b0000000101) ? regctle   : 
-        (readaddr        == 10'b0000000110) ? regctlf   : 
-        (readaddr        == 10'b0000000111) ? regctlg   : 
-        (readaddr        == 10'b0000001000) ? regctlh   : 
-        (readaddr        == 10'b0000001001) ? regctli   : 
-        (readaddr        == 10'b0000001010) ? regctlj   : 
-        (readaddr        == 10'b0000001011) ? regctlk   : 
-        (readaddr[11:05] == 7'b0000100)    ? rkardata   :   // 0000100xxx00
-        (readaddr[11:04] == 8'b00001010)   ? ttardata   :   // 00001010xx00
-        (readaddr[11:04] == 8'b00001011)   ? tt40ardata :   // 00001011xx00
+        (readaddr        == 10'b0000000000) ? VERSION    :  // 00000xxxxx00
+        (readaddr        == 10'b0000000001) ? regctla    :
+        (readaddr        == 10'b0000000010) ? regctlb    :
+        (readaddr        == 10'b0000000011) ? regctlc    :
+        (readaddr        == 10'b0000000100) ? regctld    :
+        (readaddr        == 10'b0000000101) ? regctle    :
+        (readaddr        == 10'b0000000110) ? regctlf    :
+        (readaddr        == 10'b0000000111) ? regctlg    :
+        (readaddr        == 10'b0000001000) ? regctlh    :
+        (readaddr        == 10'b0000001001) ? regctli    :
+        (readaddr        == 10'b0000001010) ? regctlj    :
+        (readaddr        == 10'b0000001011) ? regctlk    :
+        (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
+        (readaddr[11:04] ==  8'b00001010)   ? ttardata   :  // 00001010xx00
+        (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
         32'hDEADBEEF;
 
-    assign ttawrite   = armwrite & writeaddr[11:04] == 8'b00001010;     // 00001010xx00
-    assign tt40awrite = armwrite & writeaddr[11:04] == 8'b00001011;     // 00001011xx00
-    assign rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;      // 0000100xxx00
+    wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;      // 0000100xxx00
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001010;     // 00001010xx00
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001011;     // 00001011xx00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -393,9 +411,9 @@ module Zynq (
             softreset <= 1;                               // by default, software reset asserted
         end else begin
 
-            ////////////////////-
+            /////////////////////
             //  register read  //
-            ////////////////////-
+            /////////////////////
 
             // check for PS sending us a read address
             if (saxi_ARREADY & saxi_ARVALID) begin
@@ -417,51 +435,51 @@ module Zynq (
             if (saxi_WREADY & saxi_WVALID) begin
                 case (writeaddr)                            // write data to register
                      10'b0000000001: begin
-                        sim_iBEMA         <= saxi_WDATA[00];
-                        sim_iCA_INCREMENT <= saxi_WDATA[01];
-                        sim_iDATA_IN      <= saxi_WDATA[02];
-                        sim_iMEMINCR      <= saxi_WDATA[03];
-                        sim_iMEM_P        <= saxi_WDATA[04];
-                        sim_iTHREECYCLE   <= saxi_WDATA[05];
-                        arm_acclr         <= saxi_WDATA[06];
-                        sim_i_BRK_RQST    <= saxi_WDATA[07];
-                        sim_i_EA          <= saxi_WDATA[08];
-                        sim_i_EMA         <= saxi_WDATA[09];
-                        sim_i_INT_INHIBIT <= saxi_WDATA[10];
-                        arm_intrq         <= saxi_WDATA[11];
-                        arm_ioskp         <= saxi_WDATA[12];
-                        sim_i_MEMDONE     <= saxi_WDATA[13];
-                        sim_i_STROBE      <= saxi_WDATA[14];
+                        arm_iBEMA         <= saxi_WDATA[00];
+                        arm_iCA_INCREMENT <= saxi_WDATA[01];
+                        arm_iDATA_IN      <= saxi_WDATA[02];
+                        arm_iMEMINCR      <= saxi_WDATA[03];
+                        arm_iMEM_P        <= saxi_WDATA[04];
+                        arm_iTHREECYCLE   <= saxi_WDATA[05];
+                        arm_i_AC_CLEAR    <= saxi_WDATA[06];
+                        arm_i_BRK_RQST    <= saxi_WDATA[07];
+                        arm_i_EA          <= saxi_WDATA[08];
+                        arm_i_EMA         <= saxi_WDATA[09];
+                        arm_i_INT_INHIBIT <= saxi_WDATA[10];
+                        arm_i_INT_RQST    <= saxi_WDATA[11];
+                        arm_i_IO_SKIP     <= saxi_WDATA[12];
+                        arm_i_MEMDONE     <= saxi_WDATA[13];
+                        arm_i_STROBE      <= saxi_WDATA[14];
                         simit             <= saxi_WDATA[27];
                         softreset         <= saxi_WDATA[29];
                         nanostep          <= saxi_WDATA[30];
                         nanocycle         <= saxi_WDATA[31];
                     end
                     10'b0000000010: begin
-                        sim_swCONT        <= saxi_WDATA[00];
-                        sim_swDEP         <= saxi_WDATA[01];
-                        sim_swDFLD        <= saxi_WDATA[02];
-                        sim_swEXAM        <= saxi_WDATA[03];
-                        sim_swIFLD        <= saxi_WDATA[04];
-                        sim_swLDAD        <= saxi_WDATA[05];
-                        sim_swMPRT        <= saxi_WDATA[06];
-                        sim_swSTEP        <= saxi_WDATA[07];
-                        sim_swSTOP        <= saxi_WDATA[08];
-                        sim_swSTART       <= saxi_WDATA[09];
+                        arm_swCONT        <= saxi_WDATA[00];
+                        arm_swDEP         <= saxi_WDATA[01];
+                        arm_swDFLD        <= saxi_WDATA[02];
+                        arm_swEXAM        <= saxi_WDATA[03];
+                        arm_swIFLD        <= saxi_WDATA[04];
+                        arm_swLDAD        <= saxi_WDATA[05];
+                        arm_swMPRT        <= saxi_WDATA[06];
+                        arm_swSTEP        <= saxi_WDATA[07];
+                        arm_swSTOP        <= saxi_WDATA[08];
+                        arm_swSTART       <= saxi_WDATA[09];
                     end
 
                     10'b0000000011: begin
-                        armibus       <= saxi_WDATA[11:00];
-                        sim_iMEM      <= saxi_WDATA[27:16];
+                        arm_iINPUTBUS <= saxi_WDATA[11:00];
+                        arm_iMEM      <= saxi_WDATA[27:16];
                     end
 
                     10'b0000000100: begin
-                        sim_i_DMAADDR <= saxi_WDATA[11:00];
-                        sim_i_DMADATA <= saxi_WDATA[27:16];
+                        arm_i_DMAADDR <= saxi_WDATA[11:00];
+                        arm_i_DMADATA <= saxi_WDATA[27:16];
                     end
 
                     10'b0000000101: begin
-                        sim_swSR      <= saxi_WDATA[11:00];
+                        arm_swSR      <= saxi_WDATA[11:00];
                     end
                 endcase
                 saxi_AWREADY <= 1;                           // we are ready to accept an address again
@@ -488,131 +506,139 @@ module Zynq (
     //  synchronize signals output by the PDP-8L  //
     ////////////////////////////////////////////////
 
-    synk synkaa (CLOCK, q_ADDR_ACCEPT,   o_ADDR_ACCEPT);
-    synk synkbr (CLOCK, q_B_RUN,         o_B_RUN);
-    synk synkbe (CLOCK, q_BF_ENABLE,     o_BF_ENABLE);
-    synk synkbi (CLOCK, q_BUSINIT,       o_BUSINIT);
-    synk synkde (CLOCK, q_DF_ENABLE,     o_DF_ENABLE);
-    synk synkkc (CLOCK, q_KEY_CLEAR,     o_KEY_CLEAR);
-    synk synkkd (CLOCK, q_KEY_DF,        o_KEY_DF);
-    synk synkki (CLOCK, q_KEY_IF,        o_KEY_IF);
-    synk synkkl (CLOCK, q_KEY_LOAD,      o_KEY_LOAD);
-    synk synkls (CLOCK, q_LOAD_SF,       o_LOAD_SF);
-    synk synksc (CLOCK, q_SP_CYC_NEXT,   o_SP_CYC_NEXT);
-    synk synkbb (CLOCK, qB_BREAK,        oB_BREAK);
-    synk synkp1 (CLOCK, qBIOP1,          oBIOP1);
-    synk synkp2 (CLOCK, qBIOP2,          oBIOP2);
-    synk synkp4 (CLOCK, qBIOP4,          oBIOP4);
-    synk synkt2 (CLOCK, qBTP2,           oBTP2);
-    synk synkp3 (CLOCK, qBTP3,           oBTP3);
-    synk synkt1 (CLOCK, qBTS_1,          oBTS_1);
-    synk synkt3 (CLOCK, qBTS_3,          oBTS_3);
-    synk synkbo (CLOCK, qBWC_OVERFLOW,   oBWC_OVERFLOW);
-    synk synkc3 (CLOCK, qC36B2,          oC36B2);
-    synk synkd3 (CLOCK, qD35B2,          oD35B2);
-    synk synkef (CLOCK, qE_SET_F_SET,    oE_SET_F_SET);
-    synk synkjj (CLOCK, qJMP_JMS,        oJMP_JMS);
-    synk synkll (CLOCK, qLINE_LOW,       oLINE_LOW);
-    synk synkms (CLOCK, qMEMSTART,       oMEMSTART);
+    synk synkaa (CLOCK, q_ADDR_ACCEPT, o_ADDR_ACCEPT);
+    synk synkbr (CLOCK, q_B_RUN,       o_B_RUN);
+    synk synkbe (CLOCK, q_BF_ENABLE,   o_BF_ENABLE);
+    synk synkbi (CLOCK, q_BUSINIT,     o_BUSINIT);
+    synk synkde (CLOCK, q_DF_ENABLE,   o_DF_ENABLE);
+    synk synkkc (CLOCK, q_KEY_CLEAR,   o_KEY_CLEAR);
+    synk synkkd (CLOCK, q_KEY_DF,      o_KEY_DF);
+    synk synkki (CLOCK, q_KEY_IF,      o_KEY_IF);
+    synk synkkl (CLOCK, q_KEY_LOAD,    o_KEY_LOAD);
+    synk synkls (CLOCK, q_LOAD_SF,     o_LOAD_SF);
+    synk synksc (CLOCK, q_SP_CYC_NEXT, o_SP_CYC_NEXT);
+    synk synkbb (CLOCK, qB_BREAK,      oB_BREAK);
+    synk synkp1 (CLOCK, qBIOP1,        oBIOP1);
+    synk synkp2 (CLOCK, qBIOP2,        oBIOP2);
+    synk synkp4 (CLOCK, qBIOP4,        oBIOP4);
+    synk synkt2 (CLOCK, qBTP2,         oBTP2);
+    synk synkp3 (CLOCK, qBTP3,         oBTP3);
+    synk synkt1 (CLOCK, qBTS_1,        oBTS_1);
+    synk synkt3 (CLOCK, qBTS_3,        oBTS_3);
+    synk synkbo (CLOCK, qBWC_OVERFLOW, oBWC_OVERFLOW);
+    synk synkc3 (CLOCK, qC36B2,        oC36B2);
+    synk synkd3 (CLOCK, qD35B2,        oD35B2);
+    synk synkef (CLOCK, qE_SET_F_SET,  oE_SET_F_SET);
+    synk synkjj (CLOCK, qJMP_JMS,      oJMP_JMS);
+    synk synkll (CLOCK, qLINE_LOW,     oLINE_LOW);
+    synk synkms (CLOCK, qMEMSTART,     oMEMSTART);
 
     /////////////////////////////////////////////////////
     //  select between simulated and hardware PDP-8/L  //
     /////////////////////////////////////////////////////
 
+    // signals coming from arm registers : arm_i*
+    // signals coming from devices       : dev_i*
+    // signals coming from real PDP      : o*
+    // signals coming from simulator     : sim_o*
+
+    // signals going to devices   (dev_o*) = simit ? sim_o* : o*
+    // signals going to simulator (sim_i*) = simit ? dev_i* : 0
+    // signals going to real PDP  (i*)     = simit ? 0 : dev_i*
+
     // when simulating, send signals from devices on to the simulated PDP-8/L
     // when not simming, send signals from devices on to the hardware PDP-8/L
 
-    //TODO//sim_iBEMA         <= dev_iBEMA          when simit else 0; // enable when extended mem controller implemented
-    //TODO//sim_iCA_INCREMENT <= dev_iCA_INCREMENT  when simit else 0; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_iDATA_IN      <= dev_iDATA_IN       when simit else 0; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_iMEMINCR      <= dev_iMEMINCR       when simit else 0; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_iMEM          <= dev_iMEM           when simit else x"000"; // enable when extended block memory implemented
-    //TODO//sim_iMEM_P        <= dev_iMEM_P         when simit else 0; // enable when extended block memory implemented
-    //TODO//sim_iTHREECYCLE   <= dev_iTHREECYCLE    when simit else 0; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_i_BRK_RQST    <= dev_i_BRK_RQST     when simit else 1; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_i_DMAADDR     <= dev_i_DMAADDR      when simit else x"FFF"; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_i_DMADATA     <= dev_i_DMADATA      when simit else x"FFF"; // enable when arm-to-phys-low-4K controller implemented
-    //TODO//sim_i_EA          <= dev_i_EA           when simit else 1; // enable when extended mem controller implemented
-    //TODO//sim_i_EMA         <= dev_i_EMA          when simit else 1; // enable when extended mem controller implemented
-    //TODO//sim_i_INT_INHIBIT <= dev_i_INT_INHIBIT  when simit else 1; // enable when extended mem controller implemented
-    //TODO//sim_i_MEMDONE     <= dev_i_MEMDONE      when simit else 1; // enable when extended block memory implemented
-    //TODO//sim_i_STROBE      <= dev_i_STROBE       when simit else 1; // enable when extended block memory implemented
+    assign sim_iBEMA          = simit ? dev_iBEMA          : 0;
+    assign sim_iCA_INCREMENT  = simit ? dev_iCA_INCREMENT  : 0;
+    assign sim_iDATA_IN       = simit ? dev_iDATA_IN       : 0;
+    assign sim_iINPUTBUS      = simit ? dev_iINPUTBUS      : 0;
+    assign sim_iMEMINCR       = simit ? dev_iMEMINCR       : 0;
+    assign sim_iMEM           = simit ? dev_iMEM           : 0;
+    assign sim_iMEM_P         = simit ? dev_iMEM_P         : 0;
+    assign sim_iTHREECYCLE    = simit ? dev_iTHREECYCLE    : 0;
+    assign sim_i_AC_CLEAR     = simit ? dev_i_AC_CLEAR     : 1;
+    assign sim_i_BRK_RQST     = simit ? dev_i_BRK_RQST     : 1;
+    assign sim_i_DMAADDR      = simit ? dev_i_DMAADDR      : 12'hFFF;
+    assign sim_i_DMADATA      = simit ? dev_i_DMADATA      : 12'hFFF;
+    assign sim_i_EA           = simit ? dev_i_EA           : 1;
+    assign sim_i_EMA          = simit ? dev_i_EMA          : 1;
+    assign sim_i_INT_INHIBIT  = simit ? dev_i_INT_INHIBIT  : 1;
+    assign sim_i_INT_RQST     = simit ? dev_i_INT_RQST     : 1;
+    assign sim_i_IO_SKIP      = simit ? dev_i_IO_SKIP      : 1;
+    assign sim_i_MEMDONE      = simit ? dev_i_MEMDONE      : 1;
+    assign sim_i_STROBE       = simit ? dev_i_STROBE       : 1;
 
-    assign sim_iINPUTBUS  = simit ? armibus   | dev_iINPUTBUS  : 0;
-    assign sim_i_AC_CLEAR = simit ? arm_acclr & dev_i_AC_CLEAR : 1;
-    assign sim_i_INT_RQST = simit ? arm_intrq & dev_i_INT_RQST : 1;
-    assign sim_i_IO_SKIP  = simit ? arm_ioskp & dev_i_IO_SKIP  : 1;
-
-    assign iBEMA          = simit ? 0 : dev_iBEMA         ;
-    assign iCA_INCREMENT  = simit ? 0 : dev_iCA_INCREMENT ;
-    assign iDATA_IN       = simit ? 0 : dev_iDATA_IN      ;
-    assign iINPUTBUS      = simit ? 0 : dev_iINPUTBUS  ;
-    assign iMEMINCR       = simit ? 0 : dev_iMEMINCR      ;
-    assign iMEM           = simit ? 0 : dev_iMEM       ;
-    assign iMEM_P         = simit ? 0 : dev_iMEM_P        ;
-    assign iTHREECYCLE    = simit ? 0 : dev_iTHREECYCLE   ;
-    assign i_AC_CLEAR     = simit ? 1 : dev_i_AC_CLEAR    ;
-    assign i_BRK_RQST     = simit ? 1 : dev_i_BRK_RQST    ;
-    assign i_DMAADDR      = simit ? 12'hFFF : dev_i_DMAADDR  ;
-    assign i_DMADATA      = simit ? 12'hFFF : dev_i_DMADATA  ;
-    assign i_EA           = simit ? 1 : dev_i_EA          ;
-    assign i_EMA          = simit ? 1 : dev_i_EMA         ;
-    assign i_INT_INHIBIT  = simit ? 1 : dev_i_INT_INHIBIT ;
-    assign i_INT_RQST     = simit ? 1 : dev_i_INT_RQST    ;
-    assign i_IO_SKIP      = simit ? 1 : dev_i_IO_SKIP     ;
-    assign i_MEMDONE      = simit ? 1 : dev_i_MEMDONE     ;
-    assign i_STROBE       = simit ? 1 : dev_i_STROBE      ;
+    assign     iBEMA          = simit ? 0       : dev_iBEMA;
+    assign     iCA_INCREMENT  = simit ? 0       : dev_iCA_INCREMENT;
+    assign     iDATA_IN       = simit ? 0       : dev_iDATA_IN;
+    assign     iINPUTBUS      = simit ? 0       : dev_iINPUTBUS;
+    assign     iMEMINCR       = simit ? 0       : dev_iMEMINCR;
+    assign     iMEM           = simit ? 0       : dev_iMEM;
+    assign     iMEM_P         = simit ? 0       : dev_iMEM_P;
+    assign     iTHREECYCLE    = simit ? 0       : dev_iTHREECYCLE;
+    assign     i_AC_CLEAR     = simit ? 1       : dev_i_AC_CLEAR;
+    assign     i_BRK_RQST     = simit ? 1       : dev_i_BRK_RQST;
+    assign     i_DMAADDR      = simit ? 12'hFFF : dev_i_DMAADDR;
+    assign     i_DMADATA      = simit ? 12'hFFF : dev_i_DMADATA;
+    assign     i_EA           = simit ? 1       : dev_i_EA;
+    assign     i_EMA          = simit ? 1       : dev_i_EMA;
+    assign     i_INT_INHIBIT  = simit ? 1       : dev_i_INT_INHIBIT;
+    assign     i_INT_RQST     = simit ? 1       : dev_i_INT_RQST;
+    assign     i_IO_SKIP      = simit ? 1       : dev_i_IO_SKIP;
+    assign     i_MEMDONE      = simit ? 1       : dev_i_MEMDONE;
+    assign     i_STROBE       = simit ? 1       : dev_i_STROBE;
 
     // when simulating, send signals from the simulated PDP-8/L on to the devices
     // when not simming, send signals from the hardware PDP-8/L on to the devices
 
-    assign dev_oBAC           = simit ? sim_oBAC           : oBAC          ;
-    assign dev_oBIOP1         = simit ? sim_oBIOP1         : qBIOP1        ;
-    assign dev_oBIOP2         = simit ? sim_oBIOP2         : qBIOP2        ;
-    assign dev_oBIOP4         = simit ? sim_oBIOP4         : qBIOP4        ;
-    assign dev_oBMB           = simit ? sim_oBMB           : oBMB          ;
-    assign dev_oBTP2          = simit ? sim_oBTP2          : qBTP2         ;
-    assign dev_oBTP3          = simit ? sim_oBTP3          : qBTP3         ;
-    assign dev_oBTS_1         = simit ? sim_oBTS_1         : qBTS_1        ;
-    assign dev_oBTS_3         = simit ? sim_oBTS_3         : qBTS_3        ;
-    assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : qBWC_OVERFLOW ;
-    assign dev_oB_BREAK       = simit ? sim_oB_BREAK       : qB_BREAK      ;
-    assign dev_oE_SET_F_SET   = simit ? sim_oE_SET_F_SET   : qE_SET_F_SET  ;
-    assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : qJMP_JMS      ;
-    assign dev_oLINE_LOW      = simit ? sim_oLINE_LOW      : qLINE_LOW     ;
-    assign dev_oMA            = simit ? sim_oMA            : oMA           ;
-    assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART     ;
-    assign dev_o_ADDR_ACCEPT  = simit ? sim_o_ADDR_ACCEPT  : q_ADDR_ACCEPT ;
-    assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : q_BF_ENABLE   ;
-    assign dev_o_BUSINIT      = simit ? sim_o_BUSINIT      : q_BUSINIT     ;
-    assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN       ;
-    assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE   ;
-    assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR   ;
-    assign dev_o_KEY_DF       = simit ? sim_o_KEY_DF       : q_KEY_DF      ;
-    assign dev_o_KEY_IF       = simit ? sim_o_KEY_IF       : q_KEY_IF      ;
-    assign dev_o_KEY_LOAD     = simit ? sim_o_KEY_LOAD     : q_KEY_LOAD    ;
-    assign dev_o_LOAD_SF      = simit ? sim_o_LOAD_SF      : q_LOAD_SF     ;
-    assign dev_o_SP_CYC_NEXT  = simit ? sim_o_SP_CYC_NEXT  : q_SP_CYC_NEXT ;
+    assign dev_oBAC           = simit ? sim_oBAC           : oBAC;
+    assign dev_oBIOP1         = simit ? sim_oBIOP1         : qBIOP1;
+    assign dev_oBIOP2         = simit ? sim_oBIOP2         : qBIOP2;
+    assign dev_oBIOP4         = simit ? sim_oBIOP4         : qBIOP4;
+    assign dev_oBMB           = simit ? sim_oBMB           : oBMB;
+    assign dev_oBTP2          = simit ? sim_oBTP2          : qBTP2;
+    assign dev_oBTP3          = simit ? sim_oBTP3          : qBTP3;
+    assign dev_oBTS_1         = simit ? sim_oBTS_1         : qBTS_1;
+    assign dev_oBTS_3         = simit ? sim_oBTS_3         : qBTS_3;
+    assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : qBWC_OVERFLOW;
+    assign dev_oB_BREAK       = simit ? sim_oB_BREAK       : qB_BREAK;
+    assign dev_oE_SET_F_SET   = simit ? sim_oE_SET_F_SET   : qE_SET_F_SET;
+    assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : qJMP_JMS;
+    assign dev_oLINE_LOW      = simit ? sim_oLINE_LOW      : qLINE_LOW;
+    assign dev_oMA            = simit ? sim_oMA            : oMA;
+    assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART;
+    assign dev_o_ADDR_ACCEPT  = simit ? sim_o_ADDR_ACCEPT  : q_ADDR_ACCEPT;
+    assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : q_BF_ENABLE;
+    assign dev_o_BUSINIT      = simit ? sim_o_BUSINIT      : q_BUSINIT;
+    assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN;
+    assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE;
+    assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR;
+    assign dev_o_KEY_DF       = simit ? sim_o_KEY_DF       : q_KEY_DF;
+    assign dev_o_KEY_IF       = simit ? sim_o_KEY_IF       : q_KEY_IF;
+    assign dev_o_KEY_LOAD     = simit ? sim_o_KEY_LOAD     : q_KEY_LOAD;
+    assign dev_o_LOAD_SF      = simit ? sim_o_LOAD_SF      : q_LOAD_SF;
+    assign dev_o_SP_CYC_NEXT  = simit ? sim_o_SP_CYC_NEXT  : q_SP_CYC_NEXT;
 
-    //////////////////////////////////-
-    //  simulated PDP-8/L processor  //
-    //////////////////////////////////-
+    // reading arm registers gets device bus signals
+    //  for 'i' signals: wired-or of all devices and what was written to arm registers
+    //  for 'o' signals: selected signal from simulated PDP-8/L or real PDP-8/L
 
-    assign regctla[00] = sim_iBEMA;
-    assign regctla[01] = sim_iCA_INCREMENT;
-    assign regctla[02] = sim_iDATA_IN;
-    assign regctla[03] = sim_iMEMINCR;
-    assign regctla[04] = sim_iMEM_P;
-    assign regctla[05] = sim_iTHREECYCLE;
-    assign regctla[06] = sim_i_AC_CLEAR;
-    assign regctla[07] = sim_i_BRK_RQST;
-    assign regctla[08] = sim_i_EA;
-    assign regctla[09] = sim_i_EMA;
-    assign regctla[10] = sim_i_INT_INHIBIT;
-    assign regctla[11] = sim_i_INT_RQST;
-    assign regctla[12] = sim_i_IO_SKIP;
-    assign regctla[13] = sim_i_MEMDONE;
-    assign regctla[14] = sim_i_STROBE;
+    assign regctla[00] = dev_iBEMA;
+    assign regctla[01] = dev_iCA_INCREMENT;
+    assign regctla[02] = dev_iDATA_IN;
+    assign regctla[03] = dev_iMEMINCR;
+    assign regctla[04] = dev_iMEM_P;
+    assign regctla[05] = dev_iTHREECYCLE;
+    assign regctla[06] = dev_i_AC_CLEAR;
+    assign regctla[07] = dev_i_BRK_RQST;
+    assign regctla[08] = dev_i_EA;
+    assign regctla[09] = dev_i_EMA;
+    assign regctla[10] = dev_i_INT_INHIBIT;
+    assign regctla[11] = dev_i_INT_RQST;
+    assign regctla[12] = dev_i_IO_SKIP;
+    assign regctla[13] = dev_i_MEMDONE;
+    assign regctla[14] = dev_i_STROBE;
     assign regctla[26:15] = 0;
     assign regctla[27] = simit;
     assign regctla[28] = 0;
@@ -620,50 +646,50 @@ module Zynq (
     assign regctla[30] = nanostep;
     assign regctla[31] = nanocycle;
 
-    assign regctlb[00] = sim_swCONT;
-    assign regctlb[01] = sim_swDEP;
-    assign regctlb[02] = sim_swDFLD;
-    assign regctlb[03] = sim_swEXAM;
-    assign regctlb[04] = sim_swIFLD;
-    assign regctlb[05] = sim_swLDAD;
-    assign regctlb[06] = sim_swMPRT;
-    assign regctlb[07] = sim_swSTEP;
-    assign regctlb[08] = sim_swSTOP;
-    assign regctlb[09] = sim_swSTART;
+    assign regctlb[00] = arm_swCONT;
+    assign regctlb[01] = arm_swDEP;
+    assign regctlb[02] = arm_swDFLD;
+    assign regctlb[03] = arm_swEXAM;
+    assign regctlb[04] = arm_swIFLD;
+    assign regctlb[05] = arm_swLDAD;
+    assign regctlb[06] = arm_swMPRT;
+    assign regctlb[07] = arm_swSTEP;
+    assign regctlb[08] = arm_swSTOP;
+    assign regctlb[09] = arm_swSTART;
     assign regctlb[31:10] = 0;
 
-    assign regctlc[15:00] = { 4'b0, sim_iINPUTBUS };
-    assign regctlc[31:16] = { 4'b0, sim_iMEM      };
-    assign regctld[15:00] = { 4'b0, sim_i_DMAADDR };
-    assign regctld[31:16] = { 4'b0, sim_i_DMADATA };
-    assign regctle[15:00] = { 4'b0, sim_swSR      };
+    assign regctlc[15:00] = { 4'b0, dev_iINPUTBUS };
+    assign regctlc[31:16] = { 4'b0, dev_iMEM      };
+    assign regctld[15:00] = { 4'b0, dev_i_DMAADDR };
+    assign regctld[31:16] = { 4'b0, dev_i_DMADATA };
+    assign regctle[15:00] = { 4'b0, arm_swSR      };
     assign regctle[31:16] = 0;
 
-    assign regctlf[00] = sim_oBIOP1;
-    assign regctlf[01] = sim_oBIOP2;
-    assign regctlf[02] = sim_oBIOP4;
-    assign regctlf[03] = sim_oBTP2;
-    assign regctlf[04] = sim_oBTP3;
-    assign regctlf[05] = sim_oBTS_1;
-    assign regctlf[06] = sim_oBTS_3;
+    assign regctlf[00] = dev_oBIOP1;
+    assign regctlf[01] = dev_oBIOP2;
+    assign regctlf[02] = dev_oBIOP4;
+    assign regctlf[03] = dev_oBTP2;
+    assign regctlf[04] = dev_oBTP3;
+    assign regctlf[05] = dev_oBTS_1;
+    assign regctlf[06] = dev_oBTS_3;
     assign regctlf[07] = 0;
-    assign regctlf[08] = sim_oBWC_OVERFLOW;
-    assign regctlf[09] = sim_oB_BREAK;
-    assign regctlf[10] = sim_oE_SET_F_SET;
-    assign regctlf[11] = sim_oJMP_JMS;
-    assign regctlf[12] = sim_oLINE_LOW;
-    assign regctlf[13] = sim_oMEMSTART;
-    assign regctlf[14] = sim_o_ADDR_ACCEPT;
-    assign regctlf[15] = sim_o_BF_ENABLE;
-    assign regctlf[16] = sim_o_BUSINIT;
-    assign regctlf[17] = sim_o_B_RUN;
-    assign regctlf[18] = sim_o_DF_ENABLE;
-    assign regctlf[19] = sim_o_KEY_CLEAR;
-    assign regctlf[20] = sim_o_KEY_DF;
-    assign regctlf[21] = sim_o_KEY_IF;
-    assign regctlf[22] = sim_o_KEY_LOAD;
-    assign regctlf[23] = sim_o_LOAD_SF;
-    assign regctlf[24] = sim_o_SP_CYC_NEXT;
+    assign regctlf[08] = dev_oBWC_OVERFLOW;
+    assign regctlf[09] = dev_oB_BREAK;
+    assign regctlf[10] = dev_oE_SET_F_SET;
+    assign regctlf[11] = dev_oJMP_JMS;
+    assign regctlf[12] = dev_oLINE_LOW;
+    assign regctlf[13] = dev_oMEMSTART;
+    assign regctlf[14] = dev_o_ADDR_ACCEPT;
+    assign regctlf[15] = dev_o_BF_ENABLE;
+    assign regctlf[16] = dev_o_BUSINIT;
+    assign regctlf[17] = dev_o_B_RUN;
+    assign regctlf[18] = dev_o_DF_ENABLE;
+    assign regctlf[19] = dev_o_KEY_CLEAR;
+    assign regctlf[20] = dev_o_KEY_DF;
+    assign regctlf[21] = dev_o_KEY_IF;
+    assign regctlf[22] = dev_o_KEY_LOAD;
+    assign regctlf[23] = dev_o_LOAD_SF;
+    assign regctlf[24] = dev_o_SP_CYC_NEXT;
     assign regctlf[31:25] = 0;
 
     assign regctlg[00] = sim_lbBRK;
@@ -676,16 +702,22 @@ module Zynq (
     assign regctlg[07] = sim_lbLINK;
     assign regctlg[08] = sim_lbRUN;
     assign regctlg[09] = sim_lbWC;
-    assign regctlg[15:10] = 0;
+    assign regctlg[10] = debounced;
+    assign regctlg[11] = lastswLDAD;
+    assign regctlg[15:12] = 0;
     assign regctlg[27:16] = { sim_lbIR, 9'b000000000 };
     assign regctlg[31:28] = 0;
 
-    assign regctlh[15:00] = { 4'b0, sim_oBAC };
-    assign regctlh[31:16] = { 4'b0, sim_oBMB };
-    assign regctli[15:00] = { 4'b0, sim_oMA  };
+    assign regctlh[15:00] = { 4'b0, dev_oBAC };
+    assign regctlh[31:16] = { 4'b0, dev_oBMB };
+    assign regctli[15:00] = { 4'b0, dev_oMA  };
     assign regctli[31:16] = { 4'b0, sim_lbAC };
     assign regctlj[15:00] = { 4'b0, sim_lbMA };
     assign regctlj[31:16] = { 4'b0, sim_lbMB };
+
+    ///////////////////////////////////
+    //  simulated PDP-8/L processor  //
+    ///////////////////////////////////
 
     assign inuseclock = nanocycle ? nanostep : CLOCK;
     assign inusereset = softreset | ~ RESET_N;
@@ -757,22 +789,24 @@ module Zynq (
         .lbMB          (sim_lbMB),
         .lbRUN         (sim_lbRUN),
         .lbWC          (sim_lbWC),
-        .swCONT        (sim_swCONT),
-        .swDEP         (sim_swDEP),
-        .swDFLD        (sim_swDFLD),
-        .swEXAM        (sim_swEXAM),
-        .swIFLD        (sim_swIFLD),
-        .swLDAD        (sim_swLDAD),
-        .swMPRT        (sim_swMPRT),
-        .swSTEP        (sim_swSTEP),
-        .swSTOP        (sim_swSTOP),
-        .swSR          (sim_swSR),
-        .swSTART       (sim_swSTART),
+        .swCONT        (arm_swCONT),
+        .swDEP         (arm_swDEP),
+        .swDFLD        (arm_swDFLD),
+        .swEXAM        (arm_swEXAM),
+        .swIFLD        (arm_swIFLD),
+        .swLDAD        (arm_swLDAD),
+        .swMPRT        (arm_swMPRT),
+        .swSTEP        (arm_swSTEP),
+        .swSTOP        (arm_swSTOP),
+        .swSR          (arm_swSR),
+        .swSTART       (arm_swSTART),
 
         .majstate      (regctlk[02:00]),
         .timedelay     (regctlk[08:03]),
         .timestate     (regctlk[13:09]),
         .cyclectr      (regctlk[23:14]),
+        .debounced     (debounced),
+        .lastswLDAD    (lastswLDAD),
         .nanocycle     (nanocycle),
         .nanostep      (nanostep),
         .lastnanostep  (lastnanostep)
@@ -785,7 +819,7 @@ module Zynq (
     /////////////////////
 
     assign ioreset  = inusereset | ~ dev_o_BUSINIT;     // reset io devices
-    assign armwrite = saxi_WREADY & saxi_WVALID;         // arm is writing a backside register (single fpga clock cycle)
+    assign armwrite = saxi_WREADY & saxi_WVALID;        // arm is writing a backside register (single fpga clock cycle)
 
     // generate iopstart pulse for an io instruction followed by iopstop
     //  iopstart is pulsed 130nS after the first iop for an instruction and lasts a single fpga clock cycle
@@ -885,12 +919,27 @@ module Zynq (
         end
     end
 
-    // internal pio busses - wired-or from device to processor
+    // internal pio busses - wire-ored(active high)/-anded(active low) from device to processor
 
-    assign dev_i_AC_CLEAR = ~ (ttacclr | tt40acclr | rkacclr);
-    assign dev_i_INT_RQST = ~ (ttintrq | tt40intrq | rkintrq);
-    assign dev_i_IO_SKIP  = ~ (ttioskp | tt40ioskp | rkioskp);
-    assign dev_iINPUTBUS  =    ttibus  | tt40ibus  | rkibus;
+    assign dev_iBEMA         =      arm_iBEMA;
+    assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
+    assign dev_iDATA_IN      =      arm_iDATA_IN;
+    assign dev_iINPUTBUS     =      arm_iINPUTBUS  | ttibus  | tt40ibus  | rkibus;
+    assign dev_iMEMINCR      =      arm_iMEMINCR;
+    assign dev_iMEM          =      arm_iMEM;
+    assign dev_iMEM_P        =      arm_iMEM_P;
+    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
+    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR | ttacclr | tt40acclr | rkacclr);
+    assign dev_i_BRK_RQST    =      arm_i_BRK_RQST;
+    assign dev_i_DMAADDR     =      arm_i_DMAADDR;
+    assign dev_i_DMADATA     =      arm_i_DMADATA;
+    assign dev_i_EA          =      arm_i_EA;
+    assign dev_i_EMA         =      arm_i_EMA;
+    assign dev_i_INT_INHIBIT =      arm_i_INT_INHIBIT;
+    assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST | ttintrq | tt40intrq | rkintrq);
+    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP  | ttioskp | tt40ioskp | rkioskp);
+    assign dev_i_MEMDONE     =      arm_i_MEMDONE;
+    assign dev_i_STROBE      =      arm_i_STROBE;
 
     // teletype interfaces
 
