@@ -21,24 +21,17 @@
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 // We get signals that look a lot like the B,C,D 34,35,36 connectors and the front panel
 
-#include <fcntl.h>
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <unistd.h>
 
 #include "padlib.h"
 #include "pindefs.h"
 #include "z8ldefs.h"
-
-#define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
-#define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
+#include "z8lutil.h"
 
 // map Z8L bits to pipan8l bits
 static uint32_t ztop[] = {
@@ -129,41 +122,24 @@ static uint32_t const forceons[Z_N] = {
 
 Z8LLib::Z8LLib ()
 {
-    zynqfd = -1;
+    z8p = NULL;
     zynqpage = NULL;
 }
 
 Z8LLib::~Z8LLib ()
 {
-    munmap ((void *) zynqpage, 4096);
-    close (zynqfd);
+    if (z8p != NULL) {
+        delete z8p;
+        z8p = NULL;
+    }
     zynqpage = NULL;
-    zynqfd = -1;
 }
 
 void Z8LLib::openpads ()
 {
-    munmap ((void *) zynqpage, 4096);
-    close (zynqfd);
-    zynqpage = NULL;
-    zynqfd = -1;
-
-    zynqfd = open ("/proc/zynqgpio", O_RDWR);
-    if (zynqfd < 0) {
-        fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
-    if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "Z8LLib::openpads: error mmapping /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    zynqpage = (uint32_t volatile *) zynqptr;
-    uint32_t ver = zynqpage[Z_VER];
-    fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
-    if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
+    z8p = new Z8LPage ();
+    zynqpage = z8p->findev ("8L", NULL, NULL, true);
+    if (zynqpage == NULL) {
         fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
         ABORT ();
     }

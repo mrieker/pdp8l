@@ -33,9 +33,7 @@
 
 #include "disassemble.h"
 #include "z8ldefs.h"
-
-#define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
-#define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
+#include "z8lutil.h"
 
 #define FIELD(index,mask) ((zynqpage[index] & mask) / (mask & - mask))
 
@@ -92,26 +90,16 @@ int main (int argc, char **argv)
     }
 
     // access the zynq io page
-    int zynqfd = open ("/proc/zynqgpio", O_RDWR);
-    if (zynqfd < 0) {
-        fprintf (stderr, "z8lrand: error opening /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
-    if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "z8lrand: error mmapping /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
     // hopefully it has our pdp8l.v code indicated by magic number in first word
-    zynqpage = (uint32_t volatile *) zynqptr;
-    uint32_t ver = zynqpage[Z_VER];
-    printf ("version %08X\n", ver);
-    if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
+    Z8LPage z8p;
+    zynqpage = z8p.findev ("8L", NULL, NULL, true);
+    if (zynqpage == NULL) {
         fprintf (stderr, "z8lrand: bad magic number\n");
         ABORT ();
     }
+
+    uint32_t ver = zynqpage[Z_VER];
+    printf ("version %08X\n", ver);
 
     // select simulator with manual clocking and reset the pdp8lsim.v processor
     zynqpage[Z_RA] = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;

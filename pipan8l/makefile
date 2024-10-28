@@ -16,7 +16,7 @@ endif
 
 LIBS = lib.$(MACH).a
 
-default: mcp23017.$(MACH) pipan8l.$(MACH) ttpan8l.$(MACH) z8ldump.$(MACH) z8lrand.$(MACH) z8ltty.$(MACH) z8lxmemtest.$(MACH)
+default: mcp23017.$(MACH) pipan8l.$(MACH) ttpan8l.$(MACH) z8lcmemtest.$(MACH) z8ldump.$(MACH) z8lrand.$(MACH) z8ltty.$(MACH) z8lxmemtest.$(MACH)
 
 lib.$(MACH).a: \
 		abcd.$(MACH).o \
@@ -25,7 +25,8 @@ lib.$(MACH).a: \
 		i2clib.$(MACH).o \
 		readprompt.$(MACH).o \
 		simlib.$(MACH).o \
-		z8llib.$(MACH).o
+		z8llib.$(MACH).o \
+		z8lutil.$(MACH).o
 	rm -f lib.$(MACH).a
 	ar rc $@ $^
 
@@ -38,16 +39,19 @@ pipan8l.$(MACH): pipan8l.$(MACH).o $(LIBS)
 ttpan8l.$(MACH): ttpan8l.$(MACH).o
 	$(GPP) -o $@ $^ -lpthread
 
-z8ldump.$(MACH): z8ldump.$(MACH).o
+z8lcmemtest.$(MACH): z8lcmemtest.$(MACH).o $(LIBS)
+	$(GPP) -o $@ $^ -lpthread
+
+z8ldump.$(MACH): z8ldump.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
 z8lrand.$(MACH): z8lrand.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
-z8ltty.$(MACH): z8ltty.$(MACH).o
+z8ltty.$(MACH): z8ltty.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
-z8lxmemtest.$(MACH): z8lxmemtest.$(MACH).o
+z8lxmemtest.$(MACH): z8lxmemtest.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
 %.$(MACH).o: %.cc *.h

@@ -53,6 +53,7 @@
 #define a_i_IO_SKIP     (1U << 12)
 #define a_i_MEMDONE     (1U << 13)
 #define a_i_STROBE      (1U << 14)
+#define a_brkwhenhltd   (1U << 26)
 #define a_simit         (1U << 27)
 //                      (1U << 28)
 #define a_softreset     (1U << 29)

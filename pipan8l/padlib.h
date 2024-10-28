@@ -22,6 +22,7 @@
 #define _PADLIB_H
 
 #include "pindefs.h"
+#include "z8lutil.h"
 
 struct PadLib {
     virtual ~PadLib () { }
@@ -106,8 +107,8 @@ struct Z8LLib : PadLib {
     virtual void writepads (uint16_t const *pads);
 
 private:
-    int zynqfd;
     uint32_t volatile *zynqpage;
+    Z8LPage *z8p;
 };
 
 #endif

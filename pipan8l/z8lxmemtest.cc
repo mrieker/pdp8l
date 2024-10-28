@@ -38,6 +38,7 @@
 #include <unistd.h>
 
 #include "z8ldefs.h"
+#include "z8lutil.h"
 
 #define Z_TTYVER 0
 #define Z_TTYKB 1
@@ -53,30 +54,12 @@
 
 int main (int argc, char **argv)
 {
-    int zynqfd = open ("/proc/zynqgpio", O_RDWR);
-    if (zynqfd < 0) {
-        fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
-        ABORT ();
+    Z8LPage z8p;
+    uint32_t volatile *xmemat = z8p.findev ("XM", NULL, NULL, true);
+    if (xmemat == NULL) {
+        fprintf (stderr, "xmem not found\n");
+        return 1;
     }
-
-    void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
-    if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "Z8LLib::openpads: error mmapping /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    uint32_t volatile *zynqpage = (uint32_t volatile *) zynqptr;
-
-    uint32_t volatile *xmemat = NULL;
-    for (int i = 0; i < 1024;) {
-        xmemat = &zynqpage[i];
-        uint32_t desc = *xmemat;
-        if ((desc & 0xFFFF0000U) == (('X' << 24) | ('M' << 16))) goto found;
-        i += 2 << ((desc & 0xF000) >> 12);
-    }
-    fprintf (stderr, "xmem not found\n");
-    return 1;
-found:;
     printf ("VERSION=%08X\n", xmemat[0]);
 
     while (true) {

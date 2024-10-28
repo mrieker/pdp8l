@@ -20,8 +20,8 @@
 
 // Performs TTY I/O for the PDP-8/L Zynq I/O board
 
-//  z8ltty    - default tty port 03
-//  z8ltty 40 - tty port 40
+//  ./z8ltty    - default tty port 03
+//  ./z8ltty 40 - tty port 40
 
 #include <errno.h>
 #include <fcntl.h>
@@ -35,7 +35,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "z8ldefs.h"
+#include "z8lutil.h"
 
 #define Z_TTYVER 0
 #define Z_TTYKB 1
@@ -47,37 +47,23 @@
 #define PR_FLAG 0x80000000
 #define PR_FULL 0x40000000
 
-#define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
+static bool findtt (void *param, uint32_t volatile *ttyat)
+{
+    uint32_t port = *(uint32_t *) param;
+    return ttyat[Z_TTYPN] == port;
+}
 
 int main (int argc, char **argv)
 {
     uint32_t port = 3;
     if (argc > 1) port = strtoul (argv[1], NULL, 8);
 
-    int zynqfd = open ("/proc/zynqgpio", O_RDWR);
-    if (zynqfd < 0) {
-        fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
-        ABORT ();
+    Z8LPage z8p;
+    uint32_t volatile *ttyat = z8p.findev ("TT", findtt, &port, true);
+    if (ttyat == NULL) {
+        fprintf (stderr, "tty port %02o not found\n", port);
+        return 1;
     }
-
-    void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
-    if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "Z8LLib::openpads: error mmapping /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    uint32_t volatile *zynqpage = (uint32_t volatile *) zynqptr;
-
-    uint32_t volatile *ttyat = NULL;
-    for (int i = 0; i < 1024;) {
-        ttyat = &zynqpage[i];
-        uint32_t desc = *ttyat;
-        if (((desc & 0xFFFF0000U) == (('T' << 24) | ('T' << 16))) && (ttyat[Z_TTYPN] == port)) goto found;
-        i += 2 << ((desc & 0xF000) >> 12);
-    }
-    fprintf (stderr, "tty port %02o not found\n", port);
-    return 1;
-found:;
 
     struct termios term_modified, term_original;
     if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();

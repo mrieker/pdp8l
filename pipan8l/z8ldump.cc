@@ -23,22 +23,14 @@
 //  ./z8ldump.armv7l [-nano]
 //    -nano - press enter to do one fpga cycle at a time
 
-#include <fcntl.h>
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <unistd.h>
 
 #include "z8ldefs.h"
-
-#define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
-#define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
+#include "z8lutil.h"
 
 #define ESC_NORMV "\033[m"             /* go back to normal video */
 #define ESC_REVER "\033[7m"            /* turn reverse video on */
@@ -83,19 +75,8 @@ int main (int argc, char **argv)
         return 1;
     }
 
-    int zynqfd = open ("/proc/zynqgpio", O_RDWR);
-    if (zynqfd < 0) {
-        fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
-    if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "Z8LLib::openpads: error mmapping /proc/zynqgpio: %m\n");
-        ABORT ();
-    }
-
-    uint32_t volatile *zynqpage = (uint32_t volatile *) zynqptr;
+    Z8LPage z8p;
+    uint32_t volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
     uint32_t ver = zynqpage[Z_VER];
     fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
     if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
@@ -144,6 +125,7 @@ int main (int argc, char **argv)
             printf ("  i_IO_SKIP=%o", FIELD (Z_RA, a_i_IO_SKIP));
             printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
             printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
+            printf ("  brkwhenhltd=%o", FIELD (Z_RA, a_brkwhenhltd));
             printf ("  simit=%o", FIELD (Z_RA, a_simit));
             printf ("  softreset=%o", FIELD (Z_RA, a_softreset));
             printf ("  nanostep=%o", FIELD (Z_RA, a_nanostep));
