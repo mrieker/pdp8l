@@ -108,6 +108,7 @@ module pdp8lsim (
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
     ,output reg lastnanostep
+    ,input brkwhenhltd
 );
 
     localparam MS_START = 0;        // figure out what to do next (also for exam & ldad switches)
@@ -294,9 +295,16 @@ module pdp8lsim (
 
                     // if not running, process console switches
                     if (~ runff) begin
+                    
+                        // testing- handle DMA while halted
+                        if (brkwhenhltd & ~ i_BRK_RQST) begin
+                            madr      <= ~ i_DMAADDR;
+                            majstate  <= iTHREECYCLE ? MS_WC : MS_BRK;
+                            timestate <= TS_TS1BODY;
+                        end
 
                         // load address switch
-                        if (debounce[23] & lastswLDAD & ~ swLDAD) begin
+                        else if (debounce[23] & lastswLDAD & ~ swLDAD) begin
                             ldad      <= 1;
                             madr      <= swSR;
                             pctr      <= swSR;
@@ -439,14 +447,16 @@ module pdp8lsim (
                                 mbuf <= mbuf + 1;
                                 // middle of wc with count just read, detect count overflow
                                 oBWC_OVERFLOW <= (mbuf == 12'o7777);
-                                o_ADDR_ACCEPT <= 0;
                             end
-                            MS_CA:  mbuf <= mbuf + iCA_INCREMENT;
+                            MS_CA: begin
+                                mbuf <= mbuf + iCA_INCREMENT;
+                            end
                             MS_BRK: begin
-                                mbuf <= breakdata;
-                                o_ADDR_ACCEPT <= 0;
+                                mbuf <= breakdata;      // data must be ready in time for TS3 (pdp-8/l user's handbook p39)
                             end
-                            MS_DEPOS: mbuf <= swSR;
+                            MS_DEPOS: begin
+                                mbuf <= swSR;
+                            end
                         endcase
                         timedelay <= 0;
                         timestate <= TS_TP2BEG;
@@ -641,13 +651,13 @@ module pdp8lsim (
 
                             // end of currentaddress
                             MS_CA: begin
-                                madr     <= mbuf;   // set up value as address for dma transfer
+                                madr     <= mbuf;           // set up value as address for dma transfer
                                 majstate <= MS_BRK;
                             end
 
                             // end of break
                             MS_BRK: begin
-                                o_ADDR_ACCEPT <= 1;
+                                o_ADDR_ACCEPT <= 0;         // 350-450nS pulse starting at TP4 (pdp-8/l users handbook p38)
                                 majstate      <= MS_START;
                             end
                         endcase
@@ -663,7 +673,10 @@ module pdp8lsim (
 
                 TS_TP4END: begin
                     if (timedelay != 5) timedelay <= timedelay + 1;
-                    else timestate <= TS_IDLE;
+                    else begin
+                        o_ADDR_ACCEPT <= 1;                 // just do 50nS ADDR_ACCEPT pulse (it's ok cuz pdp8lcmem.v is only thing that uses it)
+                        timestate     <= TS_IDLE;
+                    end
                 end
             endcase
 

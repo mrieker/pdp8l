@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4036;
+    localparam VERSION = 32'h384C4039;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD;
@@ -277,53 +277,53 @@ module Zynq (
     wire dev_o_LOAD_SF;
     wire dev_o_SP_CYC_NEXT;
 
-    wire[11:00] i_DMAADDR, i_DMADATA ;   // dma address, data going out to real PDP-8/L via our DMABUS
+    wire[11:00] i_DMAADDR, i_DMADATA;    // dma address, data going out to real PDP-8/L via our DMABUS
                                          // ...used to access real PDP-8/L 4K core memory
-    wire[11:00] iINPUTBUS ;              // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
-    wire[11:00] iMEM   ;                 // extended memory data going to real PDP-8/L MEM via our MEMBUS
-    wire iMEM_P ;                        // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
-    wire[11:00] oBAC   ;                 // real PDP-8/L AC contents, valid only during second half of io pulse
-    reg[11:00] oBMB    ;                 // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
-    wire[11:00] oMA    ;                 // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
+    wire[11:00] iINPUTBUS;               // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
+    wire[11:00] iMEM;                    // extended memory data going to real PDP-8/L MEM via our MEMBUS
+    wire iMEM_P;                         // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
+    wire[11:00] oBAC;                    // real PDP-8/L AC contents, valid only during second half of io pulse
+    reg[11:00] oBMB;                     // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
+    wire[11:00] oMA;                     // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
 
     reg simit;
     wire lastnanostep;
-    reg nanocycle, nanostep, softreset;
-    wire inuseclock, inusereset ;
+    reg nanocycle, nanostep, softreset, brkwhenhltd;
+    wire inuseclock, inusereset;
     wire ioreset;
     wire iopstart, iopstop;
     wire firstiop1, firstiop2, firstiop4;
-    wire acclr, intrq, ioskp ;
+    wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
     reg[2:0] iopclrcount;               // count fpga cycles where no IOP is on
 
     // synchroniSed input wires
-    wire q_ADDR_ACCEPT  ;
-    wire q_B_RUN        ;
-    wire q_BF_ENABLE    ;
-    wire q_BUSINIT      ;
-    wire q_DF_ENABLE    ;
-    wire q_KEY_CLEAR    ;
-    wire q_KEY_DF       ;
-    wire q_KEY_IF       ;
-    wire q_KEY_LOAD     ;
-    wire q_LOAD_SF      ;
-    wire q_SP_CYC_NEXT  ;
-    wire qB_BREAK       ;
-    wire qBIOP1         ;
-    wire qBIOP2         ;
-    wire qBIOP4         ;
-    wire qBTP2          ;
-    wire qBTP3          ;
-    wire qBTS_1         ;
-    wire qBTS_3         ;
-    wire qBWC_OVERFLOW  ;
-    wire qC36B2         ;
-    wire qD35B2         ;
-    wire qE_SET_F_SET   ;
-    wire qJMP_JMS       ;
-    wire qLINE_LOW      ;
-    wire qMEMSTART      ;
+    wire q_ADDR_ACCEPT;
+    wire q_B_RUN;
+    wire q_BF_ENABLE;
+    wire q_BUSINIT;
+    wire q_DF_ENABLE;
+    wire q_KEY_CLEAR;
+    wire q_KEY_DF;
+    wire q_KEY_IF;
+    wire q_KEY_LOAD;
+    wire q_LOAD_SF;
+    wire q_SP_CYC_NEXT;
+    wire qB_BREAK;
+    wire qBIOP1;
+    wire qBIOP2;
+    wire qBIOP4;
+    wire qBTP2;
+    wire qBTP3;
+    wire qBTS_1;
+    wire qBTS_3;
+    wire qBWC_OVERFLOW;
+    wire qC36B2;
+    wire qD35B2;
+    wire qE_SET_F_SET;
+    wire qJMP_JMS;
+    wire qLINE_LOW;
+    wire qMEMSTART;
 
     // arm interface wires;
     reg arm_iBEMA;
@@ -358,16 +358,16 @@ module Zynq (
     reg[11:00] arm_swSR;
 
     // tty interface wires
-    wire[31:00] ttardata ;
-    wire[11:00] ttibus ;
+    wire[31:00] ttardata;
+    wire[11:00] ttibus;
     wire ttacclr, ttintrq, ttioskp;
-    wire[31:00] tt40ardata ;
-    wire[11:00] tt40ibus ;
+    wire[31:00] tt40ardata;
+    wire[11:00] tt40ibus;
     wire tt40acclr, tt40intrq, tt40ioskp;
 
     // disk interface wires
-    wire[31:00] rkardata ;
-    wire[11:00] rkibus ;
+    wire[31:00] rkardata;
+    wire[11:00] rkibus;
     wire rkacclr, rkintrq, rkioskp;
 
     // extended memory interface wires
@@ -375,6 +375,12 @@ module Zynq (
     wire[11:00] xmibus;
     wire[11:00] xmmem;
     wire xm_intinh, xm_mrdone, xm_mwdone, xm_ea;
+
+    // core memory interface wires
+    wire[31:00] cmardata;
+    wire cmbrkrqst, cmbrkwrite;
+    wire[11:00] cmbrkaddr, cmbrkwdat;
+    wire[2:0] cmbrkema;
 
     // bus values that are constants
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
@@ -401,6 +407,7 @@ module Zynq (
         (readaddr[11:04] ==  8'b00001010)   ? ttardata   :  // 00001010xx00
         (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
         (readaddr[11:04] ==  8'b00001100)   ? xmardata   :  // 00001100xx00
+        (readaddr[11:04] ==  8'b00001101)   ? cmardata   :  // 00001101xx00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
@@ -408,6 +415,7 @@ module Zynq (
     wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001010;     // 00001010xx00
     wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001011;     // 00001011xx00
     wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001100;     // 00001100xx00
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001101;     // 00001101xx00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -424,6 +432,7 @@ module Zynq (
             nanocycle <= 1;                               // by default, software provides clock
             nanostep  <= 0;                               // by default, software clock is low
             softreset <= 1;                               // by default, software reset asserted
+            brkwhenhltd <= 0;                               // by default, don't do breaks (dma) while halted (sim only)
         end else begin
 
             /////////////////////
@@ -465,6 +474,7 @@ module Zynq (
                         arm_i_IO_SKIP     <= saxi_WDATA[12];
                         arm_i_MEMDONE     <= saxi_WDATA[13];
                         arm_i_STROBE      <= saxi_WDATA[14];
+                        brkwhenhltd       <= saxi_WDATA[26];
                         simit             <= saxi_WDATA[27];
                         softreset         <= saxi_WDATA[29];
                         nanostep          <= saxi_WDATA[30];
@@ -666,7 +676,8 @@ module Zynq (
     assign regctla[12] = dev_i_IO_SKIP;
     assign regctla[13] = dev_i_MEMDONE;
     assign regctla[14] = dev_i_STROBE;
-    assign regctla[26:15] = 0;
+    assign regctla[25:15] = 0;
+    assign regctla[26] = brkwhenhltd;
     assign regctla[27] = simit;
     assign regctla[28] = 0;
     assign regctla[29] = softreset;
@@ -836,7 +847,8 @@ module Zynq (
         .lastswLDAD    (lastswLDAD),
         .nanocycle     (nanocycle),
         .nanostep      (nanostep),
-        .lastnanostep  (lastnanostep)
+        .lastnanostep  (lastnanostep),
+        .brkwhenhltd   (brkwhenhltd)
     );
 
     assign regctlk[31:29] = 0;
@@ -949,17 +961,17 @@ module Zynq (
 
     assign dev_iBEMA         =      arm_iBEMA;
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
-    assign dev_iDATA_IN      =      arm_iDATA_IN;
+    assign dev_iDATA_IN      =      arm_iDATA_IN   | cmbrkwrite;
     assign dev_iINPUTBUS     =      arm_iINPUTBUS  | ttibus  | tt40ibus  | rkibus | xmibus;
     assign dev_iMEMINCR      =      arm_iMEMINCR;
-    assign dev_iMEM          =      arm_iMEM          | xmmem;
+    assign dev_iMEM          =      arm_iMEM       | xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
     assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
     assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR | ttacclr | tt40acclr | rkacclr);
-    assign dev_i_BRK_RQST    =      arm_i_BRK_RQST;
-    assign dev_i_DMAADDR     =      arm_i_DMAADDR;
-    assign dev_i_DMADATA     =      arm_i_DMADATA;
-    assign dev_i_EA          =      arm_i_EA          & xm_ea;
+    assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST | cmbrkrqst);
+    assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR  | cmbrkaddr);
+    assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA  | cmbrkwdat);
+    assign dev_i_EA          =      arm_i_EA       & xm_ea;
     assign dev_i_EMA         =      arm_i_EMA;
     assign dev_i_INT_INHIBIT =      arm_i_INT_INHIBIT & xm_intinh;
     assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST | ttintrq | tt40intrq | rkintrq);
@@ -1035,6 +1047,10 @@ module Zynq (
     );
 
     // extended memory interface
+    // gives arm and pdp access to the extended memory block
+    // arm always has access to the full 32K
+    // pdp always has access to the upper 28K
+    // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
@@ -1059,6 +1075,9 @@ module Zynq (
         ._mrdone (xm_mrdone),           // pulse indicating read data is valid
         ._mwdone (xm_mwdone),           // pulse indicating write has completed
 
+        .brkfld (cmbrkema),             // extended memory address for break (dma) cycles
+
+        ._bf_enab (dev_o_BF_ENABLE),    // next mem cycle should use break field
         ._df_enab (dev_o_DF_ENABLE),    // next mem cycle should use data field
         .exefet (dev_oE_SET_F_SET),     // next mem cycle is for fetch or execute
         ._intack (dev_o_LOAD_SF),       // next mem cycle is ackmowledging interrupt
@@ -1073,6 +1092,32 @@ module Zynq (
         .xbrrdat (xbrrdat),
         .xbrenab (xbrenab),
         .xbrwena (xbrwena)
+    );
+
+    // core memory interface
+    // gives arm access to the pdp's 4K core memory via pdp's dma interface
+    // can also access the upper 28K via dma for testing
+    // pdp must be running for this to work
+    // does not process any pdp io instructions
+
+    pdp8lcmem cminst (
+        .CLOCK (CLOCK),
+        .RESET (ioreset),
+
+        .armwrite (cmawrite),                   //< arm writing to backside register
+        .armraddr (readaddr[3:2]),              //< arm reading from backside register
+        .armwaddr (writeaddr[3:2]),             //< arm writing to backside register
+        .armwdata (saxi_WDATA),                 //< data to write to backside register
+        .armrdata (cmardata),                   //> data being read from backside register
+
+        .brkrqst  (cmbrkrqst),                  //> dma cycle being requested
+        .brkwrite (cmbrkwrite),                 //> dma cycle wants to write memory
+        .brkema   (cmbrkema),                   //> upper address bits
+        .brkaddr  (cmbrkaddr),                  //> lower address bits
+        .brkwdat  (cmbrkwdat),                  //> data to write to memory
+        .brkrdat  (dev_oBMB),                   //< data read from memory
+        .brkts3   (dev_oB_BREAK & dev_oBTS_3),  //< TS3 of break cycle (memory writeback occurring)
+        ._brkdone (dev_o_ADDR_ACCEPT)           //< cycle complete (TP4 in break cycle)
     );
 
 endmodule

@@ -23,6 +23,11 @@
 // arm registers:
 //  [0] = ident='XM',sizecode=1,version
 //  [1] = <enable> <enlo4K> 0 <busy> <12-bit-data> <write> <15-bit-addr>
+//    enable = 0 : ignore io instructions, ie, be a dumb 4K system
+//             1 : handle io instructions
+//    enlo4K = 0 : PDP-8/L core stack will be used for low 4K addresses
+//             1 : the low 4K of the 32K block memory will be used for low 4K addresses
+//                 ...regardless of the enable bit setting
 
 module pdp8lxmem (
     input CLOCK, RESET,
@@ -45,8 +50,9 @@ module pdp8lxmem (
     output reg[11:00] memrdat,
     output reg _mrdone,             // pulse to cpu saying data is available
     output reg _mwdone,             // pulse to cpu saying data has been written
+    input[2:0] brkfld,              // field for dma
 
-    input _df_enab, exefet, _intack, jmpjms, ts3, _zf_enab,
+    input _bf_enab, _df_enab, exefet, _intack, jmpjms, ts3, _zf_enab,
     output _ea, _intinh,
 
     output reg[14:00] xbraddr,
@@ -64,13 +70,14 @@ module pdp8lxmem (
     reg[31:00] writecounts;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1002 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1003 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { 1'b0, busyonarm, busyonpdp, dfld, 1'b0, ifld, 1'b0, ifldafterjump, 1'b0, saveddfld, 1'b0, savedifld, memdelay } :
                       writecounts; //// 32'hDEADBEEF;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
+                        ~ _bf_enab ? brkfld :           // break field if cpu says so
                         (jmpjms & exefet) ? ifldafterjump :
                         ifld;
     assign _ea = ~ (ctllo4K | (field != 0));
@@ -174,8 +181,8 @@ module pdp8lxmem (
                 end
             end
 
-            // maybe pdp is requesting a memory cycle
-            else if (ctlenab & memstart & (memdelay == 0)) begin
+            // maybe pdp is requesting a memory cycle on what it thinks is extended memory
+            else if (memstart & ~ _ea & (memdelay == 0)) begin
                 xaddr <= { field, memaddr };
                 if (jmpjms & exefet) begin
                     ifld <= ifldafterjump;
