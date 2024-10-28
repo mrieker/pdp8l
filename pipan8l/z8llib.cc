@@ -122,7 +122,7 @@ static uint32_t ztop[] = {
 };
 
 static uint32_t const forceons[Z_N] = {
-    0, a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
+    0, a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
     0, 0, d_i_DMAADDR | d_i_DMADATA };
 
 
@@ -148,7 +148,6 @@ void Z8LLib::openpads ()
     zynqpage = NULL;
     zynqfd = -1;
 
-    // use the i2cmaster.v module in the fpga to access the i2c bus
     zynqfd = open ("/proc/zynqgpio", O_RDWR);
     if (zynqfd < 0) {
         fprintf (stderr, "Z8LLib::openpads: error opening /proc/zynqgpio: %m\n");
@@ -160,6 +159,7 @@ void Z8LLib::openpads ()
         fprintf (stderr, "Z8LLib::openpads: error mmapping /proc/zynqgpio: %m\n");
         ABORT ();
     }
+
     zynqpage = (uint32_t volatile *) zynqptr;
     uint32_t ver = zynqpage[Z_VER];
     fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
@@ -171,7 +171,6 @@ void Z8LLib::openpads ()
     for (int i = 0; i < Z_N; i ++) {
         zynqpage[i] = ((i == Z_RA) ? a_softreset : 0) | forceons[i];
     }
-    usleep (10);
 }
 
 // read pins from zynq pdp8l.v
