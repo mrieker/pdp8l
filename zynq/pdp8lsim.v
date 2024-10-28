@@ -96,7 +96,7 @@ module pdp8lsim (
     input swSTOP,
     input[11:00] swSR,
     input swSTART
-    
+
     // debug
     ,output reg[2:0] majstate
     ,output reg[5:0] timedelay
@@ -189,7 +189,7 @@ module pdp8lsim (
     assign lbMB   = mbuf;
     assign lbRUN  = runff;
     assign lbWC   = (majstate == MS_WC);
-    
+
     assign debounced = debounce[23];
 
     // local memory (presumably inferred block memory)
@@ -220,7 +220,7 @@ module pdp8lsim (
             default: { g1link, g1acum } = { g1linkraw, g1acumraw };                     // all else, nop
         endcase
     end
-    
+
     // calculate skip condition for group 2 instruction
     wire g2skip = ((mbuf[06] & acum[11]) |    // SMA
                    (mbuf[05] & (acum == 0)) | // SZA
@@ -569,17 +569,17 @@ module pdp8lsim (
                     if (timedelay != 48) timedelay <= timedelay + 1;
                     else begin
                         case (majstate)
-    
+
                             // end of FETCH cycle
                             MS_FETCH: begin
                                 case (ir)
-    
+
                                     // add, tad, isz, dca, jms
                                     0, 1, 2, 3, 4: begin
                                         madr     <= effaddr;
                                         majstate <= mbuf[08] ? MS_DEFER : MS_EXEC;
                                     end
-    
+
                                     // jmp
                                     5: begin
                                         if (mbuf[08]) begin
@@ -590,10 +590,10 @@ module pdp8lsim (
                                             majstate <= MS_START;
                                         end
                                     end
-    
+
                                     // iot - io cycles were already performed as part of this mem cycle so start another fetch
                                     6: majstate <= MS_START;
-    
+
                                     // opr - perform operation and start another fetch
                                     7: begin
                                         if (~ mbuf[08]) begin
@@ -608,7 +608,7 @@ module pdp8lsim (
                                     end
                                 endcase
                             end
-    
+
                             // end of DEFER cycle
                             MS_DEFER: begin
                                 if (ir == 5) begin
@@ -619,7 +619,7 @@ module pdp8lsim (
                                     majstate <= MS_EXEC;
                                 end
                             end
-    
+
                             // end of EXEC cycle
                             MS_EXEC: begin
                                 case (ir)
@@ -632,19 +632,19 @@ module pdp8lsim (
                                 o_LOAD_SF <= 1;
                                 majstate  <= MS_START;
                             end
-    
+
                             // end of wordcount
                             MS_WC: begin
                                 madr     <= madr + 1;
                                 majstate <= MS_CA;
                             end
-    
+
                             // end of currentaddress
                             MS_CA: begin
                                 madr     <= mbuf;   // set up value as address for dma transfer
                                 majstate <= MS_BRK;
                             end
-    
+
                             // end of break
                             MS_BRK: begin
                                 o_ADDR_ACCEPT <= 1;
