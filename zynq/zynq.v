@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4039;
+    localparam VERSION = 32'h384C403A;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD;
@@ -289,8 +289,6 @@ module Zynq (
     reg simit;
     wire lastnanostep;
     reg nanocycle, nanostep, softreset, brkwhenhltd;
-    wire inuseclock, inusereset;
-    wire ioreset;
     wire iopstart, iopstop;
     wire firstiop1, firstiop2, firstiop4;
     wire acclr, intrq, ioskp;
@@ -432,7 +430,7 @@ module Zynq (
             nanocycle <= 1;                               // by default, software provides clock
             nanostep  <= 0;                               // by default, software clock is low
             softreset <= 1;                               // by default, software reset asserted
-            brkwhenhltd <= 0;                               // by default, don't do breaks (dma) while halted (sim only)
+            brkwhenhltd <= 0;                             // by default, don't do breaks (dma) while halted (sim only)
         end else begin
 
             /////////////////////
@@ -757,16 +755,16 @@ module Zynq (
     //  simulated PDP-8/L processor  //
     ///////////////////////////////////
 
-    assign inuseclock = nanocycle ? nanostep : CLOCK;
-    assign inusereset = softreset | ~ RESET_N;
+    wire pwronreset = softreset | ~ RESET_N;    // some arm program is resetting or zynq is powering up
+                                                // - resets devices and they disconnect themselves from pio bus
 
-    assign LEDoutR = ~ inusereset;
-    assign LEDoutG = ~ inuseclock;
+    assign LEDoutR = ~ pwronreset;
+    assign LEDoutG = 1;
     assign LEDoutB = ~ nanocycle;
 
     pdp8lsim siminst (
         .CLOCK         (CLOCK),
-        .RESET         (inusereset),
+        .RESET         (pwronreset),
         .iBEMA         (sim_iBEMA),
         .iCA_INCREMENT (sim_iCA_INCREMENT),
         .iDATA_IN      (sim_iDATA_IN),
@@ -857,21 +855,22 @@ module Zynq (
     //  io interfaces  //
     /////////////////////
 
-    assign ioreset = inusereset | ~ dev_o_BUSINIT;     // reset io devices
+    wire iobusreset = pwronreset | ~ dev_o_BUSINIT;     // power on reset or start switch
+                                                        // device does not disconnect itself from piobus
 
     // generate iopstart pulse for an io instruction followed by iopstop
     //  iopstart is pulsed 130nS after the first iop for an instruction and lasts a single fpga clock cycle
     //   it is delayed if armwrite is happening at the same time
     //   interfaces know they can decode the io opcode in dev_oBMB and drive the busses
-    //  iopstop is turned on 70nS after the end of that same iop and may last a long time
+    //  iopstop is turned on 70nS after the end of that same iop and lasts dozens or more cycles
     //   interfaces must stop driving busses at this time
-    //   it may happen same time as armwrite but since it lasts a long time, it will still be seen
+    //   it may happen same time as armwrite but since it lasts a long time, it will be seen on subsequent cycles
 
     // interfaces are assumed to have this form:
-    //   if ioreset do ioreset processing
-    //   else if armwrite do armwrite processing
-    //   else if iopstart do iopstart processing
-    //   else if iopstop do iopstop processing
+    //   if pwronreset do pwronreset processing
+    //   else if armwrite do armwrite processing    // must take priority over iopstart cuz it lasts only 1 cycle
+    //   else if iopstart do iopstart processing    // single cycle delayed if same time as armwrite
+    //   else if iopstop do iopstop processing      // lasts for dozens of cycles
 
     assign firstiop1 = dev_oBIOP1 & dev_oBMB[0]   ==   1'b1;    // any 110xxxxxxxx1 executes only on IOP1
     assign firstiop2 = dev_oBIOP2 & dev_oBMB[1:0] ==  2'b10;    // any 110xxxxxxx10 executes only on IOP2
@@ -879,7 +878,7 @@ module Zynq (
                                                                 // any 110xxxxxx000 never executes
 
     always @(posedge CLOCK) begin
-        if (ioreset) begin
+        if (pwronreset) begin
             iopsetcount <= 0;
             iopclrcount <= 7;
         end else if (firstiop1 | firstiop2 | firstiop4) begin
@@ -930,7 +929,7 @@ module Zynq (
     // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
     // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory)
     always @(posedge CLOCK) begin
-        if (inusereset) begin
+        if (pwronreset) begin
             r_BAC <= 1;
             r_BMB <= 1;
             x_INPUTBUS <= 1;
@@ -983,7 +982,8 @@ module Zynq (
 
     pdp8ltty ttinst (
         .CLOCK (CLOCK),
-        .RESET (ioreset),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
 
         .armwrite (ttawrite),
         .armraddr (readaddr[3:2]),
@@ -1004,7 +1004,8 @@ module Zynq (
 
     pdp8ltty #(.KBDEV (8'o40)) tt40inst (
         .CLOCK (CLOCK),
-        .RESET (ioreset),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
 
         .armwrite (tt40awrite),
         .armraddr (readaddr[3:2]),
@@ -1027,7 +1028,8 @@ module Zynq (
 
     pdp8lrk8je rkinst (
         .CLOCK (CLOCK),
-        .RESET (ioreset),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
 
         .armwrite (rkawrite),
         .armraddr (readaddr[4:2]),
@@ -1054,7 +1056,8 @@ module Zynq (
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
-        .RESET (ioreset),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
 
         .armwrite (xmawrite),           // arm writing to backside register
         .armraddr (readaddr[3:2]),      // arm reading from backside register
@@ -1082,10 +1085,13 @@ module Zynq (
         .exefet (dev_oE_SET_F_SET),     // next mem cycle is for fetch or execute
         ._intack (dev_o_LOAD_SF),       // next mem cycle is ackmowledging interrupt
         .jmpjms (dev_oJMP_JMS),         // instruction register holds JMP or JMS instruction
-        .ts3 (dev_oBTS_3),              // processor in time state 3
         ._zf_enab (dev_o_SP_CYC_NEXT),  // special (WC or CA) cycle is next
-        ._ea (xm_ea),                   // _EA=1 use 4K stack and cpu's controller; _EA=0 use this controller
+        ._ea (xm_ea),                   // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
         ._intinh (xm_intinh),           // block interrupt delivery
+
+        .ldaddrsw (~ dev_o_KEY_LOAD),
+        .ldaddfld ({ 2'b00, ~ dev_o_KEY_DF }),
+        .ldadifld ({ 2'b00, ~ dev_o_KEY_IF }),
 
         .xbraddr (xbraddr),
         .xbrwdat (xbrwdat),
@@ -1105,7 +1111,7 @@ module Zynq (
 
     pdp8lcmem cminst (
         .CLOCK (CLOCK),
-        .RESET (ioreset),
+        .RESET (pwronreset),
 
         .armwrite (cmawrite),                   //< arm writing to backside register
         .armraddr (readaddr[3:2]),              //< arm reading from backside register

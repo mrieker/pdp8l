@@ -21,7 +21,7 @@
 // PDP-8/L RK8JE interface
 
 module pdp8lrk8je (
-    input CLOCK, RESET,
+    input CLOCK, RESET, BINIT,
 
     input armwrite,
     input[2:0] armraddr, armwaddr,
@@ -55,7 +55,7 @@ module pdp8lrk8je (
     reg[11:00] command, diskaddr, memaddr, status;
     reg stbusy, startio, enable;
 
-    assign armrdata = (armraddr == 0) ? 32'h524B2002 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h524B2003 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { 20'b0, command  } :
                       (armraddr == 2) ? { 20'b0, diskaddr } :
                       (armraddr == 3) ? { 20'b0, memaddr  } :
@@ -69,10 +69,12 @@ module pdp8lrk8je (
     assign INT_RQST = command[08] & stskip;
 
     always @(posedge CLOCK) begin
-        if (RESET) begin
+        if (BINIT) begin
+            if (RESET) begin
+                enable <= 0;
+            end
             command  <= 0;
             diskaddr <= 0;
-            enable   <= 0;
             memaddr  <= 0;
             status   <= 0;
             startio  <= 0;

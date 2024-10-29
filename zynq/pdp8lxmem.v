@@ -30,7 +30,7 @@
 //                 ...regardless of the enable bit setting
 
 module pdp8lxmem (
-    input CLOCK, RESET,
+    input CLOCK, RESET, BINIT,
 
     input armwrite,
     input[1:0] armraddr, armwaddr,
@@ -52,8 +52,11 @@ module pdp8lxmem (
     output reg _mwdone,             // pulse to cpu saying data has been written
     input[2:0] brkfld,              // field for dma
 
-    input _bf_enab, _df_enab, exefet, _intack, jmpjms, ts3, _zf_enab,
+    input _bf_enab, _df_enab, exefet, _intack, jmpjms, _zf_enab,
     output _ea, _intinh,
+
+    input ldaddrsw,                 // load address switch
+    input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
 
     output reg[14:00] xbraddr,
     output reg[11:00] xbrwdat,
@@ -74,7 +77,7 @@ module pdp8lxmem (
     reg[2:0] busyonarm, dfld, ifld, ifldafterjump, saveddfld, savedifld;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1005 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1007 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { _mrdone, _mwdone, 3'b000, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
                       32'hDEADBEEF;
@@ -88,26 +91,32 @@ module pdp8lxmem (
     assign _intinh = ~ intdisableduntiljump;
 
     always @(posedge CLOCK) begin
-        if (RESET) begin
-            busyonarm     <= 0;
-            busyonpdp     <= 0;
-            ctlenab       <= 0;
-            ctllo4K       <= 0;
-            dfld          <= 0;
-            ifld          <= 0;
-            ifldafterjump <= 0;
+        if (BINIT) begin
+            if (RESET) begin
+                // these get cleared on power up
+                // they remain as is when start switch is pressed
+                busyonarm     <= 0;
+                busyonpdp     <= 0;
+                ctlenab       <= 0;
+                ctllo4K       <= 0;
+                dfld          <= 0;
+                ifld          <= 0;
+                ifldafterjump <= 0;
+                lastnanostep  <= 0;
+                memdelay      <= 0;
+                _mrdone       <= 1;
+                _mwdone       <= 1;
+                xbrenab       <= 0;
+                xbrwena       <= 0;
+            end
+            // these get cleared on power up or start switch
             intdisableduntiljump <= 0;
-            lastnanostep  <= 0;
-            memdelay      <= 0;
-            _mrdone       <= 1;
-            _mwdone       <= 1;
-            saveddfld     <= 0;
-            savedifld     <= 0;
-            xbrenab       <= 0;
-            xbrwena       <= 0;
+            saveddfld <= 0;
+            savedifld <= 0;
         end
 
         // arm processor is writing one of the registers
+        // armwrite lasts only 1 fpga clock cycle
         else if (armwrite) begin
             case (armwaddr)
 
@@ -127,6 +136,66 @@ module pdp8lxmem (
             endcase
         end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
             lastnanostep <= 1;
+
+            // maybe we have load address switch to process
+            // theoretically can't happen when the processor is running
+            // ...so it won't interfere with io instruction processing below
+            if (ldaddrsw) begin
+                dfld <= ldaddfld;
+                ifld <= ldadifld;
+                ifldafterjump <= ldadifld;
+            end
+
+            // maybe there is an io instruction to process
+            // iopstart lasts only 1 fpga clock cycle and not at same time as armwrite
+            else if (ctlenab & iopstart) begin
+                if (ioopcode[11:06] == 6'o62) begin
+                    // see mc8l memory extension, p6
+                    case (ioopcode[02:00])
+                        0,1,2,3: begin
+                            if (ioopcode[00]) dfld <= ioopcode[5:3];
+                            if (ioopcode[01]) begin
+                                ifldafterjump <= ioopcode[5:3];
+                                intdisableduntiljump <= 1;
+                            end
+                        end
+                        4: begin
+                            case (ioopcode[05:03])
+                                1: begin    // 6214 RDF
+                                    devtocpu[05:03] <= dfld;
+                                end
+                                2: begin    // 6224 RIF
+                                    devtocpu[05:03] <= ifld;
+                                end
+                                3: begin    // 6234 RIB
+                                    devtocpu[05:03] <= savedifld;
+                                    devtocpu[02:00] <= saveddfld;
+                                end
+                                4: begin    // 6244 RMF
+                                    dfld <= saveddfld;
+                                    ifldafterjump <= savedifld;
+                                end
+                            endcase
+                        end
+                    endcase
+                end
+            end
+
+            // maybe pdp is requesting a memory cycle on extended memory
+            // includes the lower 4K if our enlo4K bit is set cuz that forces _EA=0
+            else if (memstart & ~ _ea & (memdelay == 0)) begin
+                xaddr <= { field, memaddr };
+                if (jmpjms & exefet) begin
+                    ifld <= ifldafterjump;
+                    intdisableduntiljump <= 0;
+                end
+                memdelay <= memdelay + 1;
+            end
+
+            // processor no longer sending an IOP, stop sending data over the bus so it doesn't jam other devices
+            else if (iopstop) begin
+                devtocpu <= 0;
+            end
 
             // maybe we have an arm request to process
             if ((busyonarm != 0) & (busyonpdp == 0)) begin
@@ -152,80 +221,35 @@ module pdp8lxmem (
                 endcase
             end
 
-            // process the IOP only on the leading edge
-            // ...but leave output signals to PDP-8/L in place until given the all clear
-            if (ctlenab & iopstart) begin
-                if (ioopcode[11:06] == 6'o62) begin
-                    if (ioopcode[00]) dfld <= ioopcode[5:3];
-                    if (ioopcode[01]) begin
-                        ifldafterjump <= ioopcode[5:3];
-                        intdisableduntiljump <= 1;
-                    end
-                    if (ioopcode[02]) begin
-                        case (ioopcode[05:03])
-                            1: begin    // 6214
-                                devtocpu[05:03] <= dfld;
-                            end
-                            2: begin    // 6224
-                                devtocpu[05:03] <= ifld;
-                            end
-                            3: begin    // 6234
-                                devtocpu[05:03] <= savedifld;
-                                devtocpu[02:00] <= saveddfld;
-                            end
-                            4: begin    // 6244
-                                dfld <= saveddfld;
-                                ifldafterjump <= savedifld;
-                            end
-                        endcase
-                    end
-                end
-            end
-
-            // maybe pdp is requesting a memory cycle on what it thinks is extended memory
-            else if (memstart & ~ _ea & (memdelay == 0)) begin
-                xaddr <= { field, memaddr };
-                if (jmpjms & exefet) begin
-                    ifld <= ifldafterjump;
-                    intdisableduntiljump <= 0;
-                end
-                memdelay <= memdelay + 1;
-            end
-
-            // processor no longer sending an IOP, stop sending data over the bus so it doesn't jam other devices
-            else if (iopstop) begin
-                devtocpu <= 0;
-            end
-
             // see if pdp is requesting a memory cycle
-            if (memdelay != 0) begin
+            else if (memdelay != 0) begin
 
                 // 150nS, start reading block memory
                 if (memdelay == 15) begin
                     if (busyonarm == 0) begin
                         busyonpdp <= 1;
-                        xbraddr  <= xaddr;
-                        xbrenab  <= 1;
-                        xbrwena  <= 0;
-                        memdelay <= memdelay + 1;
+                        xbraddr   <= xaddr;
+                        xbrenab   <= 1;
+                        xbrwena   <= 0;
+                        memdelay  <= memdelay + 1;
                     end
                 end
 
                 // 200nS, send read data to cpu
                 else if (memdelay == 20) begin
                     busyonpdp <= 0;
-                    memrdat  <= xbrrdat;
-                    xbrenab  <= 0;
-                    memdelay <= memdelay + 1;
+                    memrdat   <= xbrrdat;
+                    xbrenab   <= 0;
+                    memdelay  <= memdelay + 1;
                 end
 
                 // 600nS, send strobe pulse 100nS wide
                 else if (memdelay == 60) begin
-                    _mrdone <= 0;
+                    _mrdone  <= 0;
                     memdelay <= memdelay + 1;
                 end
                 else if (memdelay == 70) begin
-                    _mrdone <= 1;
+                    _mrdone  <= 1;
                     memdelay <= memdelay + 1;
                 end
 

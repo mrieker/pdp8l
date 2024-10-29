@@ -28,7 +28,7 @@
 
 module pdp8ltty
     #(parameter[8:3] KBDEV=6'o03) (
-    input CLOCK, RESET,
+    input CLOCK, RESET, BINIT,
 
     input armwrite,
     input[1:0] armraddr, armwaddr,
@@ -52,7 +52,7 @@ module pdp8ltty
     reg enable, intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541004 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541005 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, 19'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 26'b0, KBDEV };
@@ -60,8 +60,10 @@ module pdp8ltty
     assign INT_RQST = intenab & (kbflag | prflag);
 
     always @(posedge CLOCK) begin
-        if (RESET) begin
-            enable  <= 0;
+        if (BINIT) begin
+            if (RESET) begin
+                enable <= 0;
+            end
             intenab <= 0;
             kbflag  <= 0;
             prflag  <= 0;

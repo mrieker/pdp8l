@@ -171,7 +171,7 @@ module pdp8lsim (
     assign o_DF_ENABLE   = ~ ((majstate == MS_EXEC) & irusedf);     // next memory cycle uses DF (p22 C-7)
     assign o_KEY_DF      = ~ swDFLD;
     assign o_KEY_IF      = ~ swIFLD;
-    assign o_KEY_LOAD    = ldad & tp1;                              // load address cycle (p33 C-2, not exact match)
+    assign o_KEY_LOAD    = ~ ldad;                                  // load address switch cycle (p22 C-2, not exact match)
     assign o_SP_CYC_NEXT = ~ ((majstate == MS_WC) | (majstate == MS_CA));  // next mem cycle is MS_WC or MS_CA, use field 0 (p22 C-6, p5 C-3, also p5 B-2)
     assign oE_SET_F_SET  = 0;                                       // B36-D2,p22 C-3,J12-72,,,
     assign o_KEY_CLEAR   = 1;                                       // B36-J1,p22 C-5,J12-68,,,
@@ -295,7 +295,7 @@ module pdp8lsim (
 
                     // if not running, process console switches
                     if (~ runff) begin
-                    
+
                         // testing- handle DMA while halted
                         if (brkwhenhltd & ~ i_BRK_RQST) begin
                             madr      <= ~ i_DMAADDR;
@@ -314,7 +314,6 @@ module pdp8lsim (
 
                         // examine switch
                         else if (debounce[23] & lastswEXAM & ~ swEXAM) begin
-                            ldad      <= 0;
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_START;
@@ -323,7 +322,6 @@ module pdp8lsim (
 
                         // deposit switch
                         else if (debounce[23] & lastswDEP & ~ swDEP) begin
-                            ldad      <= 0;
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_DEPOS;
@@ -332,7 +330,6 @@ module pdp8lsim (
 
                         // continue switch
                         else if (debounce[23] & lastswCONT & ~ swCONT) begin
-                            ldad      <= 0;
                             hidestep  <= 1;
                             runff     <= 1;
                             // stay in whatever majstate we are in now
@@ -345,7 +342,6 @@ module pdp8lsim (
                             hidestep   <= 0;
                             intdelayed <= 0;
                             intenabled <= 0;
-                            ldad       <= 0;
                             link       <= 0;
                             runff      <= 1;
                             majstate   <= MS_START;
@@ -401,6 +397,7 @@ module pdp8lsim (
 
                 // memory is being read at address in MA, either internal or external memory
                 TS_TS1BODY: begin
+                    ldad <= 0;
                     if (i_EA) begin
                         if (timedelay != 62) timedelay <= timedelay + 1;
                         else begin timedelay <= 0; timestate <= TS_TP1BEG; end
