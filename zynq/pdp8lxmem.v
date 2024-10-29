@@ -60,20 +60,24 @@ module pdp8lxmem (
     input[11:00] xbrrdat,
     output reg xbrenab,
     output reg xbrwena
+
+    // debug
+    ,input nanocycle    // 0=normal; 1=use nanostep for clocking
+    ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
 );
 
     reg busyonpdp, ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
+    reg lastnanostep;
     reg[14:00] ctladdr, xaddr;
     reg[11:00] ctldata;
     reg[7:0] memdelay;
     reg[2:0] busyonarm, dfld, ifld, ifldafterjump, saveddfld, savedifld;
-    reg[31:00] writecounts;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1003 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1005 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { 1'b0, busyonarm, busyonpdp, dfld, 1'b0, ifld, 1'b0, ifldafterjump, 1'b0, saveddfld, 1'b0, savedifld, memdelay } :
-                      writecounts; //// 32'hDEADBEEF;
+                      (armraddr == 2) ? { _mrdone, _mwdone, 3'b000, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
+                      32'hDEADBEEF;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
@@ -93,15 +97,14 @@ module pdp8lxmem (
             ifld          <= 0;
             ifldafterjump <= 0;
             intdisableduntiljump <= 0;
+            lastnanostep  <= 0;
             memdelay      <= 0;
             _mrdone       <= 1;
             _mwdone       <= 1;
             saveddfld     <= 0;
             savedifld     <= 0;
-            _mrdone       <= 1;
             xbrenab       <= 0;
             xbrwena       <= 0;
-            writecounts   <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -119,13 +122,11 @@ module pdp8lxmem (
                             ctldata <= armwdata[27:16];
                         end
                         busyonarm <= 1;                     // pass ownership of ctl... to code below
-                        writecounts <= writecounts + 32'h101;
-                    end else begin
-                        writecounts <= writecounts + 32'h100;
                     end
                 end
             endcase
-        end else begin
+        end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
+            lastnanostep <= 1;
 
             // maybe we have an arm request to process
             if ((busyonarm != 0) & (busyonpdp == 0)) begin
@@ -259,6 +260,8 @@ module pdp8lxmem (
                     memdelay <= memdelay + 1;
                 end
             end
+        end else if (~ nanostep) begin
+            lastnanostep <= 0;
         end
     end
 endmodule

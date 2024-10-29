@@ -1091,7 +1091,10 @@ module Zynq (
         .xbrwdat (xbrwdat),
         .xbrrdat (xbrrdat),
         .xbrenab (xbrenab),
-        .xbrwena (xbrwena)
+        .xbrwena (xbrwena),
+
+        .nanostep  (nanostep),
+        .nanocycle (nanocycle)
     );
 
     // core memory interface
