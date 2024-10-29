@@ -20,8 +20,7 @@
 
 // Tests the pdp8lsim.v PDP-8/L implementation by sending random instructions and data and verifying the results
 
-//  pdp8v/driver/loadmod.sh
-//  ./z8lrand.armv7l
+//  ./z8lsimtest
 
 #include <fcntl.h>
 #include <stdarg.h>
@@ -64,7 +63,7 @@ static uint16_t acum;
 static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
-static uint32_t zrawrite;
+static uint32_t zrawrite, zrcwrite, zrdwrite;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *xmemat;
 
@@ -95,7 +94,7 @@ int main (int argc, char **argv)
         for (int i = 0; ++ i < argc;) {
             seqs[nseqs-i] = strtoul (argv[i], &p, 0);
             if (*p != 0) {
-                fprintf (stderr, "z8lrand: bad number %s\n", argv[i]);
+                fprintf (stderr, "z8lsimtest: bad number %s\n", argv[i]);
                 return -1;
             }
         }
@@ -106,13 +105,13 @@ int main (int argc, char **argv)
     Z8LPage z8p;
     pdpat = z8p.findev ("8L", NULL, NULL, true);
     if (pdpat == NULL) {
-        fprintf (stderr, "z8lrand: bad magic number\n");
+        fprintf (stderr, "z8lsimtest: bad magic number\n");
         ABORT ();
     }
     printf ("version %08X\n", pdpat[Z_VER]);
     xmemat = z8p.findev ("XM", NULL, NULL, true);
     if (xmemat == NULL) {
-        fprintf (stderr, "z8lrand: can't find xmem device\n");
+        fprintf (stderr, "z8lsimtest: can't find xmem device\n");
         ABORT ();
     }
     printf ("version %08X\n", xmemat[0]);
@@ -120,8 +119,8 @@ int main (int argc, char **argv)
     // select simulator with manual clocking and reset the pdp8lsim.v processor
     pdpat[Z_RA] = zrawrite = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = 0;
-    pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
+    pdpat[Z_RC] = zrcwrite = 0;
+    pdpat[Z_RD] = zrdwrite = d_i_DMAADDR | d_i_DMADATA;
     pdpat[Z_RE] = 0;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
@@ -174,7 +173,7 @@ int main (int argc, char **argv)
             uint16_t dmaaddr = xrandbits (12);
             printf ("DMA %d-cycle", (threecycle ? 3 : 1));
             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
-            pdpat[Z_RD] = (pdpat[Z_RD] | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
+            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
             clockit ();
             if (threecycle) {
 
@@ -206,7 +205,7 @@ int main (int argc, char **argv)
                                                     // - ignored by processor when dmadatain = false
                                                     //   written to MB by processor at end of TS2 when dmadatain = true
             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
-            pdpat[Z_RD] = (pdpat[Z_RD] | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
+            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
             uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%04o / %04o <= %04o", dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmaaddr, dmardata, dmawdata);
@@ -336,7 +335,7 @@ int main (int argc, char **argv)
 
                             // send those random bits to the processor
                             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
-                            pdpat[Z_RC] = (pdpat[Z_RC] & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
+                            pdpat[Z_RC] = zrcwrite = (zrcwrite & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
 
                             // wait for processor to drop IOPm
                             for (int i = 0; pdpat[Z_RF] & m; i ++) {
@@ -345,8 +344,8 @@ int main (int argc, char **argv)
                             }
 
                             // clear the random bits so it won't clock them again during nulled-out io pulses
-                            pdpat[Z_RA]  = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                            pdpat[Z_RC] &= ~ c_iINPUTBUS;
+                            pdpat[Z_RA] = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
+                            pdpat[Z_RC] = zrcwrite &= ~ c_iINPUTBUS;
 
                             // update our shadow registers
                             if (acclear) acum = 0;
@@ -519,9 +518,20 @@ static void docont ()
 //   processor could possibly be somewhere near end of previous memory cycle
 //  output:
 //   returns with processor just exited TS3
+//
+// steps through:
+//   TS1 = reading memory location
+//   TS2 = computing any modification to value
+//   TS3 = writing memory location
+// after that:
+//   IOP1,2,4 = only if this was a fetch of an io instruction
+//   TS4 = any post-processing for the cycle
 static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t wdata)
 {
     // write the read data to the given address so cpu can read it
+    // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
+    // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
+    // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
     xmemat[1] = XM_ENLO4K | (rdata * XM_DATA0) | XM_WRITE | (addr * XM_ADDR0);
     for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
         if (i > 1000) fatalerr ("timed out writing memory\n");
@@ -544,23 +554,26 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
     // should now be fully transitioned to the major state
     if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
 
-    // end of TP2 means it got the data into MB
+    // end of TP2 means it finished reading that memory location into MB
     for (int i = 0; FIELD (Z_RF, f_oBTS_1) | FIELD (Z_RF, f_oBTP2); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS1 and TP2 negated\n");
         clockit ();
     }
 
+    // MB should now have the value we wrote to the memory location
     verify12 (Z_RH, h_oBMB, rdata, "MB during read");
 
-    // wait for it to enter TS3, cpu should be sending the write data to the memory
+    // wait for it to enter TS3, meanwhile cpu (pdp8lsim.v) should possibly be modifying
+    // the value and sending the value (modified or not) back to the memory
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting fot TS3 asserted\n");
         clockit ();
     }
 
+    // beginning of TS3, MB should now have the possibly modified value
     verify12 (Z_RH, h_oBMB, wdata, "MB during writeback");
 
-    // wait for it to leave TS3
+    // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
     for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
         clockit ();
