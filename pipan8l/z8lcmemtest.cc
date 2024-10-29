@@ -35,9 +35,17 @@
 #define CM_DATA  (07777U << 16)
 #define CM_BUSY  (1U << 28)
 #define CM_RRDY  (1U << 29)
-
 #define CM_ADDR0 (1U <<  0)
 #define CM_DATA0 (1U << 16)
+
+#define XM_ADDR   (077777U << 0)
+#define XM_WRITE  (1U << 15)
+#define XM_DATA   (07777U << 16)
+#define XM_BUSY   (1U << 28)
+#define XM_ENLO4K (1U << 30)
+#define XM_ENABLE (1U << 31)
+#define XM_ADDR0  (1U << 0)
+#define XM_DATA0  (1U << 16)
 
 static bool manualclock;
 static uint32_t volatile *pdpat;
@@ -57,8 +65,8 @@ int main (int argc, char **argv)
     bool brkwhenhltd = false;
 
     // range of addresses to test
-    uint16_t startat = 00004;
-    uint16_t stopat  = 07777;
+    uint16_t startat = 000004;
+    uint16_t stopat  = 077777;
 
     Z8LPage z8p;
     pdpat = z8p.findev ("8L", NULL, NULL, true);
@@ -124,17 +132,18 @@ int main (int argc, char **argv)
 
     uint32_t errors = 0;
     uint32_t pass = 0;
+    uint16_t shadow[32768];
     while (true) {
 
         uint16_t wdata = ++ pass;
         for (int i = startat; i <= stopat; i ++) {
-            wdata = (wdata + 03333) & 07777;
-            if (wdata == 0) wdata = 05432;
+            wdata = randbits (12);
+            shadow[i] = wdata;
             for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
-                if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                 clockit ();
                 if (j > 1000000) {
                     printf ("timed out waiting for write done at %05o\n", i);
+                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                     errors ++;
                     break;
                 }
@@ -142,35 +151,56 @@ int main (int argc, char **argv)
             cmemat[1] = (wdata * CM_DATA0) | CM_WRITE | (i * CM_ADDR0);
         }
 
-        wdata = pass;
+        for (int i = startat; i <= stopat; i ++) {
+            if (i >= 010000) {
+                xmemat[1] = i * XM_ADDR0;
+                for (int j = 0; xmemat[1] & XM_BUSY; j ++) {
+                    clockit ();
+                    if (j > 1000000) {
+                        printf ("timed out waiting for xmem read at %05o\n", i);
+                        if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
+                        errors ++;
+                        break;
+                    }
+                }
+                wdata = shadow[i];
+                uint16_t rdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+                if (rdata != wdata) {
+                    printf ("xmem error %05o was %04o should be %04o\n", i, rdata, wdata);
+                    errors ++;
+                }
+            }
+        }
+
         for (int i = stopat; i < stopat; i ++) {
-            wdata = (wdata + 03333) & 07777;
-            if (wdata == 0) wdata = 05432;
             for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
-                if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                 clockit ();
                 if (j > 1000000) {
                     printf ("timed out waiting for read done at %05o\n", i);
+                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                     errors ++;
                     break;
                 }
             }
             cmemat[1] = i * CM_ADDR0;
             for (int j = 0; ! (cmemat[1] & CM_RRDY); j ++) {
-                if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                 clockit ();
                 if (j > 1000000) {
                     printf ("timed out waiting for read ready at %05o\n", i);
+                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
                     errors ++;
                     break;
                 }
             }
+            wdata = shadow[i];
             uint16_t rdata = (cmemat[1] & CM_DATA) / CM_DATA0;
-            if (rdata != wdata) printf ("error %05o was %04o should be %04o\n", i, rdata, wdata);
+            if (rdata != wdata) {
+                printf ("error %05o was %04o should be %04o\n", i, rdata, wdata);
+                errors ++;
+            }
         }
 
         printf ("\npass %u complete  %u errors\n\n", pass, errors);
-        ////if ((pass == 100) && (errors == 0)) break;
     }
 
     return 0;

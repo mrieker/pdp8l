@@ -76,7 +76,7 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         uint32_t volatile *dev = &zynqpage[idx];
         int len = 2 << ((*dev >> 12) & 15);
         if (idx + len > 1024) break;
-        if ((id == NULL) || (((*dev >> 24) == id[0]) && (((*dev >> 16) & 255) == id[1]))) {
+        if ((id == NULL) || (((*dev >> 24) == (uint8_t) id[0]) && (((*dev >> 16) & 255) == (uint8_t) id[1]))) {
             if ((entry == NULL) || entry (param, dev)) {
                 if (lock) {
                     struct flock flockit;
@@ -102,4 +102,23 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         idx += len;
     }
     return NULL;
+}
+
+// generate a random number
+uint32_t randbits (int nbits)
+{
+    static uint64_t seed = 0x123456789ABCDEF0ULL;
+
+    uint16_t randval = 0;
+
+    while (-- nbits >= 0) {
+
+        // https://www.xilinx.com/support/documentation/application_notes/xapp052.pdf
+        uint64_t xnor = ~ ((seed >> 63) ^ (seed >> 62) ^ (seed >> 60) ^ (seed >> 59));
+        seed = (seed << 1) | (xnor & 1);
+
+        randval += randval + (seed & 1);
+    }
+
+    return randval;
 }

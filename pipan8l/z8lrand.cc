@@ -20,6 +20,7 @@
 
 // Tests the pdp8lsim.v PDP-8/L implementation by sending random instructions and data and verifying the results
 
+//  pdp8v/driver/loadmod.sh
 //  ./z8lrand.armv7l
 
 #include <fcntl.h>
@@ -35,7 +36,16 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-#define FIELD(index,mask) ((zynqpage[index] & mask) / (mask & - mask))
+#define FIELD(index,mask) ((pdpat[index] & mask) / (mask & - mask))
+
+#define XM_ADDR   (077777U << 0)
+#define XM_WRITE  (1U << 15)
+#define XM_DATA   (07777U << 16)
+#define XM_BUSY   (1U << 28)
+#define XM_ENLO4K (1U << 30)
+#define XM_ENABLE (1U << 31)
+#define XM_ADDR0  (1U << 0)
+#define XM_DATA0  (1U << 16)
 
 static char const *const majstatenames[8] =
     { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "DEPOS" };
@@ -54,7 +64,9 @@ static uint16_t acum;
 static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
-static uint32_t volatile *zynqpage;
+static uint32_t zrawrite;
+static uint32_t volatile *pdpat;
+static uint32_t volatile *xmemat;
 
 static void doldad (uint16_t addr, uint16_t data);
 static void dostart ();
@@ -63,7 +75,7 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
 static void debounce ();
 static void clockit ();
 static bool g2skip (uint16_t opcode);
-static uint16_t randbits (int nbits);
+static uint16_t xrandbits (int nbits);
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg);
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg);
 static void fatalerr (char const *fmt, ...);
@@ -92,31 +104,41 @@ int main (int argc, char **argv)
     // access the zynq io page
     // hopefully it has our pdp8l.v code indicated by magic number in first word
     Z8LPage z8p;
-    zynqpage = z8p.findev ("8L", NULL, NULL, true);
-    if (zynqpage == NULL) {
+    pdpat = z8p.findev ("8L", NULL, NULL, true);
+    if (pdpat == NULL) {
         fprintf (stderr, "z8lrand: bad magic number\n");
         ABORT ();
     }
-
-    uint32_t ver = zynqpage[Z_VER];
-    printf ("version %08X\n", ver);
+    printf ("version %08X\n", pdpat[Z_VER]);
+    xmemat = z8p.findev ("XM", NULL, NULL, true);
+    if (xmemat == NULL) {
+        fprintf (stderr, "z8lrand: can't find xmem device\n");
+        ABORT ();
+    }
+    printf ("version %08X\n", xmemat[0]);
 
     // select simulator with manual clocking and reset the pdp8lsim.v processor
-    zynqpage[Z_RA] = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
-    zynqpage[Z_RB] = 0;
-    zynqpage[Z_RC] = 0;
-    zynqpage[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
-    zynqpage[Z_RE] = 0;
-    zynqpage[Z_RF] = 0;
-    zynqpage[Z_RG] = 0;
-    zynqpage[Z_RH] = 0;
-    zynqpage[Z_RI] = 0;
-    zynqpage[Z_RJ] = 0;
-    zynqpage[Z_RK] = 0;
+    pdpat[Z_RA] = zrawrite = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RB] = 0;
+    pdpat[Z_RC] = 0;
+    pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
+    pdpat[Z_RE] = 0;
+    pdpat[Z_RF] = 0;
+    pdpat[Z_RG] = 0;
+    pdpat[Z_RH] = 0;
+    pdpat[Z_RI] = 0;
+    pdpat[Z_RJ] = 0;
+    pdpat[Z_RK] = 0;
+
+    // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
+    // ...so we can directly access its contents, feeding in random numbers as needed
+    xmemat[1] = XM_ENLO4K;
+
+    // clock the synchronous reset through
     for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
-    zynqpage[Z_RA] &= ~ a_softreset;
+    pdpat[Z_RA] = zrawrite &= ~ a_softreset;
 
     // set program counter to zero
     doldad (0, 0);
@@ -145,19 +167,19 @@ int main (int argc, char **argv)
         }
 
         // maybe do a dma cycle
-        if ((FIELD (Z_RK, k_majstate) == MS_START) && (randbits (8) == 0)) {
+        if ((FIELD (Z_RK, k_majstate) == MS_START) && (xrandbits (8) == 0)) {
 
             // have both TS_IDLE and MS_START, raise BRK_RQST and next clock should be in it
-            bool threecycle = randbits (1);
-            uint16_t dmaaddr = randbits (12);
+            bool threecycle = xrandbits (1);
+            uint16_t dmaaddr = xrandbits (12);
             printf ("DMA %d-cycle", (threecycle ? 3 : 1));
-            zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
-            zynqpage[Z_RD] = (zynqpage[Z_RD] | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
+            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
+            pdpat[Z_RD] = (pdpat[Z_RD] | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
             clockit ();
             if (threecycle) {
 
                 // WC state reads wordcount from dmaaddr, increments it and writes it back
-                uint16_t oldwordcount = randbits (12);
+                uint16_t oldwordcount = xrandbits (12);
                 uint16_t newwordcount = (oldwordcount + 1) & 07777;
                 printf ("  WC:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
                 memorycycle (g_lbWC, dmaaddr, oldwordcount, newwordcount);
@@ -166,29 +188,29 @@ int main (int argc, char **argv)
                 // CA state reads pointer from dmaaddr + 1, increments it and writes it back
                 // then we use the incremented pointer for the transfer address
                 dmaaddr = (dmaaddr + 1) & 07777;
-                bool cainc = randbits (1);
-                uint16_t oldcuraddr = randbits (12);
+                bool cainc = xrandbits (1);
+                uint16_t oldcuraddr = xrandbits (12);
                 uint16_t newcuraddr = (oldcuraddr + cainc) & 07777;
                 printf ("  CA:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
-                zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_iCA_INCREMENT) | (cainc ? a_iCA_INCREMENT : 0);
+                pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iCA_INCREMENT) | (cainc ? a_iCA_INCREMENT : 0);
                 memorycycle (g_lbCA, dmaaddr, oldcuraddr, newcuraddr);
                 dmaaddr = newcuraddr;
             }
 
             // transfer word at address dmaaddr
-            bool dmadatain    = randbits (1);       // true: writing memory from d_i_DMADATA; false: writing MB as is back to memory
-            bool dmameminc    = randbits (1);       // true: increment value read; false: leave value as read
-            uint16_t dmardata = randbits (12);      // fake value we read from from memory location dmaaddr
+            bool dmadatain    = xrandbits (1);      // true: writing memory from d_i_DMADATA; false: writing MB as is back to memory
+            bool dmameminc    = xrandbits (1);      // true: increment value read; false: leave value as read
+            uint16_t dmardata = xrandbits (12);     // fake value we read from from memory location dmaaddr
                                                     // - processor will put this in its MB register at end of TS1
-            uint16_t dmawrand = randbits (12);      // random value to send out over dmadata bus
+            uint16_t dmawrand = xrandbits (12);     // random value to send out over dmadata bus
                                                     // - ignored by processor when dmadatain = false
                                                     //   written to MB by processor at end of TS2 when dmadatain = true
-            zynqpage[Z_RA]    = (zynqpage[Z_RA] & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
-            zynqpage[Z_RD]    = (zynqpage[Z_RD] | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
+            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
+            pdpat[Z_RD] = (pdpat[Z_RD] | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
             uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%04o / %04o <= %04o", dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmaaddr, dmardata, dmawdata);
-            zynqpage[Z_RA]   |= a_i_BRK_RQST;
+            pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
         } else {
 
             // maybe interrupt request is next
@@ -200,7 +222,7 @@ int main (int argc, char **argv)
                 printf ("interrupt acknowledge");
 
                 intrequest = false; //TODO: drop request random number of cycles later
-                zynqpage[Z_RA] |= a_i_INT_RQST;
+                pdpat[Z_RA] = zrawrite |= a_i_INT_RQST;
 
                 // disable interrupts then execute a JMS 0 instruction
                 intdelayed = false;
@@ -212,14 +234,14 @@ int main (int argc, char **argv)
                 intenabled = intdelayed;
 
                 // send random opcode
-                do opcode = randbits (12);  // HLT with interrupt barfs
+                do opcode = xrandbits (12);  // HLT with interrupt barfs
                 while (intrequest && intenabled && (opcode & 07402) == 07402);
                 printf ("OP=%04o  %s", opcode, disassemble (opcode, pctr).c_str ());
 
                 // set random switch register contents if about to do an OSR instruction
                 if (((opcode & 07401) == 07400) && (opcode & 0004)) {
-                    randsr = randbits (12);
-                    zynqpage[Z_RE] = (zynqpage[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+                    randsr = xrandbits (12);
+                    pdpat[Z_RE] = (pdpat[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
                 }
 
                 // perform fetch memory cycle
@@ -229,7 +251,7 @@ int main (int argc, char **argv)
 
                 // maybe do a defer cycle
                 if (((opcode & 07000) < 06000) && (opcode & 0400)) {
-                    uint16_t pointer = randbits (12);
+                    uint16_t pointer = xrandbits (12);
                     uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
                     printf (" / %04o", autoinc);
                     memorycycle (g_lbDEF, effaddr, pointer, autoinc);
@@ -242,7 +264,7 @@ int main (int argc, char **argv)
 
                 // and, tad, isz, dca, jms
                 case 0: case 1: case 2: case 3: case 4: {
-                    uint16_t operand = randbits (12);
+                    uint16_t operand = xrandbits (12);
                     printf (" / %04o", operand);
                     switch (opcode >> 9) {
                         case 0: {
@@ -298,7 +320,7 @@ int main (int argc, char **argv)
                             printf (" / IOP%u <= %04o", m, acum);
 
                             // wait for processor to assert IOPm
-                            for (int i = 0; ! (zynqpage[Z_RF] & m); i ++) {
+                            for (int i = 0; ! (pdpat[Z_RF] & m); i ++) {
                                 if (i > 1000) fatalerr ("timed out waiting for IOP%u asserted\n", m);
                                 clockit ();
                             }
@@ -307,24 +329,24 @@ int main (int argc, char **argv)
                             verify12 (Z_RH, h_oBAC, acum, "AC invalid going out during IOP");
 
                             // get random bits for acclear, ioskip, acbits
-                            bool acclear    = randbits  (1);
-                            bool ioskip     = randbits  (1);
-                            uint16_t acbits = randbits (12);
+                            bool acclear    = xrandbits  (1);
+                            bool ioskip     = xrandbits  (1);
+                            uint16_t acbits = xrandbits (12);
                             printf (" => %c%c%04o", (acclear ? 'C' : ' '), (ioskip ? 'S' : ' '), acbits);
 
                             // send those random bits to the processor
-                            zynqpage[Z_RA] = (zynqpage[Z_RA] & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
-                            zynqpage[Z_RC] = (zynqpage[Z_RC] & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
+                            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
+                            pdpat[Z_RC] = (pdpat[Z_RC] & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
 
                             // wait for processor to drop IOPm
-                            for (int i = 0; zynqpage[Z_RF] & m; i ++) {
+                            for (int i = 0; pdpat[Z_RF] & m; i ++) {
                                 if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
                                 clockit ();
                             }
 
                             // clear the random bits so it won't clock them again during nulled-out io pulses
-                            zynqpage[Z_RA] |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                            zynqpage[Z_RC] &= ~ c_iINPUTBUS;
+                            pdpat[Z_RA]  = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
+                            pdpat[Z_RC] &= ~ c_iINPUTBUS;
 
                             // update our shadow registers
                             if (acclear) acum = 0;
@@ -435,13 +457,13 @@ int main (int argc, char **argv)
 static void doldad (uint16_t addr, uint16_t data)
 {
     // press load address switch
-    zynqpage[Z_RB] |= b_swLDAD;
+    pdpat[Z_RB] |= b_swLDAD;
 
     // clock some cycles to arm the debounce circuit
     debounce ();
 
     // release load address switch
-    zynqpage[Z_RB] &= ~ b_swLDAD;
+    pdpat[Z_RB] &= ~ b_swLDAD;
 
     // it should now do a memory cycle, reading and writing that same data
     memorycycle (0, addr, data, data);
@@ -451,17 +473,17 @@ static void doldad (uint16_t addr, uint16_t data)
 static void dostart ()
 {
     // press start switch
-    zynqpage[Z_RB] |= b_swSTART;
+    pdpat[Z_RB] |= b_swSTART;
 
     // clock some cycles to arm the debounce circuit
     debounce ();
 
     // release start switch
-    zynqpage[Z_RB] &= ~ b_swSTART;
+    pdpat[Z_RB] &= ~ b_swSTART;
 
     // clock until the run flipflop sets
     for (int i = 0; FIELD (Z_RF, f_o_B_RUN); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for RUN after ficking START switch\n");
+        if (i > 1000) fatalerr ("timed out waiting for RUN after flicking START switch\n");
         clockit ();
     }
 
@@ -473,17 +495,17 @@ static void dostart ()
 static void docont ()
 {
     // press continue switch
-    zynqpage[Z_RB] |= b_swCONT;
+    pdpat[Z_RB] |= b_swCONT;
 
     // clock some cycles to arm the debounce circuit
     debounce ();
 
     // release continue switch
-    zynqpage[Z_RB] &= ~ b_swCONT;
+    pdpat[Z_RB] &= ~ b_swCONT;
 
     // clock until the run flipflop sets
     for (int i = 0; FIELD (Z_RB, f_o_B_RUN); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for RUN after ficking CONT switch\n");
+        if (i > 1000) fatalerr ("timed out waiting for RUN after flicking CONT switch\n");
         clockit ();
     }
 }
@@ -499,6 +521,13 @@ static void docont ()
 //   returns with processor just exited TS3
 static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t wdata)
 {
+    // write the read data to the given address so cpu can read it
+    xmemat[1] = XM_ENLO4K | (rdata * XM_DATA0) | XM_WRITE | (addr * XM_ADDR0);
+    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
+        if (i > 1000) fatalerr ("timed out writing memory\n");
+        clockit ();
+    }
+
     // clock until we see TS1
     // give it extra time cuz it could be at end of TS3 for previous instruction
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
@@ -509,26 +538,21 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
     // we should have MEMSTART now
     if (! FIELD (Z_RF, f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
 
-    // it should be outputting address we expect
+    // cpu should be outputting address we expect
     verify12 (Z_RI, i_oMA, addr, "MA bad at beginning of mem cycle");
 
     // should now be fully transitioned to the major state
     if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
 
-    // send the read data and strobe to indicate data is valid
-    zynqpage[Z_RC]  = (zynqpage[Z_RC] & ~ c_iMEM) | (rdata * c_iMEM0);
-    zynqpage[Z_RA] &= ~ a_i_STROBE;
-
-    // end of TS1 means it got the data into MB
-    for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS1 negated\n");
+    // end of TP2 means it got the data into MB
+    for (int i = 0; FIELD (Z_RF, f_oBTS_1) | FIELD (Z_RF, f_oBTP2); i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS1 and TP2 negated\n");
         clockit ();
     }
 
     verify12 (Z_RH, h_oBMB, rdata, "MB during read");
-    zynqpage[Z_RA] |= a_i_STROBE;
 
-    // wait for it to enter TS3, it should be sending the write data
+    // wait for it to enter TS3, cpu should be sending the write data to the memory
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting fot TS3 asserted\n");
         clockit ();
@@ -536,25 +560,31 @@ static void memorycycle (uint32_t state, uint16_t addr, uint16_t rdata, uint16_t
 
     verify12 (Z_RH, h_oBMB, wdata, "MB during writeback");
 
-    // tell it we wrote the value to memory by asserting memdone
-    zynqpage[Z_RA] &= ~ a_i_MEMDONE;
-
     // wait for it to leave TS3
     for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
         clockit ();
     }
 
-    // drop memdone now that we know processor has seen it
-    zynqpage[Z_RA] |= a_i_MEMDONE;
+    // verify the memory contents
+    xmemat[1] = XM_ENLO4K | (addr * XM_ADDR0);
+    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
+        if (i > 1000) fatalerr ("timed out reading memory\n");
+        clockit ();
+    }
+    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+    if (vdata != wdata) {
+        printf ("address %04o contained %04o at end of cycle, should be %04o\n", addr, vdata, wdata);
+        fatalerr ("memory validation error\n");
+    }
 
     // maybe start requesting an interrupt
     // don't do it if we are about to execute an HLT instruction or it will puque
     if (! intrequest && ((state != g_lbFET) || ((rdata & 07402) != 07402))) {
-        intrequest = randbits (10) == 0;
+        intrequest = xrandbits (10) == 0;
         if (intrequest) {
             printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
-            zynqpage[Z_RA] &= ~ a_i_INT_RQST;
+            pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
         }
     }
 }
@@ -569,8 +599,8 @@ static void debounce ()
 // gate through one fpga clock cycle
 static void clockit ()
 {
-    zynqpage[Z_RA] |=   a_nanostep;
-    zynqpage[Z_RA] &= ~ a_nanostep;
+    pdpat[Z_RA] = zrawrite | a_nanostep;
+    pdpat[Z_RA] = zrawrite;
     clockno ++;
 }
 
@@ -586,35 +616,22 @@ static bool g2skip (uint16_t opcode)
 }
 
 // generate a random number
-static uint16_t randbits (int nbits)
+static uint16_t xrandbits (int nbits)
 {
-    static uint64_t seed = 0x123456789ABCDEF0ULL;
-
     if (nseqs > 0) {
         uint16_t randval = seqs[--nseqs];
         if (randval >= 1U << nbits) {
-            fprintf (stderr, "randbits: value 0%o too big for %d bits\n", randval, nbits);
+            fprintf (stderr, "xrandbits: value 0%o too big for %d bits\n", randval, nbits);
             ABORT ();
         }
         return randval;
     }
     if (nseqs == 0) {
-        printf ("\nrandbits: end of numbers on command line\n");
+        printf ("\nxrandbits: end of numbers on command line\n");
         exit (0);
     }
 
-    uint16_t randval = 0;
-
-    while (-- nbits >= 0) {
-
-        // https://www.xilinx.com/support/documentation/application_notes/xapp052.pdf
-        uint64_t xnor = ~ ((seed >> 63) ^ (seed >> 62) ^ (seed >> 60) ^ (seed >> 59));
-        seed = (seed << 1) | (xnor & 1);
-
-        randval += randval + (seed & 1);
-    }
-
-    return randval;
+    return randbits (nbits);
 }
 
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg)

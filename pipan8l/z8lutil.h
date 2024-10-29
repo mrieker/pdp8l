@@ -36,4 +36,6 @@ private:
     void *zynqptr;
 };
 
+uint32_t randbits (int nbits);
+
 #endif
