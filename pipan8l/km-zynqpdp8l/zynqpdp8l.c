@@ -117,12 +117,14 @@ static int zg_mmap (struct file *filp, struct vm_area_struct *vma)
     int rc;
 
     long len = vma->vm_end - vma->vm_start;
-    if (len != PAGE_SIZE) {
-        printk ("zg_mmap: not mapping single page at page, va %lX..%lX => %lX\n", vma->vm_start, vma->vm_end, len);
-        return -EINVAL;
-    }
+
+    printk ("zg_mmap: len=%lX start=%lX end=%lX pgoff=%lu\n", len, vma->vm_start, vma->vm_end, vma->vm_pgoff);
 
     if (vma->vm_pgoff == 0) {
+        if (len != PAGE_SIZE) {
+            printk ("zg_mmap: not mapping single page at va %lX..%lX => %lX\n", vma->vm_start, vma->vm_end, len);
+            return -EINVAL;
+        }
         vma->vm_page_prot = pgprot_noncached (vma->vm_page_prot);
         rc = vm_iomap_memory (vma, ZG_PHYSADDR, PAGE_SIZE);
         printk ("zg_mmap: iomap %lu status %d\n", vma->vm_pgoff, rc);
@@ -130,10 +132,14 @@ static int zg_mmap (struct file *filp, struct vm_area_struct *vma)
     }
 
     if ((vma->vm_pgoff >= 32) && (vma->vm_pgoff < 64)) {
+        if (len != 0x20000) {
+            printk ("zg_mmap: not mapping 128K at va %lX..%lX => %lX\n", vma->vm_start, vma->vm_end, len);
+            return -EINVAL;
+        }
         vma->vm_page_prot = pgprot_noncached (vma->vm_page_prot);
-        ///rc = vm_iomap_memory (vma, ZG_EXTMEMPA + (vma->vm_pgoff - 32) * PAGE_SIZE, PAGE_SIZE);
-        rc = io_remap_pfn_range (vma, vma->vm_start, (ZG_EXTMEMPA >> PAGE_SHIFT) + vma->vm_pgoff - 32, PAGE_SIZE, vma->vm_page_prot);
-        printk ("zg_mmap: ioremap %lu status %d\n", vma->vm_pgoff, rc);
+        ///rc = vm_iomap_memory (vma, ZG_EXTMEMPA, PAGE_SIZE);
+        rc = io_remap_pfn_range (vma, vma->vm_start, ZG_EXTMEMPA >> PAGE_SHIFT, 0x20000, vma->vm_page_prot);
+        printk ("zg_mmap: iomap %lu status %d\n", vma->vm_pgoff, rc);
         return rc;
     }
 

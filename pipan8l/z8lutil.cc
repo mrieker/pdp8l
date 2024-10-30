@@ -31,6 +31,7 @@
 
 Z8LPage::Z8LPage ()
 {
+    extmemptr = NULL;
     zynqpage = NULL;
     zynqptr = NULL;
 
@@ -52,9 +53,11 @@ Z8LPage::Z8LPage ()
 Z8LPage::~Z8LPage ()
 {
     munmap (zynqptr, 4096);
+    munmap (extmemptr, 0x20000);
     close (zynqfd);
     zynqpage = NULL;
     zynqptr = NULL;
+    extmemptr = NULL;
     zynqfd = -1;
 }
 
@@ -102,6 +105,20 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         idx += len;
     }
     return NULL;
+}
+
+// get a pointer to the 32K-word memory chip in the FPGA
+// this mapping is created by extmemmap.v
+uint32_t volatile *Z8LPage::extmem ()
+{
+    if (extmemptr == NULL) {
+        extmemptr = mmap (NULL, 0x20000, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0x20000);
+        if (extmemptr == MAP_FAILED) {
+            fprintf (stderr, "Z8LPage::extmem: error mmapping /proc/zynqpdp8l: %m\n");
+            ABORT ();
+        }
+    }
+    return (uint32_t volatile *) extmemptr;
 }
 
 // generate a random number
