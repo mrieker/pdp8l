@@ -121,24 +121,25 @@ module pdp8lsim (
     localparam MS_DEPOS = 7;        // memory cycle is for deposit switch
 
     localparam TS_IDLE    =  0;     // figure out what to do next, does console switch processing if not running
-    localparam TS_TS1BODY =  1;     // tell memory to start reading location addressed by MA
-    localparam TS_TP1BEG  =  2;
-    localparam TS_TP1END  =  3;
-    localparam TS_TS2BODY =  4;     // get contents of memory into MB and modify according to majstate S_...
-    localparam TS_TP2BEG  =  5;
-    localparam TS_TP2END  =  6;
-    localparam TS_TS3BODY =  7;     // write contents of MB back to memory
-    localparam TS_TP3BEG  =  8;
-    localparam TS_TP3END  =  9;
-    localparam TS_BEGIOP1 = 10;
-    localparam TS_DOIOP1  = 11;     // maybe output IOP1
-    localparam TS_BEGIOP2 = 12;
-    localparam TS_DOIOP2  = 13;     // maybe output IOP2
-    localparam TS_BEGIOP4 = 14;
-    localparam TS_DOIOP4  = 15;     // maybe output IOP4
-    localparam TS_TS4BODY = 16;     // finish up instruction (modify ac, link, pc, etc)
-    localparam TS_TP4BEG  = 17;
-    localparam TS_TP4END  = 18;
+    localparam TS_TS1INIT =  1;
+    localparam TS_TS1BODY =  2;     // tell memory to start reading location addressed by MA
+    localparam TS_TP1BEG  =  3;
+    localparam TS_TP1END  =  4;
+    localparam TS_TS2BODY =  5;     // get contents of memory into MB and modify according to majstate S_...
+    localparam TS_TP2BEG  =  6;
+    localparam TS_TP2END  =  7;
+    localparam TS_TS3BODY =  8;     // write contents of MB back to memory
+    localparam TS_TP3BEG  =  9;
+    localparam TS_TP3END  = 10;
+    localparam TS_BEGIOP1 = 11;
+    localparam TS_DOIOP1  = 12;     // maybe output IOP1
+    localparam TS_BEGIOP2 = 13;
+    localparam TS_DOIOP2  = 14;     // maybe output IOP2
+    localparam TS_BEGIOP4 = 15;
+    localparam TS_DOIOP4  = 16;     // maybe output IOP4
+    localparam TS_TS4BODY = 17;     // finish up instruction (modify ac, link, pc, etc)
+    localparam TS_TP4BEG  = 18;
+    localparam TS_TP4END  = 19;
 
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
@@ -161,19 +162,19 @@ module pdp8lsim (
     assign oBTS_3        = ts3;
     assign oBUSINIT      = RESET | (~ runff & swSTART);             // power-on reset or start switch and mftp0 (p4 A-3)
     assign oB_BREAK      = (majstate == MS_BRK);                    //?? not sure if active high or low??
+    assign oE_SET_F_SET  = (majstate == MS_EXEC) | (majstate == MS_FETCH);  // mem cycles is EXEC or FETCH
     assign oJMP_JMS      = (ir[2:1] == 2);                          // JMP or JMS is loaded in IR (p22 C-2, p5 C-6)
     assign oLINE_LOW     = RESET;
     assign oMA           = madr;
     assign oMEMSTART     = (timestate == TS_TS1BODY);
-    assign o_BF_ENABLE   = ~ (majstate == MS_BRK);                  // next memory cycle is MS_BRK, use break frame (dma extended address bits) for next mem access (p5 D-2)
+    assign o_BF_ENABLE   = ~ (majstate == MS_BRK);                  // memory cycle is MS_BRK, use break frame (dma extended address bits) for next mem access (p5 D-2)
     assign o_BUSINIT     = ~ oBUSINIT;
     assign o_B_RUN       = ~ runff;
-    assign o_DF_ENABLE   = ~ ((majstate == MS_EXEC) & irusedf);     // next memory cycle uses DF (p22 C-7)
+    assign o_DF_ENABLE   = ~ ((majstate == MS_EXEC) & irusedf);     // memory cycle uses DF (p22 C-7)
     assign o_KEY_DF      = ~ swDFLD;
     assign o_KEY_IF      = ~ swIFLD;
     assign o_KEY_LOAD    = ~ ldad;                                  // load address switch cycle (p22 C-2, not exact match)
-    assign o_SP_CYC_NEXT = ~ ((majstate == MS_WC) | (majstate == MS_CA));  // next mem cycle is MS_WC or MS_CA, use field 0 (p22 C-6, p5 C-3, also p5 B-2)
-    assign oE_SET_F_SET  = 0;                                       // B36-D2,p22 C-3,J12-72,,,
+    assign o_SP_CYC_NEXT = ~ ((majstate == MS_WC) | (majstate == MS_CA));  // mem cycle is MS_WC or MS_CA, use field 0 (p22 C-6, p5 C-3, also p5 B-2)
     assign o_KEY_CLEAR   = 1;                                       // B36-J1,p22 C-5,J12-68,,,
 
     assign lbAC   = acum;
@@ -300,7 +301,7 @@ module pdp8lsim (
                         if (brkwhenhltd & ~ i_BRK_RQST) begin
                             madr      <= ~ i_DMAADDR;
                             majstate  <= iTHREECYCLE ? MS_WC : MS_BRK;
-                            timestate <= TS_TS1BODY;
+                            timestate <= TS_TS1INIT;
                         end
 
                         // load address switch
@@ -309,7 +310,7 @@ module pdp8lsim (
                             madr      <= swSR;
                             pctr      <= swSR;
                             majstate  <= MS_START;
-                            timestate <= TS_TS1BODY;
+                            timestate <= TS_TS1INIT;
                         end
 
                         // examine switch
@@ -317,7 +318,7 @@ module pdp8lsim (
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_START;
-                            timestate <= TS_TS1BODY;
+                            timestate <= TS_TS1INIT;
                         end
 
                         // deposit switch
@@ -325,7 +326,7 @@ module pdp8lsim (
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_DEPOS;
-                            timestate <= TS_TS1BODY;
+                            timestate <= TS_TS1INIT;
                         end
 
                         // continue switch
@@ -363,7 +364,7 @@ module pdp8lsim (
                         else if (~ i_BRK_RQST) begin
                             madr      <= ~ i_DMAADDR;
                             majstate  <= iTHREECYCLE ? MS_WC : MS_BRK;
-                            timestate <= TS_TS1BODY;
+                            timestate <= TS_TS1INIT;
                         end
 
                         // if interrupt request pending, disable interrupts, and do a JMS 0 to field 0
@@ -372,30 +373,42 @@ module pdp8lsim (
                             intenabled <= 0;
                             ir         <= 4;
                             madr       <= 0;
-                            o_LOAD_SF  <= 0;
                             majstate   <= MS_EXEC;
-                            timestate  <= TS_TS1BODY;
+                            o_LOAD_SF  <= 0;
+                            timestate  <= TS_TS1INIT;
                         end
 
                         // none of the above, start a fetch going
                         else begin
-                            intenabled <= intdelayed;
-                            madr       <= pctr;
-                            pctr       <= pctr + 1;
-                            majstate   <= MS_FETCH;
-                            timestate  <= TS_TS1BODY;
+                            intenabled   <= intdelayed;
+                            madr         <= pctr;
+                            pctr         <= pctr + 1;
+                            majstate     <= MS_FETCH;
+                            timestate    <= TS_TS1INIT;
                         end
                     end
 
                     // for all other majstates, start memory cycle for that majstate
-                    else timestate <= TS_TS1BODY;
+                    else timestate <= TS_TS1INIT;
                 end
 
                 ////////////////////////////////////////////////
                 //  read memory from address i_EA,MA into MB  //
                 ////////////////////////////////////////////////
 
+                // output flags saying some state is next before raising the MEMSTART flag
+                // they are generated combinatorily but this gives time for them to set up
+                //  oE_SET_F_SET, o_BF_ENABLE, o_DF_ENABLE, o_SP_CYC_NEXT
+                TS_TS1INIT: begin
+                    if (timedelay != 3) timedelay <= timedelay + 1;
+                    else begin
+                        timedelay <= 0;
+                        timestate <= TS_TS1BODY;
+                    end
+                end
+
                 // memory is being read at address in MA, either internal or external memory
+                // MEMSTART is asserted during this interval
                 TS_TS1BODY: begin
                     ldad <= 0;
                     if (i_EA) begin
@@ -636,8 +649,7 @@ module pdp8lsim (
                                     3: acum <= 0;                                   // dca
                                     4: pctr <= madr + 1;                            // jms
                                 endcase
-                                o_LOAD_SF <= 1;
-                                majstate  <= MS_START;
+                                majstate <= MS_START;
                             end
 
                             // end of wordcount
@@ -658,6 +670,7 @@ module pdp8lsim (
                                 majstate      <= MS_START;
                             end
                         endcase
+                        o_LOAD_SF <= 1;
                         timedelay <= 0;
                         timestate <= TS_TP4BEG;
                     end

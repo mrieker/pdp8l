@@ -70,23 +70,25 @@ module pdp8lxmem (
 );
 
     reg busyonpdp, ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
-    reg lastnanostep;
+    reg iopstretch, lastintack, lastnanostep;
     reg[14:00] ctladdr, xaddr;
     reg[11:00] ctldata;
     reg[7:0] memdelay;
     reg[2:0] busyonarm, dfld, ifld, ifldafterjump, saveddfld, savedifld;
     wire ctlbusy = busyonarm != 0;
-
-    assign armrdata = (armraddr == 0) ? 32'h584D1007 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, 3'b000, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
-                      32'hDEADBEEF;
+    reg[7:0] numcycles;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
                         ~ _bf_enab ? brkfld :           // break field if cpu says so
                         (jmpjms & exefet) ? ifldafterjump :
                         ifld;
+
+    assign armrdata = (armraddr == 0) ? 32'h584D100C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
+                      { numcycles, lastintack, 23'b0 };//// : 32'hDEADBEEF;
+
     assign _ea = ~ (ctllo4K | (field != 0));
     assign _intinh = ~ intdisableduntiljump;
 
@@ -111,8 +113,11 @@ module pdp8lxmem (
             end
             // these get cleared on power up or start switch
             intdisableduntiljump <= 0;
-            saveddfld <= 0;
-            savedifld <= 0;
+            iopstretch <= 0;
+            lastintack <= 0;
+            numcycles  <= 0;
+            saveddfld  <= 0;
+            savedifld  <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -134,8 +139,14 @@ module pdp8lxmem (
                     end
                 end
             endcase
+        end else if (iopstart) begin
+            // iopstart lasts only 1 fpga clock cycle and not at same time as armwrite
+            // but maybe we miss it because of nanostep so stretch it
+            // the iop signals from processor last dozens of fpga/nanostep cycles
+            iopstretch <= ctlenab;
         end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
             lastnanostep <= 1;
+            numcycles <= numcycles + 1;
 
             // maybe we have load address switch to process
             // theoretically can't happen when the processor is running
@@ -147,15 +158,16 @@ module pdp8lxmem (
             end
 
             // maybe there is an io instruction to process
-            // iopstart lasts only 1 fpga clock cycle and not at same time as armwrite
-            else if (ctlenab & iopstart) begin
+            else if (iopstretch) begin
+                iopstretch <= 0;
+
                 if (ioopcode[11:06] == 6'o62) begin
                     // see mc8l memory extension, p6
                     case (ioopcode[02:00])
                         0,1,2,3: begin
-                            if (ioopcode[00]) dfld <= ioopcode[5:3];
+                            if (ioopcode[00]) dfld <= ioopcode[05:03];
                             if (ioopcode[01]) begin
-                                ifldafterjump <= ioopcode[5:3];
+                                ifldafterjump <= ioopcode[05:03];
                                 intdisableduntiljump <= 1;
                             end
                         end
@@ -179,6 +191,16 @@ module pdp8lxmem (
                         end
                     endcase
                 end
+            end
+
+            // process interrupt acknowledge
+            else if (~ _intack & ~ lastintack) begin
+                lastintack <= 1;        // only once per low-to-high transition
+                saveddfld  <= dfld;     // save data & instruction fields
+                savedifld  <= ifld;
+                dfld <= 0;              // interrupt routine is in field 0
+                ifld <= 0;
+                ifldafterjump <= 0;
             end
 
             // maybe pdp is requesting a memory cycle on extended memory
@@ -222,10 +244,11 @@ module pdp8lxmem (
             end
 
             // see if pdp is requesting a memory cycle
-            else if (memdelay != 0) begin
+            else case (memdelay)
+                0: begin end
 
                 // 150nS, start reading block memory
-                if (memdelay == 15) begin
+                15: begin
                     if (busyonarm == 0) begin
                         busyonpdp <= 1;
                         xbraddr   <= xaddr;
@@ -236,7 +259,7 @@ module pdp8lxmem (
                 end
 
                 // 200nS, send read data to cpu
-                else if (memdelay == 20) begin
+                20: begin
                     busyonpdp <= 0;
                     memrdat   <= xbrrdat;
                     xbrenab   <= 0;
@@ -244,17 +267,17 @@ module pdp8lxmem (
                 end
 
                 // 600nS, send strobe pulse 100nS wide
-                else if (memdelay == 60) begin
+                60: begin
                     _mrdone  <= 0;
                     memdelay <= memdelay + 1;
                 end
-                else if (memdelay == 70) begin
+                70: begin
                     _mrdone  <= 1;
                     memdelay <= memdelay + 1;
                 end
 
                 // 950nS, clock in write data, send memdone pulse 100nS wide
-                if (memdelay == 95) begin
+                95: begin
                     if (busyonarm == 0) begin
                         busyonpdp <= 1;
                         xbraddr   <= xaddr;
@@ -266,7 +289,7 @@ module pdp8lxmem (
                     end
                 end
 
-                else if (memdelay == 100) begin
+                100: begin
                     busyonpdp <= 0;
                     xbrenab   <= 0;
                     xbrwena   <= 0;
@@ -274,17 +297,22 @@ module pdp8lxmem (
                 end
 
                 // 1.05uS, all done, shut off memdone pulse
-                else if (memdelay == 105) begin
+                105: begin
                     memdelay <= 0;
                     _mwdone  <= 1;
                 end
 
                 // in between somewhere, just increment counter
-                else begin
+                default: begin
                     memdelay <= memdelay + 1;
                 end
-            end
-        end else if (~ nanostep) begin
+            endcase
+
+            // process each intack cycle only once
+            // ie, don't process another one until this one is finished
+            if (_intack) lastintack <= 0;
+        end
+        if (nanocycle & ~ nanostep) begin
             lastnanostep <= 0;
         end
     end

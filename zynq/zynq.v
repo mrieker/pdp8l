@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C403A;
+    localparam VERSION = 32'h384C403C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD;

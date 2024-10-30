@@ -31,7 +31,14 @@
 
 // arm registers:
 //  [0] = ident='CM',sizecode=1,version
-//  [1] = 00 <rddone> <busy> <12-bit-data> <write> <15-bit-addr>
+//  [1] = <enable> 0 <rddone> <busy> <12-bit-data> <write> <15-bit-addr>
+//    (rw) enable = perform memory cycle
+//    (ro) rddone = read data is available (sets while busy still set)
+//    (ro) busy = busy performing memory cycle (do not modify register)
+//    (rw) data = write: data to be written to memory via dma cycle
+//                 read: data read from memory (write=0) or written to memory (write=1)
+//    (rw) write = write given data to memory
+//    (rw) addr = address of memory word to access
 
 module pdp8lcmem (
     input CLOCK, RESET,
@@ -55,10 +62,11 @@ module pdp8lcmem (
     reg[14:00] ctladdr;
     reg[11:00] ctldata;
     reg[2:0] busyonarm;
+    reg ctlenab;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1004 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { 2'b00, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
+    assign armrdata = (armraddr == 0) ? 32'h434D1006 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { 27'b0, brkts3, _brkdone, busyonarm } :
                       32'hDEADBEEF;
 
@@ -71,17 +79,21 @@ module pdp8lcmem (
         if (RESET) begin
             brkrqst   <= 0;
             busyonarm <= 0;
+            ctlenab   <= 0;
         end
 
         // arm processor is writing one of the registers
         else if (armwrite) begin
             case (armwaddr)
                 1: begin
-                    ctladdr   <= armwdata[14:00];
-                    ctlwrite  <= armwdata[15];
-                    ctldata   <= armwdata[27:16];
-                    ctlrdone  <= 0;
-                    busyonarm <= 1;
+                    if (~ ctlbusy) begin
+                        ctladdr   <= armwdata[14:00];
+                        ctlwrite  <= armwdata[15];
+                        ctldata   <= armwdata[27:16];
+                        ctlrdone  <= 0;
+                        ctlenab   <= armwdata[31];
+                        busyonarm <= { 2'b00, armwdata[31] };
+                    end
                 end
             endcase
         end
