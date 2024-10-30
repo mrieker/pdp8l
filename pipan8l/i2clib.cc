@@ -136,15 +136,15 @@ void I2CLib::openpads ()
     if (strcasecmp (i2cenv, "zynq") == 0) {
 
         // use the i2cmaster.v module in the fpga to access the i2c bus
-        i2cfd = open ("/proc/zynqgpio", O_RDWR);
+        i2cfd = open ("/proc/zynqpdp8l", O_RDWR);
         if (i2cfd < 0) {
-            fprintf (stderr, "I2CLib::openpads: error opening /proc/zynqgpio: %m\n");
+            fprintf (stderr, "I2CLib::openpads: error opening /proc/zynqpdp8l: %m\n");
             ABORT ();
         }
 
         void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, i2cfd, 0);
         if (zynqptr == MAP_FAILED) {
-            fprintf (stderr, "I2CLib::openpads: error mmapping /proc/zynqgpio: %m\n");
+            fprintf (stderr, "I2CLib::openpads: error mmapping /proc/zynqpdp8l: %m\n");
             ABORT ();
         }
         zynqpage = (uint32_t volatile *) zynqptr;

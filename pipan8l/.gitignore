@@ -18,4 +18,11 @@
 .nfs*
 fp-info-cache
 gerber*
+km*/*.ko
+km*/*.mod
+km*/*.mod.c
+km*/*.o
+km*/.*
+km*/Module.symvers
+km*/modules.order
 pcb/*-backups

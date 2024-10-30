@@ -34,15 +34,15 @@ Z8LPage::Z8LPage ()
     zynqpage = NULL;
     zynqptr = NULL;
 
-    zynqfd = open ("/proc/zynqgpio", O_RDWR);
+    zynqfd = open ("/proc/zynqpdp8l", O_RDWR);
     if (zynqfd < 0) {
-        fprintf (stderr, "Z8LPage::Z8LPage: error opening /proc/zynqgpio: %m\n");
+        fprintf (stderr, "Z8LPage::Z8LPage: error opening /proc/zynqpdp8l: %m\n");
         ABORT ();
     }
 
     zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, zynqfd, 0);
     if (zynqptr == MAP_FAILED) {
-        fprintf (stderr, "Z8LPage::Z8LPage: error mmapping /proc/zynqgpio: %m\n");
+        fprintf (stderr, "Z8LPage::Z8LPage: error mmapping /proc/zynqpdp8l: %m\n");
         ABORT ();
     }
 
