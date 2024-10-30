@@ -155,23 +155,24 @@
 #define MS_DEPOS 7        // memory cycle is for deposit switch
 
 #define TS_IDLE     0     // figure out what to do next, does console switch processing if not running
-#define TS_TS1BODY  1     // tell memory to start reading location addressed by MA
-#define TS_TP1BEG   2
-#define TS_TP1END   3
-#define TS_TS2BODY  4     // get contents of memory into MB and modify according to majstate S_...
-#define TS_TP2BEG   5
-#define TS_TP2END   6
-#define TS_TS3BODY  7     // write contents of MB back to memory
-#define TS_TP3BEG   8
-#define TS_TP3END   9
-#define TS_BEGIOP1 10
-#define TS_DOIOP1  11     // maybe output IOP1
-#define TS_BEGIOP2 12
-#define TS_DOIOP2  13     // maybe output IOP2
-#define TS_BEGIOP4 14
-#define TS_DOIOP4  15     // maybe output IOP4
-#define TS_TS4BODY 16     // finish up instruction (modify ac, link, pc, etc)
-#define TS_TP4BEG  17
-#define TS_TP4END  18
+#define TS_TS1INIT  1
+#define TS_TS1BODY  2     // tell memory to start reading location addressed by MA
+#define TS_TP1BEG   3
+#define TS_TP1END   4
+#define TS_TS2BODY  5     // get contents of memory into MB and modify according to majstate S_...
+#define TS_TP2BEG   6
+#define TS_TP2END   7
+#define TS_TS3BODY  8     // write contents of MB back to memory
+#define TS_TP3BEG   9
+#define TS_TP3END  10
+#define TS_BEGIOP1 11
+#define TS_DOIOP1  12     // maybe output IOP1
+#define TS_BEGIOP2 13
+#define TS_DOIOP2  14     // maybe output IOP2
+#define TS_BEGIOP4 15
+#define TS_DOIOP4  16     // maybe output IOP4
+#define TS_TS4BODY 17     // finish up instruction (modify ac, link, pc, etc)
+#define TS_TP4BEG  18
+#define TS_TP4END  19
 
 #endif

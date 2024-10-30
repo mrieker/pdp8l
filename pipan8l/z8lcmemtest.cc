@@ -37,6 +37,7 @@
 #define CM_RRDY  (1U << 29)
 #define CM_ADDR0 (1U <<  0)
 #define CM_DATA0 (1U << 16)
+#define CM_ENAB  (1U << 31)
 
 #define XM_ADDR   (077777U << 0)
 #define XM_WRITE  (1U << 15)
@@ -148,7 +149,7 @@ int main (int argc, char **argv)
                     break;
                 }
             }
-            cmemat[1] = (wdata * CM_DATA0) | CM_WRITE | (i * CM_ADDR0);
+            cmemat[1] = CM_ENAB | (wdata * CM_DATA0) | CM_WRITE | (i * CM_ADDR0);
         }
 
         for (int i = startat; i <= stopat; i ++) {
@@ -182,7 +183,7 @@ int main (int argc, char **argv)
                     break;
                 }
             }
-            cmemat[1] = i * CM_ADDR0;
+            cmemat[1] = CM_ENAB | i * CM_ADDR0;
             for (int j = 0; ! (cmemat[1] & CM_RRDY); j ++) {
                 clockit ();
                 if (j > 1000000) {

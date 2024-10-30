@@ -51,9 +51,9 @@
 static char const *const majstatenames[8] =
     { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "DEPOS" };
 static char const *const timestatenames[32] =
-    { "IDLE", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
+    { "IDLE", "TS1INIT", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
         "TP3BEG", "TP3END", "BEGIOP1", "DOIOP1", "BEGIOP2", "DOIOP2", "BEGIOP4", "DOIOP4",
-        "TS4BODY", "TP4BEG", "TP4END", "???19", "???20", "???21", "???22", "???23",
+        "TS4BODY", "TP4BEG", "TP4END", "???20", "???21", "???22", "???23",
         "???24", "???25", "???26", "???27", "???28", "???29", "???30", "???31" };
 
 #define FIELD(index,mask) ((z8ls[index] & mask) / (mask & - mask))
