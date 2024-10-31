@@ -45,6 +45,7 @@ module pdp8lxmem (
     output reg[11:00] devtocpu,
 
     input memstart,                 // pulse from cpu to start memory cycle (150..500nS)
+    input memwrite,                 // pulse from cpu to start memory write
     input[11:00] memaddr,
     input[11:00] memwdat,
     output reg[11:00] memrdat,
@@ -58,11 +59,11 @@ module pdp8lxmem (
     input ldaddrsw,                 // load address switch
     input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
 
-    output reg[14:00] xbraddr,
-    output reg[11:00] xbrwdat,
-    input[11:00] xbrrdat,
-    output reg xbrenab,
-    output reg xbrwena
+    output reg[14:00] xbraddr,      // external block ram address bus
+    output reg[11:00] xbrwdat,      // ... write data bus
+    input[11:00] xbrrdat,           // ... read data bus
+    output reg xbrenab,             // ... chip enable
+    output reg xbrwena              // ... write enable
 
     // debug
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
@@ -84,7 +85,7 @@ module pdp8lxmem (
                         (jmpjms & exefet) ? ifldafterjump :
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D100C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D100F :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
                       { numcycles, lastintack, 23'b0 };//// : 32'hDEADBEEF;
@@ -266,18 +267,20 @@ module pdp8lxmem (
                     memdelay  <= memdelay + 1;
                 end
 
-                // 600nS, send strobe pulse 100nS wide
-                60: begin
+                // 500nS, send strobe pulse for 100nS
+                50: begin
                     _mrdone  <= 0;
                     memdelay <= memdelay + 1;
                 end
-                70: begin
+
+                // 600nS, wait for processor to send memwrite pulse (TS3)
+                60: begin
                     _mrdone  <= 1;
-                    memdelay <= memdelay + 1;
+                    if (memwrite) memdelay <= memdelay + 1;
                 end
 
-                // 950nS, clock in write data, send memdone pulse 100nS wide
-                95: begin
+                // 700nS, clock in write data, start writing to memory
+                70: begin
                     if (busyonarm == 0) begin
                         busyonpdp <= 1;
                         xbraddr   <= xaddr;
@@ -285,19 +288,20 @@ module pdp8lxmem (
                         xbrenab   <= 1;
                         xbrwena   <= 1;
                         memdelay  <= memdelay + 1;
-                        _mwdone   <= 0;
                     end
                 end
 
-                100: begin
+                // 750nS, stop writing, turn on memdone pulse for 100nS
+                75: begin
                     busyonpdp <= 0;
                     xbrenab   <= 0;
                     xbrwena   <= 0;
                     memdelay  <= memdelay + 1;
+                    _mwdone   <= 0;
                 end
 
-                // 1.05uS, all done, shut off memdone pulse
-                105: begin
+                // 850nS, all done, shut off memdone pulse
+                85: begin
                     memdelay <= 0;
                     _mwdone  <= 1;
                 end

@@ -103,6 +103,7 @@ module pdp8lsim (
     ,output reg[4:0] timestate
     ,output reg[9:0] cyclectr
     ,output reg lastswLDAD
+    ,output reg lastswSTART
     ,output debounced
 
     ,input nanocycle    // 0=normal; 1=use nanostep for clocking
@@ -143,7 +144,7 @@ module pdp8lsim (
 
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
-    reg lastswCONT, lastswDEP, lastswEXAM, lastswSTART;
+    reg lastswCONT, lastswDEP, lastswEXAM;
     reg irusedf, link, runff;
     wire tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ir;
@@ -192,7 +193,7 @@ module pdp8lsim (
     assign lbRUN  = runff;
     assign lbWC   = (majstate == MS_WC);
 
-    assign debounced = debounce[23];
+    assign debounced = debounce[1]; // 84mS:[23];
 
     // local memory (presumably inferred block memory)
     reg[11:00] localcore[4095:0000];
@@ -305,7 +306,7 @@ module pdp8lsim (
                         end
 
                         // load address switch
-                        else if (debounce[23] & lastswLDAD & ~ swLDAD) begin
+                        else if (debounced & lastswLDAD & ~ swLDAD) begin
                             ldad      <= 1;
                             madr      <= swSR;
                             pctr      <= swSR;
@@ -314,7 +315,7 @@ module pdp8lsim (
                         end
 
                         // examine switch
-                        else if (debounce[23] & lastswEXAM & ~ swEXAM) begin
+                        else if (debounced & lastswEXAM & ~ swEXAM) begin
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_START;
@@ -322,7 +323,7 @@ module pdp8lsim (
                         end
 
                         // deposit switch
-                        else if (debounce[23] & lastswDEP & ~ swDEP) begin
+                        else if (debounced & lastswDEP & ~ swDEP) begin
                             madr      <= pctr;
                             pctr      <= pctr + 1;
                             majstate  <= MS_DEPOS;
@@ -330,7 +331,7 @@ module pdp8lsim (
                         end
 
                         // continue switch
-                        else if (debounce[23] & lastswCONT & ~ swCONT) begin
+                        else if (debounced & lastswCONT & ~ swCONT) begin
                             hidestep  <= 1;
                             runff     <= 1;
                             // stay in whatever majstate we are in now
@@ -338,7 +339,7 @@ module pdp8lsim (
                         end
 
                         // start switch
-                        else if (debounce[23] & lastswSTART & ~ swSTART) begin
+                        else if (debounced & lastswSTART & ~ swSTART) begin
                             acum       <= 0;
                             hidestep   <= 0;
                             intdelayed <= 0;
@@ -409,24 +410,31 @@ module pdp8lsim (
 
                 // memory is being read at address in MA, either internal or external memory
                 // MEMSTART is asserted during this interval
+                // clock read data from internal or external memory into MB at the end
                 TS_TS1BODY: begin
                     ldad <= 0;
                     if (i_EA) begin
                         if (timedelay != 62) timedelay <= timedelay + 1;
-                        else begin timedelay <= 0; timestate <= TS_TP1BEG; end
+                        else begin
+                            mbuf      <= localcore[madr];
+                            timedelay <= 0;
+                            timestate <= TS_TP1BEG;
+                        end
                     end else begin
-                        if (! i_STROBE) timestate <= TS_TP1BEG;
+                        case (timedelay)
+                            0: if (! i_STROBE) timedelay <= 1;
+                            1: if (i_STROBE) begin
+                                mbuf      <= iMEM;
+                                timedelay <= 0;
+                                timestate <= TS_TP1BEG;
+                            end
+                        endcase
                     end
                 end
 
-                // clock read data from internal or external memory into MB
                 TS_TP1BEG: begin
                     if (timedelay != 2) timedelay <= timedelay + 1;
-                    else begin
-                        mbuf <= i_EA ? localcore[madr] : iMEM;
-                        timedelay <= 0;
-                        timestate <= TS_TP1END;
-                    end
+                    else timestate <= TS_TP1END;
                 end
 
                 TS_TP1END: begin
@@ -692,7 +700,7 @@ module pdp8lsim (
 
             // debounce front-panel momentary switches
             if (~ (swCONT | swDEP | swEXAM | swLDAD | swSTART)) debounce <= 0;
-            else if (~ debounce[23]) debounce <= debounce + 24'h400000;  // ~84mS
+            else if (~ debounced) debounce <= debounce + 1;
 
             // save these for transition testing
             lastswCONT  <= swCONT;

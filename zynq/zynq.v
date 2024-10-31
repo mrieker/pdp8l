@@ -150,10 +150,10 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C403C;
+    localparam VERSION = 32'h384C4041;
 
     reg[11:02] readaddr, writeaddr;
-    wire debounced, lastswLDAD;
+    wire debounced, lastswLDAD, lastswSTART;
 
     // pdp8/l module signals
 
@@ -401,6 +401,8 @@ module Zynq (
         (readaddr        == 10'b0000001001) ? regctli    :
         (readaddr        == 10'b0000001010) ? regctlj    :
         (readaddr        == 10'b0000001011) ? regctlk    :
+        (readaddr        == 10'b0000001100) ? { 11'b0, xbrenab, 3'b0, xbrwena, 1'b0, xbraddr } :
+        (readaddr        == 10'b0000001101) ? { 4'b0, xbrwdat, 4'b0, xbrrdat } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:04] ==  8'b00001010)   ? ttardata   :  // 00001010xx00
         (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
@@ -740,7 +742,8 @@ module Zynq (
     assign regctlg[09] = sim_lbWC;
     assign regctlg[10] = debounced;
     assign regctlg[11] = lastswLDAD;
-    assign regctlg[15:12] = 0;
+    assign regctlg[12] = lastswSTART;
+    assign regctlg[15:13] = 0;
     assign regctlg[27:16] = { sim_lbIR, 9'b000000000 };
     assign regctlg[31:28] = 0;
 
@@ -843,6 +846,7 @@ module Zynq (
         .cyclectr      (regctlk[23:14]),
         .debounced     (debounced),
         .lastswLDAD    (lastswLDAD),
+        .lastswSTART   (lastswSTART),
         .nanocycle     (nanocycle),
         .nanostep      (nanostep),
         .lastnanostep  (lastnanostep),
@@ -1071,23 +1075,24 @@ module Zynq (
         .cputodev (dev_oBAC),           // data being sent to device
         .devtocpu (xmibus),             // data being received from device
 
-        .memstart (dev_oMEMSTART),      // pulse to start a memory cycle
-        .memaddr (dev_oMA),             // address within memory
-        .memwdat (dev_oBMB),            // data being written to memory
-        .memrdat (xmmem),               // data that was read from memory
-        ._mrdone (xm_mrdone),           // pulse indicating read data is valid
-        ._mwdone (xm_mwdone),           // pulse indicating write has completed
+        .memstart (dev_oMEMSTART),      // pulse to start reading
+        .memwrite (dev_oBTS_3),         // pulse to start writing
+        .memaddr  (dev_oMA),            // address within memory
+        .memwdat  (dev_oBMB),           // data being written to memory
+        .memrdat  (xmmem),              // data that was read from memory
+        ._mrdone  (xm_mrdone),          // pulse indicating read data is valid
+        ._mwdone  (xm_mwdone),          // pulse indicating write has completed
 
         .brkfld (cmbrkema),             // extended memory address for break (dma) cycles
 
         ._bf_enab (dev_o_BF_ENABLE),    // next mem cycle should use break field
         ._df_enab (dev_o_DF_ENABLE),    // next mem cycle should use data field
-        .exefet (dev_oE_SET_F_SET),     // next mem cycle is for fetch or execute
-        ._intack (dev_o_LOAD_SF),       // next mem cycle is ackmowledging interrupt
-        .jmpjms (dev_oJMP_JMS),         // instruction register holds JMP or JMS instruction
+        .exefet   (dev_oE_SET_F_SET),   // next mem cycle is for fetch or execute
+        ._intack  (dev_o_LOAD_SF),      // next mem cycle is ackmowledging interrupt
+        .jmpjms   (dev_oJMP_JMS),       // instruction register holds JMP or JMS instruction
         ._zf_enab (dev_o_SP_CYC_NEXT),  // special (WC or CA) cycle is next
-        ._ea (xm_ea),                   // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
-        ._intinh (xm_intinh),           // block interrupt delivery
+        ._ea      (xm_ea),              // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
+        ._intinh  (xm_intinh),          // block interrupt delivery
 
         .ldaddrsw (~ dev_o_KEY_LOAD),
         .ldaddfld ({ 2'b00, ~ dev_o_KEY_DF }),

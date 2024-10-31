@@ -109,6 +109,7 @@ module extmemmap (
             // check for PS acknowledging receipt of data
             else if (saxi_RVALID & saxi_RREADY) begin
                 reading      <= 0;                          // all done with reading
+                xbrenab      <= 0;
                 saxi_ARREADY <= 1;                          // we are ready to accept an address again
                 saxi_RVALID  <= 0;                          // we are no longer sending out data
             end
