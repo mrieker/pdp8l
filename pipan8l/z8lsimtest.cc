@@ -77,6 +77,7 @@ static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
 static uint32_t zrawrite, zrcwrite, zrdwrite;
+static uint32_t volatile *extmemptr;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *cmemat;
 static uint32_t volatile *xmemat;
@@ -98,6 +99,8 @@ static bool g2skip (uint16_t opcode);
 static uint16_t xrandbits (int nbits);
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg);
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg);
+static void writextmem (uint16_t xaddr, uint16_t data);
+static uint16_t readextmem (uint16_t xaddr);
 static void fatalerr (char const *fmt, ...);
 static void dumpstate ();
 
@@ -143,6 +146,11 @@ int main (int argc, char **argv)
     }
     printf ("CM version %08X\n", cmemat[0]);
 
+    // get pointer to the 32K-word ram
+    // maps each 12-bit word into low 12 bits of 32-bit word
+    // upper 20 bits discarded on write, readback as zeroes
+    extmemptr = z8p.extmem ();
+
     // select simulator with manual clocking and reset the pdp8lsim.v processor
     pdpat[Z_RA] = zrawrite = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     pdpat[Z_RB] = 0;
@@ -156,15 +164,17 @@ int main (int argc, char **argv)
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
 
-    // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
-    // ...so we can directly access its contents, feeding in random numbers as needed
-    xmemat[1] = XM_ENABLE | XM_ENLO4K;
-
     // clock the synchronous reset through
     for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
     pdpat[Z_RA] = zrawrite &= ~ a_softreset;
+    for (int i = 0; i < 5; i ++) clockit ();
+
+    // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
+    // ...so we can directly access its contents via extmemptr, feeding in random numbers as needed
+    xmemat[1] = XM_ENABLE | XM_ENLO4K;
+    for (int i = 0; i < 5; i ++) clockit ();
 
     // softreset should clear these registers
     xmem_dfld = 0;
@@ -174,8 +184,9 @@ int main (int argc, char **argv)
     xmem_saveddfld = 0;
     xmem_savedifld = 0;
 
-    // set program counter to zero
-    doldad (0, 0);
+    // set program counter to 01234
+    doldad (01234, 07654);
+    pctr = 01234;
 
     // flick the start switch to clear accumulator, link and start it running
     dostart ();
@@ -288,7 +299,7 @@ int main (int argc, char **argv)
                 // set random switch register contents if about to do an OSR instruction
                 if (((opcode & 07401) == 07400) && (opcode & 0004)) {
                     randsr = xrandbits (12);
-                    pdpat[Z_RE] = (pdpat[Z_RE] & ~ e_swSR) | (randsr * e_swSR0);
+                    pdpat[Z_RE] = randsr * e_swSR0;
                 }
 
                 // perform fetch memory cycle
@@ -555,6 +566,9 @@ int main (int argc, char **argv)
 //   data = data to send processor for the corresponding read
 static void doldad (uint16_t addr, uint16_t data)
 {
+    // put address in switch register
+    pdpat[Z_RE] = addr * e_swSR0;
+
     // press load address switch
     pdpat[Z_RB] |= b_swLDAD;
 
@@ -571,6 +585,14 @@ static void doldad (uint16_t addr, uint16_t data)
 // do a 'start' operation
 static void dostart ()
 {
+    // wait for TS_IDLE so businit doesn't mess up memory cycle
+    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before pressing start switch\n");
+        clockit ();
+    }
+
+    printf ("dostart*: start switch on\n");
+
     // press start switch
     pdpat[Z_RB] |= b_swSTART;
 
@@ -578,6 +600,7 @@ static void dostart ()
     debounce ();
 
     // release start switch
+    printf ("dostart*: start switch off\n");
     pdpat[Z_RB] &= ~ b_swSTART;
 
     // clock until the run flipflop sets
@@ -585,6 +608,7 @@ static void dostart ()
         if (i > 1000) fatalerr ("timed out waiting for RUN after flicking START switch\n");
         clockit ();
     }
+    printf ("dostart*: running\n");
 
     verify12 (Z_RI, i_lbAC, 0, "AC not zero after START switch");
     if (FIELD (Z_RG, g_lbLINK)) fatalerr ("LINK not zero after START switch\n");
@@ -633,14 +657,10 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
     // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
     uint16_t xaddr = (field << 12) | addr;
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | (rdata * XM_DATA0) | XM_WRITE | (xaddr * XM_ADDR0);
-    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
-        if (i > 1000) fatalerr ("timed out writing memory\n");
-        clockit ();
-    }
+    writextmem (xaddr, rdata);
 
     // clock until we see TS1
-    // give it extra time cuz it could be at end of TS3 for previous instruction
+    // give it extra time cuz it could be at end of TS3 for previous cycle
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
         if (i > 3000) fatalerr ("timed out waiting for TS1 asserted\n");
         clockit ();
@@ -660,9 +680,9 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // should now be fully transitioned to the major state
     if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
 
-    // end of TP2 means it finished reading that memory location into MB
-    for (int i = 0; FIELD (Z_RF, f_oBTS_1) | FIELD (Z_RF, f_oBTP2); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS1 and TP2 negated\n");
+    // end of TS1 means it finished reading that memory location into MB
+    for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS1 negated\n");
         clockit ();
     }
 
@@ -686,16 +706,13 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 
     // verify the memory contents
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | (xaddr * XM_ADDR0);
-    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
-        if (i > 1000) fatalerr ("timed out reading memory\n");
-        clockit ();
-    }
-    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+    uint16_t vdata = readextmem (xaddr);
     if (vdata != wdata) {
         printf ("address %05o contained %04o at end of cycle, should be %04o\n", xaddr, vdata, wdata);
         fatalerr ("memory validation error\n");
     }
+
+    ////for (int i = 0; i < 10; i ++) clockit ();
 
     // maybe start requesting an interrupt
     // don't do it if we are about to execute an HLT instruction or it will puque
@@ -708,9 +725,19 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 }
 
+// one of the debounceable switches was just pressed
+// wait for debounced signal to be set
 static void debounce ()
 {
-    for (int i = 0; i < 1000; i ++) {
+    // wait for TS_IDLE so switch release will be detected
+    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before waiting for debounce\n");
+        clockit ();
+    }
+
+    // wait for debounce counter to be clocked
+    for (int i = 0; ! FIELD (Z_RG, g_debounced); i ++) {
+        if (i > 10000000) fatalerr ("debounced flag failed to set while switch held down\n");
         clockit ();
     }
 }
@@ -721,6 +748,17 @@ static void clockit ()
     pdpat[Z_RA] = zrawrite | a_nanostep;
     pdpat[Z_RA] = zrawrite;
     clockno ++;
+
+#if 000
+    uint32_t timestate = FIELD (Z_RK, k_timestate);
+    printf ("clockit*: %9u _ea=%o timestate=%s timedelay=%u memstart=%u iMEM=%04o _iSTROBE=%u oBMB=%04o _iMEMDONE=%u\n",
+        clockno,
+        FIELD(Z_RA,a_i_EA), timestatenames[timestate], FIELD(Z_RK,k_timedelay), FIELD(Z_RF,f_oMEMSTART), 
+        FIELD(Z_RC,c_iMEM), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RH,h_oBMB), FIELD(Z_RA,a_i_MEMDONE));
+    if (clockno == 2130) {
+        printf ("clockit*: AIEE\n");
+    }
+#endif
 }
 
 // compute if a Group 2 instruction would skip
@@ -767,6 +805,51 @@ static void verifybit (int index, uint32_t mask, bool expect, char const *msg)
     if (actual != expect) {
         fatalerr ("%s, is %o should be %o\n", msg, actual, expect);
     }
+}
+
+// write directly to extended memory chip
+// read back via the xmem interface and compare
+static void writextmem (uint16_t xaddr, uint16_t data)
+{
+    extmemptr[xaddr] = data;
+
+#if 000
+    xmemat[1] = XM_ENABLE | XM_ENLO4K | (data * XM_DATA0) | XM_WRITE | (xaddr * XM_ADDR0);
+    for (int i = 0; i < 10; i ++) clockit ();
+#endif
+
+#if 000
+    xmemat[1] = XM_ENABLE | XM_ENLO4K | (xaddr * XM_ADDR0);
+    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
+        if (i > 1000) ABORT ();
+        clockit ();
+    }
+    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+    if (vdata != data) {
+        fatalerr ("writextmem: xaddr %05o wrote %04o readback as %04o\n", xaddr, data, vdata);
+    }
+#endif
+}
+
+// read directly from extended memory chip
+// also read via the xmem interface and compare
+static uint16_t readextmem (uint16_t xaddr)
+{
+    uint16_t data = extmemptr[xaddr];
+
+#if 000
+    xmemat[1] = XM_ENABLE | XM_ENLO4K | (xaddr * XM_ADDR0);
+    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
+        if (i > 1000) ABORT ();
+        clockit ();
+    }
+    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+    if (vdata != data) {
+        fatalerr ("readextmem: xaddr %05o direct read %04o xmem read as %04o\n", xaddr, data, vdata);
+    }
+#endif
+
+    return data;
 }
 
 static void fatalerr (char const *fmt, ...)

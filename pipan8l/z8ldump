@@ -1,6 +1,6 @@
 #!/bin/bash
 dd=`dirname $0`
-$dd/pdp8v/driver/loadmod.sh
+$dd/loadmod.sh
 dbg=''
 if [ "$1" == "-gdb" ]
 then

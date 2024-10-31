@@ -186,6 +186,7 @@ int main (int argc, char **argv)
             printf ("  lbIR=%o", FIELD (Z_RG, g_lbIR));
             printf ("  debounced=%o", FIELD (Z_RG, (1U << 10)));
             printf ("  lastswLDAD=%o", FIELD (Z_RG, (1U << 11)));
+            printf ("  lastswSTART=%o", FIELD (Z_RG, (1U << 12)));
 
             printf ("  oBAC=%04o", FIELD (Z_RH, h_oBAC));
             printf ("  oBMB=%04o", FIELD (Z_RH, h_oBMB));
@@ -201,12 +202,18 @@ int main (int argc, char **argv)
 
             for (int i = 0; i < 1024;) {
                 uint32_t idver = z8ls[i];
-                if ((idver & 0xF000U) == 0x1000U) {
-                    printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
-                }
-                if ((idver & 0xF000U) == 0x2000U) {
-                    printf (EOL "VERSION=%08X %c%c %08X %08X %08X %08X %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16,
-                        z8ls[i+1], z8ls[i+2], z8ls[i+3], z8ls[i+4], z8ls[i+5], z8ls[i+6], z8ls[i+7]);
+                if (((idver >> 24) == 'X') && (((idver >> 16) & 255) == 'M')) {
+                    printf (EOL "VERSION=%08X XM  addr=%05o  write=%o  data=%04o  busy=%o  enlo4k=%o  enable=%o  memdelay=%3u  busyonpdp=%o  busyonarm=%o  _mwdone=%o  _mrdone=%o" EOL,
+                        idver, FIELD (i+1,XM_ADDR), FIELD (i+1,XM_WRITE), FIELD (i+1,XM_DATA), FIELD (i+1,XM_BUSY), FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE),
+                        FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2_BUSYONPDP), FIELD (i+2,XM2_BUSYONARM), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
+                } else {
+                    if ((idver & 0xF000U) == 0x1000U) {
+                        printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
+                    }
+                    if ((idver & 0xF000U) == 0x2000U) {
+                        printf (EOL "VERSION=%08X %c%c %08X %08X %08X %08X %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16,
+                            z8ls[i+1], z8ls[i+2], z8ls[i+3], z8ls[i+4], z8ls[i+5], z8ls[i+6], z8ls[i+7]);
+                    }
                 }
                 i += 2 << ((idver >> 12) & 15);
             }

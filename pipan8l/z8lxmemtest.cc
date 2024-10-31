@@ -18,8 +18,9 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Test the pdp8lxmem.v module
+// Test the pdp8lxmem.v and extmemmap.v modules
 // - just writes random numbers to the 32K ram and reads them back and verifies
+// - works all combinations of xmem and extmemmap interfaces
 
 //  ./z8lxmemtest.armv7l
 //  - fpga code must be enabled for sim mode and not being reset
@@ -55,6 +56,14 @@
 int main (int argc, char **argv)
 {
     Z8LPage z8p;
+
+    uint32_t volatile *pdpat = z8p.findev ("8L", NULL, NULL, true);
+    if (pdpat == NULL) {
+        fprintf (stderr, "cpu not found\n");
+        ABORT ();
+    }
+    printf ("8L version %08X\n", pdpat[Z_VER]);
+
     uint32_t volatile *xmemat = z8p.findev ("XM", NULL, NULL, true);
     if (xmemat == NULL) {
         fprintf (stderr, "xmem not found\n");
@@ -62,21 +71,56 @@ int main (int argc, char **argv)
     }
     printf ("VERSION=%08X\n", xmemat[0]);
 
+    uint32_t volatile *extmem = z8p.extmem ();
+
+    pdpat[Z_RA] = a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RB] = 0;
+    pdpat[Z_RC] = 0;
+    pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
+
+    pdpat[Z_RE] = 0;
+    pdpat[Z_RF] = 0;
+    pdpat[Z_RG] = 0;
+    pdpat[Z_RH] = 0;
+    pdpat[Z_RI] = 0;
+    pdpat[Z_RJ] = 0;
+    pdpat[Z_RK] = 0;
+
+    // release the reset
+    pdpat[Z_RA] = a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+
+    // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
+    // ...so we can directly access its contents via extmemptr, feeding in random numbers as needed
+    xmemat[1] = XM_ENABLE | XM_ENLO4K;
+
+    // do tests
+    uint16_t shadow[32768];
+    uint32_t pass = 0;
     while (true) {
-        uint16_t wdata = 0;
-        for (int i = 0; i < 0x8000; i ++) {
-            wdata = (wdata + 03333) & 07777;
-            xmemat[1] = (wdata << 16) | 0x8000 | (i & 0x7FFF);
-            while (xmemat[1] & 0x10000000) { }
+        for (int xaddr = 0; xaddr < 32768; xaddr ++) {
+            uint16_t wdata = randbits (12);
+            shadow[xaddr] = wdata;
+            if (pass & 1) {
+                extmem[xaddr] = wdata;
+            } else {
+                xmemat[1] = (wdata * XM_DATA0) | XM_WRITE | (xaddr * XM_ADDR0);
+                while (xmemat[1] & XM_BUSY) { }
+            }
         }
-        wdata = 0;
-        for (int i = 0; i < 0x8000; i ++) {
-            wdata = (wdata + 03333) & 07777;
-            xmemat[1] = i & 0x7FFF;
-            while (xmemat[1] & 0x10000000) { }
-            uint16_t rdata = (xmemat[1] >> 16) & 07777;
-            if (rdata != wdata) printf ("error %05o was %04o should be %04o\n", i, rdata, wdata);
+        for (int xaddr = 0; xaddr < 32768; xaddr ++) {
+            uint16_t wdata = shadow[xaddr];
+            uint32_t rdata;
+            if (pass & 2) {
+                rdata = extmem[xaddr];
+            } else {
+                xmemat[1] = xaddr * XM_ADDR0;
+                while ((rdata = xmemat[1]) & XM_BUSY) { }
+                rdata = (rdata & XM_DATA) / XM_DATA0;
+            }
+            if (rdata != wdata) printf ("error %05o was %04o should be %04o\n", xaddr, rdata, wdata);
         }
+        pass ++;
+        printf ("pass %8u\n", pass);
     }
 
     return 0;

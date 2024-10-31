@@ -1,14 +1,10 @@
 #!/bin/bash
 dd=`dirname $0`
-$dd/pdp8v/driver/loadmod.sh
+$dd/loadmod.sh
 dbg=''
 if [ "$1" == "-gdb" ]
 then
     dbg='gdb --args'
-    shift
-elif [ "$1" == "-valgrind" ]
-then
-    dbg='valgrind'
     shift
 fi
 exec $dbg $0.`uname -m` "$@"
