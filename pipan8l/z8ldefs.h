@@ -178,6 +178,16 @@
 #define TS_TP4BEG  18
 #define TS_TP4END  19
 
+// pdp8lcmem.v registers
+#define CM_ADDR  (077777U << 0)
+#define CM_WRITE (1U << 15)
+#define CM_DATA  (07777U << 16)
+#define CM_BUSY  (1U << 28)
+#define CM_RRDY  (1U << 29)
+#define CM_ADDR0 (1U <<  0)
+#define CM_DATA0 (1U << 16)
+#define CM_ENAB  (1U << 31)
+
 // pdp8lxmem.v registers
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)

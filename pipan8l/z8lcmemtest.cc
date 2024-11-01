@@ -19,7 +19,9 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Test the pdp8lcmem.v module
-// - just writes random numbers to the 32K ram and reads them back and verifies
+// It gives access to the processor's internal 4K core memory via dma cycles
+// The test writes random numbers to the 4K and reads them back and verifies
+// It also tests the same interface with the extended 28K memory
 
 //  ./z8lcmemtest.armv7l
 
@@ -29,24 +31,6 @@
 
 #include "z8ldefs.h"
 #include "z8lutil.h"
-
-#define CM_ADDR  (077777U << 0)
-#define CM_WRITE (1U << 15)
-#define CM_DATA  (07777U << 16)
-#define CM_BUSY  (1U << 28)
-#define CM_RRDY  (1U << 29)
-#define CM_ADDR0 (1U <<  0)
-#define CM_DATA0 (1U << 16)
-#define CM_ENAB  (1U << 31)
-
-#define XM_ADDR   (077777U << 0)
-#define XM_WRITE  (1U << 15)
-#define XM_DATA   (07777U << 16)
-#define XM_BUSY   (1U << 28)
-#define XM_ENLO4K (1U << 30)
-#define XM_ENABLE (1U << 31)
-#define XM_ADDR0  (1U << 0)
-#define XM_DATA0  (1U << 16)
 
 static bool manualclock;
 static uint32_t volatile *pdpat;
@@ -91,6 +75,8 @@ int main (int argc, char **argv)
     }
     printf ("CM VERSION=%08X\n", cmemat[0]);
 
+    uint32_t volatile *extmem = z8p.extmem ();
+
     // select simulator and reset it
     uint32_t ra = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT |
         a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE | a_simit | a_softreset;
@@ -107,17 +93,19 @@ int main (int argc, char **argv)
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
 
-    // tell pdp8lxmem.v we want to use the core stack (sets enlo4K = 0)
+    // tell pdp8lxmem.v we want to use the 4K core stack for the low 4K (sets enlo4K = 0)
+    // with the sim (pdp8lsim.v) it uses the sim's internal localcore[] array memory
+    // in any case it uses the upper 28K of the extmem block memory for the upper 28K
     xmemat[0] = 0;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
 
     if (! brkwhenhltd) {
 
-        ldad (0); depos (02003);
-        ldad (1); depos (05000);
-        ldad (2); depos (05000);
-        ldad (3); depos (0);
+        ldad (0); depos (02003);    //  ISZ  3
+        ldad (1); depos (05000);    //  JMP  0
+        ldad (2); depos (05000);    //  JMP  0
+        ldad (3); depos (0);        // .WORD 0
 
         // do LOAD ADDRESS with zero in switch register
         ldad (0);
@@ -154,20 +142,10 @@ int main (int argc, char **argv)
 
         for (int i = startat; i <= stopat; i ++) {
             if (i >= 010000) {
-                xmemat[1] = i * XM_ADDR0;
-                for (int j = 0; xmemat[1] & XM_BUSY; j ++) {
-                    clockit ();
-                    if (j > 1000000) {
-                        printf ("timed out waiting for xmem read at %05o\n", i);
-                        if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
-                        errors ++;
-                        break;
-                    }
-                }
                 wdata = shadow[i];
-                uint16_t rdata = (xmemat[1] & XM_DATA) / XM_DATA0;
+                uint16_t rdata = extmem[i];
                 if (rdata != wdata) {
-                    printf ("xmem error %05o was %04o should be %04o\n", i, rdata, wdata);
+                    printf ("extmem error %05o was %04o should be %04o\n", i, rdata, wdata);
                     errors ++;
                 }
             }
