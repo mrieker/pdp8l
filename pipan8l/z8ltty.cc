@@ -92,7 +92,7 @@ int main (int argc, char **argv)
         if (setprintdoneat == 0xFFFFFFFFFFFFFFFFULL) {
             uint32_t prreg = ttyat[Z_TTYPR];
             if (prreg & PR_FULL) {
-                uint8_t prchar = prreg & 0x7F;
+                uint8_t prchar = prreg & 0177;
                 if (prchar == 7) {
                     int rc = write (STDOUT_FILENO, "<BEL>", 5);
                     if (rc <= 0) ABORT ();
@@ -113,7 +113,7 @@ int main (int argc, char **argv)
                 rc = read (STDIN_FILENO, &kbchar, 1);
                 if (rc <= 0) ABORT ();
                 if (kbchar == '\\' - '@') break;
-                ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbchar;
+                ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | 0200 | kbchar;
                 readnextkbat = nowus + 100000;
             }
         }

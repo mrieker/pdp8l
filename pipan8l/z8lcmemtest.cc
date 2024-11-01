@@ -188,8 +188,7 @@ halted:;
     printf ("processor halted > ");
     fflush (stdout);
     char temp[8];
-    fgets (temp, sizeof temp, stdin);
-    return 0;
+    return (fgets (temp, sizeof temp, stdin) == NULL);
 }
 
 // do LOAD ADDRESS with zero in switch register

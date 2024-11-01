@@ -20,6 +20,9 @@
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 // We get signals that look a lot like the B,C,D 34,35,36 connectors and the front panel
+// Start PIPan8L via z8lpan.sh script, eg,
+//  $ z8lpan.sh testmem.tcl
+//  pipan8l> looptest testrands
 
 #include <signal.h>
 #include <stdint.h>
@@ -122,31 +125,56 @@ static uint32_t const forceons[Z_N] = {
 
 Z8LLib::Z8LLib ()
 {
-    z8p = NULL;
-    zynqpage = NULL;
+    z8p    = NULL;
+    extmem = NULL;
+    pdpat  = NULL;
+    xmemat = NULL;
 }
 
 Z8LLib::~Z8LLib ()
 {
     if (z8p != NULL) {
         delete z8p;
-        z8p = NULL;
+        z8p    = NULL;
+        extmem = NULL;
+        pdpat  = NULL;
+        xmemat = NULL;
     }
-    zynqpage = NULL;
 }
 
 void Z8LLib::openpads ()
 {
+    // open /proc/zynqpdp8l and mmap it
     z8p = new Z8LPage ();
-    zynqpage = z8p->findev ("8L", NULL, NULL, true);
-    if (zynqpage == NULL) {
+
+    // find processor registers
+    pdpat = z8p->findev ("8L", NULL, NULL, true);
+    if (pdpat == NULL) {
         fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
         ABORT ();
     }
+    fprintf (stderr, "Z8LLib::openpads: 8L version %08X\n", pdpat[0]);
 
-    for (int i = 0; i < Z_N; i ++) {
-        zynqpage[i] = ((i == Z_RA) ? a_softreset : 0) | forceons[i];
+    // find pdp8lxmem.v registers
+    xmemat = z8p->findev ("XM", NULL, NULL, true);
+    if (pdpat == NULL) {
+        fprintf (stderr, "Z8LLib::openpads: XM not found\n");
+        ABORT ();
     }
+    fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
+
+    // mmap 32K word extmem chip (extmemmap.v)
+    // one 12-bit word in low end of our 32-bit word
+    extmem = z8p->extmem ();
+
+    // put everything in power-on-reset state
+    for (int i = 0; i < Z_N; i ++) {
+        pdpat[i] = ((i == Z_RA) ? a_softreset : 0) | forceons[i];
+    }
+
+    // enable extended memory io instruction processing
+    // locate lower 4K memory in extmem block memory so it can be accessed via extmem
+    xmemat[1] = XM_ENABLE | XM_ENLO4K;
 }
 
 // read pins from zynq pdp8l.v
@@ -154,7 +182,7 @@ void Z8LLib::readpads (uint16_t *pads)
 {
     uint32_t z8ls[Z_N];
     for (int i = 0; i < Z_N; i ++) {
-        z8ls[i] = zynqpage[i];
+        z8ls[i] = pdpat[i];
     }
 
     memset (pads, 0, P_NU16S * sizeof *pads);
@@ -189,9 +217,9 @@ void Z8LLib::writepads (uint16_t const *pads)
         }
     }
 
-    z8ls[Z_RA] |= zynqpage[Z_RA] & a_nanocycle;
+    z8ls[Z_RA] |= pdpat[Z_RA] & a_nanocycle;
 
     for (int i = 0; i < Z_N; i ++) {
-        zynqpage[i] = z8ls[i];
+        pdpat[i] = z8ls[i];
     }
 }

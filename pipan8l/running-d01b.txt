@@ -1,0 +1,27 @@
+
+mrieker@zturn:~/nfs/pdp8l/pipan8l$ ./z8lpan.sh
+Z8LLib::openpads: 8L version 384C4041
+Z8LLib::openpads: XM version 584D1010
+
+          ST=   AC=0.0000 MA=0.0000 MB=0000 IR=0  AND  SR=0000
+
+TCL scripting, do 'help' for pipan8l-specific commands
+  do 'exit' to exit pipan8l
+pipan8l> loadbin ../alltapes/maindec-8i-d01b-pb.bin
+loadbin: loading ../alltapes/maindec-8i-d01b-pb.bin...
+  04352 / 7600
+loadverify: verifying...
+  04352 / 7600
+loadverify: verify ok
+-1
+pipan8l> setsw sr 0144
+pipan8l> flushit
+pipan8l> flicksw ldad
+pipan8l> setsw sr 07777
+pipan8l> flushit
+pipan8l> flicksw start
+                        << should halt with MA=0146
+pipan8l> flicksw cont
+pipan8l> flicksw stop
+                        << should output <BEL> on tty
+
