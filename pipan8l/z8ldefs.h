@@ -179,14 +179,8 @@
 #define TS_TP4END  19
 
 // pdp8lxmem.v registers
-#define XM_ADDR   (077777U << 0)
-#define XM_WRITE  (1U << 15)
-#define XM_DATA   (07777U << 16)
-#define XM_BUSY   (1U << 28)
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
-#define XM_ADDR0  (1U <<  0)
-#define XM_DATA0  (1U << 16)
 
 #define XM2_MEMDELAY (0377U <<  0)
 #define XM2_SAVEDIFLD   (7U <<  8)
@@ -194,8 +188,6 @@
 #define XM2_IFLDAFJMP   (7U << 14)
 #define XM2_IFLD        (7U << 17)
 #define XM2_DFLD        (7U << 20)
-#define XM2_BUSYONPDP   (1U << 23)
-#define XM2_BUSYONARM   (7U << 24)
 #define XM2_FIELD       (7U << 27)
 #define XM2__MWDONE     (1U << 30)
 #define XM2__MRDONE     (1U << 31)

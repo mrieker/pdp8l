@@ -99,8 +99,6 @@ static bool g2skip (uint16_t opcode);
 static uint16_t xrandbits (int nbits);
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg);
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg);
-static void writextmem (uint16_t xaddr, uint16_t data);
-static uint16_t readextmem (uint16_t xaddr);
 static void fatalerr (char const *fmt, ...);
 static void dumpstate ();
 
@@ -657,7 +655,7 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
     // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
     uint16_t xaddr = (field << 12) | addr;
-    writextmem (xaddr, rdata);
+    extmemptr[xaddr] = rdata;
 
     // clock until we see TS1
     // give it extra time cuz it could be at end of TS3 for previous cycle
@@ -706,7 +704,7 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 
     // verify the memory contents
-    uint16_t vdata = readextmem (xaddr);
+    uint16_t vdata = extmemptr[xaddr];
     if (vdata != wdata) {
         printf ("address %05o contained %04o at end of cycle, should be %04o\n", xaddr, vdata, wdata);
         fatalerr ("memory validation error\n");
@@ -805,51 +803,6 @@ static void verifybit (int index, uint32_t mask, bool expect, char const *msg)
     if (actual != expect) {
         fatalerr ("%s, is %o should be %o\n", msg, actual, expect);
     }
-}
-
-// write directly to extended memory chip
-// read back via the xmem interface and compare
-static void writextmem (uint16_t xaddr, uint16_t data)
-{
-    extmemptr[xaddr] = data;
-
-#if 000
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | (data * XM_DATA0) | XM_WRITE | (xaddr * XM_ADDR0);
-    for (int i = 0; i < 10; i ++) clockit ();
-#endif
-
-#if 000
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | (xaddr * XM_ADDR0);
-    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
-        if (i > 1000) ABORT ();
-        clockit ();
-    }
-    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
-    if (vdata != data) {
-        fatalerr ("writextmem: xaddr %05o wrote %04o readback as %04o\n", xaddr, data, vdata);
-    }
-#endif
-}
-
-// read directly from extended memory chip
-// also read via the xmem interface and compare
-static uint16_t readextmem (uint16_t xaddr)
-{
-    uint16_t data = extmemptr[xaddr];
-
-#if 000
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | (xaddr * XM_ADDR0);
-    for (int i = 0; xmemat[1] & XM_BUSY; i ++) {
-        if (i > 1000) ABORT ();
-        clockit ();
-    }
-    uint16_t vdata = (xmemat[1] & XM_DATA) / XM_DATA0;
-    if (vdata != data) {
-        fatalerr ("readextmem: xaddr %05o direct read %04o xmem read as %04o\n", xaddr, data, vdata);
-    }
-#endif
-
-    return data;
 }
 
 static void fatalerr (char const *fmt, ...)

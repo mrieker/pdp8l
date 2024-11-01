@@ -203,9 +203,9 @@ int main (int argc, char **argv)
             for (int i = 0; i < 1024;) {
                 uint32_t idver = z8ls[i];
                 if (((idver >> 24) == 'X') && (((idver >> 16) & 255) == 'M')) {
-                    printf (EOL "VERSION=%08X XM  addr=%05o  write=%o  data=%04o  busy=%o  enlo4k=%o  enable=%o  memdelay=%3u  busyonpdp=%o  busyonarm=%o  _mwdone=%o  _mrdone=%o" EOL,
-                        idver, FIELD (i+1,XM_ADDR), FIELD (i+1,XM_WRITE), FIELD (i+1,XM_DATA), FIELD (i+1,XM_BUSY), FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE),
-                        FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2_BUSYONPDP), FIELD (i+2,XM2_BUSYONARM), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
+                    printf (EOL "VERSION=%08X XM  enlo4k=%o  enable=%o  ifld=%o  dfld=%o  field=%o  memdelay=%3u  _mwdone=%o  _mrdone=%o" EOL,
+                        idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
+                        FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
                 } else {
                     if ((idver & 0xF000U) == 0x1000U) {
                         printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
