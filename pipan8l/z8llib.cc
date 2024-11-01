@@ -101,25 +101,25 @@ static uint32_t ztop[] = {
     Z_RB, b_swSTEP,      P_STEP,
     Z_RB, b_swSTOP,      P_STOP,
     Z_RB, b_swSTART,     P_STRT,
-    Z_RE, e_swSR0 << 11, P_SR00,
-    Z_RE, e_swSR0 << 10, P_SR01,
-    Z_RE, e_swSR0 <<  9, P_SR02,
-    Z_RE, e_swSR0 <<  8, P_SR03,
-    Z_RE, e_swSR0 <<  7, P_SR04,
-    Z_RE, e_swSR0 <<  6, P_SR05,
-    Z_RE, e_swSR0 <<  5, P_SR06,
-    Z_RE, e_swSR0 <<  4, P_SR07,
-    Z_RE, e_swSR0 <<  3, P_SR08,
-    Z_RE, e_swSR0 <<  2, P_SR09,
-    Z_RE, e_swSR0 <<  1, P_SR10,
-    Z_RE, e_swSR0 <<  0, P_SR11,
+    Z_RB, b_swSR0 << 11, P_SR00,
+    Z_RB, b_swSR0 << 10, P_SR01,
+    Z_RB, b_swSR0 <<  9, P_SR02,
+    Z_RB, b_swSR0 <<  8, P_SR03,
+    Z_RB, b_swSR0 <<  7, P_SR04,
+    Z_RB, b_swSR0 <<  6, P_SR05,
+    Z_RB, b_swSR0 <<  5, P_SR06,
+    Z_RB, b_swSR0 <<  4, P_SR07,
+    Z_RB, b_swSR0 <<  3, P_SR08,
+    Z_RB, b_swSR0 <<  2, P_SR09,
+    Z_RB, b_swSR0 <<  1, P_SR10,
+    Z_RB, b_swSR0 <<  0, P_SR11,
 
      0, 0, 0
 };
 
 static uint32_t const forceons[Z_N] = {
-    0, a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
-    0, 0, d_i_DMAADDR | d_i_DMADATA };
+    0, a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
+    0, 0, d_i_DMAADDR | d_i_DMADATA, e_simit | e_nanocontin | e_nanotrigger };
 
 
 
@@ -169,7 +169,7 @@ void Z8LLib::openpads ()
 
     // put everything in power-on-reset state
     for (int i = 0; i < Z_N; i ++) {
-        pdpat[i] = ((i == Z_RA) ? a_softreset : 0) | forceons[i];
+        pdpat[i] = ((i == Z_RE) ? e_softreset : 0) | forceons[i];
     }
 
     // enable extended memory io instruction processing
@@ -216,8 +216,6 @@ void Z8LLib::writepads (uint16_t const *pads)
             z8ls[zi] |= zm;
         }
     }
-
-    z8ls[Z_RA] |= pdpat[Z_RA] & a_nanocycle;
 
     for (int i = 0; i < Z_N; i ++) {
         pdpat[i] = z8ls[i];

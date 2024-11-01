@@ -40,11 +40,11 @@ int main ()
 
     uint32_t volatile *pdpat = z8lpage.findev ("8L", NULL, NULL, true);
     if (pdpat == NULL) ABORT ();
-    pdpat[Z_RA] = a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RA] = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = 0;
     pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
-    pdpat[Z_RE] = 0;
+    pdpat[Z_RE] = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
     pdpat[Z_RH] = 0;
@@ -58,7 +58,7 @@ int main ()
 
     uint32_t volatile *extmemptr = z8lpage.extmem ();
 
-    pdpat[Z_RA] = a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RE] = e_simit;
 
     for (int j = 0; j < 4096; j ++) {
 

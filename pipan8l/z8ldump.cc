@@ -20,8 +20,7 @@
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 
-//  ./z8ldump.armv7l [-nano]
-//    -nano - press enter to do one fpga cycle at a time
+//  ./z8ldump.armv7l
 
 #include <stdint.h>
 #include <stdio.h>
@@ -60,21 +59,6 @@ static char const *const timestatenames[32] =
 
 int main (int argc, char **argv)
 {
-    bool rawflag = false;
-    bool nanocycle = false;
-    for (int i = 0; ++ i < argc;) {
-        if (strcasecmp (argv[i], "-nano") == 0) {
-            nanocycle = true;
-            continue;
-        }
-        if (strcasecmp (argv[i], "-raw") == 0) {
-            rawflag = true;
-            continue;
-        }
-        fprintf (stderr, "unknown argument %s\n", argv[i]);
-        return 1;
-    }
-
     Z8LPage z8p;
     uint32_t volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
     uint32_t ver = zynqpage[Z_VER];
@@ -83,11 +67,6 @@ int main (int argc, char **argv)
         fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
         ABORT ();
     }
-
-    // make sure nanostep (the clocking pulse) is clear
-    // set nanocycle (enables clocking via nanostep) only if -nano option given
-    uint32_t rega = zynqpage[Z_RA];
-    zynqpage[Z_RA] = (rega & ~ a_nanocycle & ~ a_nanostep) | (nanocycle ? a_nanocycle : 0);
 
     while (true) {
         usleep (1000);
@@ -99,144 +78,118 @@ int main (int argc, char **argv)
 
         printf (ESC_HOMEC);
 
-        if (rawflag) {
-            for (int i = 0; i < 1024; i += 16) {
-                printf ("%03X:", i);
-                for (int j = 0; j < 16; j ++) {
-                    printf (" %08X", zynqpage[i+j]);
+        printf ("VERSION=%08X", z8ls[Z_VER]);
+        printf ("  iBEMA=%o", FIELD (Z_RA, a_iBEMA));
+        printf ("  iCA_INCREMENT=%o", FIELD (Z_RA, a_iCA_INCREMENT));
+        printf ("  iDATA_IN=%o", FIELD (Z_RA, a_iDATA_IN));
+        printf ("  iMEMINCR=%o", FIELD (Z_RA, a_iMEMINCR));
+        printf ("  iMEM_P=%o", FIELD (Z_RA, a_iMEM_P));
+        printf ("  iTHREECYCLE=%o", FIELD (Z_RA, a_iTHREECYCLE));
+        printf ("  i_AC_CLEAR=%o", FIELD (Z_RA, a_i_AC_CLEAR));
+        printf ("  i_BRK_RQST=%o", FIELD (Z_RA, a_i_BRK_RQST));
+        printf ("  i_EA=%o", FIELD (Z_RA, a_i_EA));
+        printf ("  i_EMA=%o", FIELD (Z_RA, a_i_EMA));
+        printf ("  i_INT_INHIBIT=%o", FIELD (Z_RA, a_i_INT_INHIBIT));
+        printf ("  i_INT_RQST=%o", FIELD (Z_RA, a_i_INT_RQST));
+        printf ("  i_IO_SKIP=%o", FIELD (Z_RA, a_i_IO_SKIP));
+        printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
+        printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
+
+        printf ("  swCONT=%o", FIELD (Z_RB, b_swCONT));
+        printf ("  swDEP=%o", FIELD (Z_RB, b_swDEP));
+        printf ("  swDFLD=%o", FIELD (Z_RB, b_swDFLD));
+        printf ("  swEXAM=%o", FIELD (Z_RB, b_swEXAM));
+        printf ("  swIFLD=%o", FIELD (Z_RB, b_swIFLD));
+        printf ("  swLDAD=%o", FIELD (Z_RB, b_swLDAD));
+        printf ("  swMPRT=%o", FIELD (Z_RB, b_swMPRT));
+        printf ("  swSTEP=%o", FIELD (Z_RB, b_swSTEP));
+        printf ("  swSTOP=%o", FIELD (Z_RB, b_swSTOP));
+        printf ("  swSTART=%o", FIELD (Z_RB, b_swSTART));
+        printf ("  swSR=%04o", FIELD (Z_RB, b_swSR));
+
+        printf ("  iINPUTBUS=%04o", FIELD (Z_RC, c_iINPUTBUS));
+        printf ("  iMEM=%04o", FIELD (Z_RC, c_iMEM));
+        printf ("  i_DMAADDR=%04o", FIELD (Z_RD, d_i_DMAADDR));
+        printf ("  i_DMADATA=%04o", FIELD (Z_RD, d_i_DMADATA));
+
+        printf ("  simit=%o", FIELD (Z_RE, e_simit));
+        printf ("  softreset=%o", FIELD (Z_RE, e_softreset));
+        printf ("  nanocontin=%o", FIELD (Z_RE, e_nanocontin));
+        printf ("  nanotrigger=%o", FIELD (Z_RE, e_nanotrigger));
+        printf ("  nanocstep=%o", FIELD (Z_RE, e_nanocstep));
+        printf ("  brkwhenhltd=%o", FIELD (Z_RE, e_brkwhenhltd));
+
+        printf ("  oBIOP1=%o", FIELD (Z_RF, f_oBIOP1));
+        printf ("  oBIOP2=%o", FIELD (Z_RF, f_oBIOP2));
+        printf ("  oBIOP4=%o", FIELD (Z_RF, f_oBIOP4));
+        printf ("  oBTP2=%o", FIELD (Z_RF, f_oBTP2));
+        printf ("  oBTP3=%o", FIELD (Z_RF, f_oBTP3));
+        printf ("  oBTS_1=%o", FIELD (Z_RF, f_oBTS_1));
+        printf ("  oBTS_3=%o", FIELD (Z_RF, f_oBTS_3));
+        printf ("  oBWC_OVERFLOW=%o", FIELD (Z_RF, f_oBWC_OVERFLOW));
+        printf ("  oB_BREAK=%o", FIELD (Z_RF, f_oB_BREAK));
+        printf ("  oE_SET_F_SET=%o", FIELD (Z_RF, f_oE_SET_F_SET));
+        printf ("  oJMP_JMS=%o", FIELD (Z_RF, f_oJMP_JMS));
+        printf ("  oLINE_LOW=%o", FIELD (Z_RF, f_oLINE_LOW));
+        printf ("  oMEMSTART=%o", FIELD (Z_RF, f_oMEMSTART));
+        printf ("  o_ADDR_ACCEPT=%o", FIELD (Z_RF, f_o_ADDR_ACCEPT));
+        printf ("  o_BF_ENABLE=%o", FIELD (Z_RF, f_o_BF_ENABLE));
+        printf ("  o_BUSINIT=%o", FIELD (Z_RF, f_o_BUSINIT));
+        printf ("  o_B_RUN=%o", FIELD (Z_RF, f_o_B_RUN));
+        printf ("  o_DF_ENABLE=%o", FIELD (Z_RF, f_o_DF_ENABLE));
+        printf ("  o_KEY_CLEAR=%o", FIELD (Z_RF, f_o_KEY_CLEAR));
+        printf ("  o_KEY_DF=%o", FIELD (Z_RF, f_o_KEY_DF));
+        printf ("  o_KEY_IF=%o", FIELD (Z_RF, f_o_KEY_IF));
+        printf ("  o_KEY_LOAD=%o", FIELD (Z_RF, f_o_KEY_LOAD));
+        printf ("  o_LOAD_SF=%o", FIELD (Z_RF, f_o_LOAD_SF));
+        printf ("  o_SP_CYC_NEXT=%o", FIELD (Z_RF, f_o_SP_CYC_NEXT));
+
+        printf ("  lbBRK=%o", FIELD (Z_RG, g_lbBRK));
+        printf ("  lbCA=%o", FIELD (Z_RG, g_lbCA));
+        printf ("  lbDEF=%o", FIELD (Z_RG, g_lbDEF));
+        printf ("  lbEA=%o", FIELD (Z_RG, g_lbEA));
+        printf ("  lbEXE=%o", FIELD (Z_RG, g_lbEXE));
+        printf ("  lbFET=%o", FIELD (Z_RG, g_lbFET));
+        printf ("  lbION=%o", FIELD (Z_RG, g_lbION));
+        printf ("  lbLINK=%o", FIELD (Z_RG, g_lbLINK));
+        printf ("  lbRUN=%o", FIELD (Z_RG, g_lbRUN));
+        printf ("  lbWC=%o", FIELD (Z_RG, g_lbWC));
+        printf ("  lbIR=%o", FIELD (Z_RG, g_lbIR));
+        printf ("  debounced=%o", FIELD (Z_RG, (1U << 10)));
+        printf ("  lastswLDAD=%o", FIELD (Z_RG, (1U << 11)));
+        printf ("  lastswSTART=%o", FIELD (Z_RG, (1U << 12)));
+
+        printf ("  oBAC=%04o", FIELD (Z_RH, h_oBAC));
+        printf ("  oBMB=%04o", FIELD (Z_RH, h_oBMB));
+        printf ("  oMA=%04o", FIELD (Z_RI, i_oMA));
+        printf ("  lbAC=%04o", FIELD (Z_RI, i_lbAC));
+        printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
+        printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
+
+        printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
+        printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
+        printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
+        printf ("  cyclectr=%04u" EOL, FIELD (Z_RK, k_cyclectr));
+
+        for (int i = 0; i < 1024;) {
+            uint32_t idver = z8ls[i];
+            if (((idver >> 24) == 'X') && (((idver >> 16) & 255) == 'M')) {
+                printf (EOL "VERSION=%08X XM  enlo4k=%o  enable=%o  ifld=%o  dfld=%o  field=%o  memdelay=%3u  _mwdone=%o  _mrdone=%o" EOL,
+                    idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
+                    FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
+            } else {
+                if ((idver & 0xF000U) == 0x1000U) {
+                    printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
                 }
-                printf (EOL);
-            }
-        } else {
-
-            printf ("VERSION=%08X", z8ls[Z_VER]);
-            printf ("  iBEMA=%o", FIELD (Z_RA, a_iBEMA));
-            printf ("  iCA_INCREMENT=%o", FIELD (Z_RA, a_iCA_INCREMENT));
-            printf ("  iDATA_IN=%o", FIELD (Z_RA, a_iDATA_IN));
-            printf ("  iMEMINCR=%o", FIELD (Z_RA, a_iMEMINCR));
-            printf ("  iMEM_P=%o", FIELD (Z_RA, a_iMEM_P));
-            printf ("  iTHREECYCLE=%o", FIELD (Z_RA, a_iTHREECYCLE));
-            printf ("  i_AC_CLEAR=%o", FIELD (Z_RA, a_i_AC_CLEAR));
-            printf ("  i_BRK_RQST=%o", FIELD (Z_RA, a_i_BRK_RQST));
-            printf ("  i_EA=%o", FIELD (Z_RA, a_i_EA));
-            printf ("  i_EMA=%o", FIELD (Z_RA, a_i_EMA));
-            printf ("  i_INT_INHIBIT=%o", FIELD (Z_RA, a_i_INT_INHIBIT));
-            printf ("  i_INT_RQST=%o", FIELD (Z_RA, a_i_INT_RQST));
-            printf ("  i_IO_SKIP=%o", FIELD (Z_RA, a_i_IO_SKIP));
-            printf ("  i_MEMDONE=%o", FIELD (Z_RA, a_i_MEMDONE));
-            printf ("  i_STROBE=%o", FIELD (Z_RA, a_i_STROBE));
-            printf ("  brkwhenhltd=%o", FIELD (Z_RA, a_brkwhenhltd));
-            printf ("  simit=%o", FIELD (Z_RA, a_simit));
-            printf ("  softreset=%o", FIELD (Z_RA, a_softreset));
-            printf ("  nanostep=%o", FIELD (Z_RA, a_nanostep));
-            printf ("  nanocycle=%o", FIELD (Z_RA, a_nanocycle));
-
-            printf ("  swCONT=%o", FIELD (Z_RB, b_swCONT));
-            printf ("  swDEP=%o", FIELD (Z_RB, b_swDEP));
-            printf ("  swDFLD=%o", FIELD (Z_RB, b_swDFLD));
-            printf ("  swEXAM=%o", FIELD (Z_RB, b_swEXAM));
-            printf ("  swIFLD=%o", FIELD (Z_RB, b_swIFLD));
-            printf ("  swLDAD=%o", FIELD (Z_RB, b_swLDAD));
-            printf ("  swMPRT=%o", FIELD (Z_RB, b_swMPRT));
-            printf ("  swSTEP=%o", FIELD (Z_RB, b_swSTEP));
-            printf ("  swSTOP=%o", FIELD (Z_RB, b_swSTOP));
-            printf ("  swSTART=%o", FIELD (Z_RB, b_swSTART));
-
-            printf ("  iINPUTBUS=%04o", FIELD (Z_RC, c_iINPUTBUS));
-            printf ("  iMEM=%04o", FIELD (Z_RC, c_iMEM));
-            printf ("  i_DMAADDR=%04o", FIELD (Z_RD, d_i_DMAADDR));
-            printf ("  i_DMADATA=%04o", FIELD (Z_RD, d_i_DMADATA));
-            printf ("  swSR=%04o", FIELD (Z_RE, e_swSR));
-
-            printf ("  oBIOP1=%o", FIELD (Z_RF, f_oBIOP1));
-            printf ("  oBIOP2=%o", FIELD (Z_RF, f_oBIOP2));
-            printf ("  oBIOP4=%o", FIELD (Z_RF, f_oBIOP4));
-            printf ("  oBTP2=%o", FIELD (Z_RF, f_oBTP2));
-            printf ("  oBTP3=%o", FIELD (Z_RF, f_oBTP3));
-            printf ("  oBTS_1=%o", FIELD (Z_RF, f_oBTS_1));
-            printf ("  oBTS_3=%o", FIELD (Z_RF, f_oBTS_3));
-            printf ("  oBWC_OVERFLOW=%o", FIELD (Z_RF, f_oBWC_OVERFLOW));
-            printf ("  oB_BREAK=%o", FIELD (Z_RF, f_oB_BREAK));
-            printf ("  oE_SET_F_SET=%o", FIELD (Z_RF, f_oE_SET_F_SET));
-            printf ("  oJMP_JMS=%o", FIELD (Z_RF, f_oJMP_JMS));
-            printf ("  oLINE_LOW=%o", FIELD (Z_RF, f_oLINE_LOW));
-            printf ("  oMEMSTART=%o", FIELD (Z_RF, f_oMEMSTART));
-            printf ("  o_ADDR_ACCEPT=%o", FIELD (Z_RF, f_o_ADDR_ACCEPT));
-            printf ("  o_BF_ENABLE=%o", FIELD (Z_RF, f_o_BF_ENABLE));
-            printf ("  o_BUSINIT=%o", FIELD (Z_RF, f_o_BUSINIT));
-            printf ("  o_B_RUN=%o", FIELD (Z_RF, f_o_B_RUN));
-            printf ("  o_DF_ENABLE=%o", FIELD (Z_RF, f_o_DF_ENABLE));
-            printf ("  o_KEY_CLEAR=%o", FIELD (Z_RF, f_o_KEY_CLEAR));
-            printf ("  o_KEY_DF=%o", FIELD (Z_RF, f_o_KEY_DF));
-            printf ("  o_KEY_IF=%o", FIELD (Z_RF, f_o_KEY_IF));
-            printf ("  o_KEY_LOAD=%o", FIELD (Z_RF, f_o_KEY_LOAD));
-            printf ("  o_LOAD_SF=%o", FIELD (Z_RF, f_o_LOAD_SF));
-            printf ("  o_SP_CYC_NEXT=%o", FIELD (Z_RF, f_o_SP_CYC_NEXT));
-
-            printf ("  lbBRK=%o", FIELD (Z_RG, g_lbBRK));
-            printf ("  lbCA=%o", FIELD (Z_RG, g_lbCA));
-            printf ("  lbDEF=%o", FIELD (Z_RG, g_lbDEF));
-            printf ("  lbEA=%o", FIELD (Z_RG, g_lbEA));
-            printf ("  lbEXE=%o", FIELD (Z_RG, g_lbEXE));
-            printf ("  lbFET=%o", FIELD (Z_RG, g_lbFET));
-            printf ("  lbION=%o", FIELD (Z_RG, g_lbION));
-            printf ("  lbLINK=%o", FIELD (Z_RG, g_lbLINK));
-            printf ("  lbRUN=%o", FIELD (Z_RG, g_lbRUN));
-            printf ("  lbWC=%o", FIELD (Z_RG, g_lbWC));
-            printf ("  lbIR=%o", FIELD (Z_RG, g_lbIR));
-            printf ("  debounced=%o", FIELD (Z_RG, (1U << 10)));
-            printf ("  lastswLDAD=%o", FIELD (Z_RG, (1U << 11)));
-            printf ("  lastswSTART=%o", FIELD (Z_RG, (1U << 12)));
-
-            printf ("  oBAC=%04o", FIELD (Z_RH, h_oBAC));
-            printf ("  oBMB=%04o", FIELD (Z_RH, h_oBMB));
-            printf ("  oMA=%04o", FIELD (Z_RI, i_oMA));
-            printf ("  lbAC=%04o", FIELD (Z_RI, i_lbAC));
-            printf ("  lbMA=%04o", FIELD (Z_RJ, j_lbMA));
-            printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
-
-            printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
-            printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
-            printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
-            printf ("  cyclectr=%04u" EOL, FIELD (Z_RK, k_cyclectr));
-
-            for (int i = 0; i < 1024;) {
-                uint32_t idver = z8ls[i];
-                if (((idver >> 24) == 'X') && (((idver >> 16) & 255) == 'M')) {
-                    printf (EOL "VERSION=%08X XM  enlo4k=%o  enable=%o  ifld=%o  dfld=%o  field=%o  memdelay=%3u  _mwdone=%o  _mrdone=%o" EOL,
-                        idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
-                        FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
-                } else {
-                    if ((idver & 0xF000U) == 0x1000U) {
-                        printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
-                    }
-                    if ((idver & 0xF000U) == 0x2000U) {
-                        printf (EOL "VERSION=%08X %c%c %08X %08X %08X %08X %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16,
-                            z8ls[i+1], z8ls[i+2], z8ls[i+3], z8ls[i+4], z8ls[i+5], z8ls[i+6], z8ls[i+7]);
-                    }
+                if ((idver & 0xF000U) == 0x2000U) {
+                    printf (EOL "VERSION=%08X %c%c %08X %08X %08X %08X %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16,
+                        z8ls[i+1], z8ls[i+2], z8ls[i+3], z8ls[i+4], z8ls[i+5], z8ls[i+6], z8ls[i+7]);
                 }
-                i += 2 << ((idver >> 12) & 15);
             }
+            i += 2 << ((idver >> 12) & 15);
         }
 
         printf (EOP);
-
-        if (nanocycle) {
-            char temp[8];
-            printf ("\n > ");
-            fflush (stdout);
-            if (fgets (temp, sizeof temp, stdin) == NULL) break;
-            uint32_t startcount = zynqpage[Z_RK] & k_cyclectr;
-            zynqpage[Z_RA] &= ~ a_nanostep;
-            zynqpage[Z_RA] |=   a_nanostep;
-            for (int i = 0; (zynqpage[Z_RK] & k_cyclectr) == startcount; i ++) {
-                if (i > 1000) {
-                    fprintf (stderr, "timed out waiting for cycle count increment\n");
-                    break;
-                }
-            }
-            zynqpage[Z_RA] &= ~ a_nanostep;
-        }
     }
     printf ("\n");
     return 0;

@@ -79,17 +79,18 @@ int main (int argc, char **argv)
 
     // select simulator and reset it
     uint32_t ra = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT |
-        a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE | a_simit | a_softreset;
-    if (manualclock) ra |= a_nanocycle;
-    if (brkwhenhltd) ra |= a_brkwhenhltd;
-    pdpat[Z_RA]  = ra;
-    pdpat[Z_RB]  = 0;
-    pdpat[Z_RC]  = 0;
-    pdpat[Z_RD]  = d_i_DMAADDR | d_i_DMADATA;
-    pdpat[Z_RE]  = 0;
+        a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RA] = ra;
+    pdpat[Z_RB] = 0;
+    pdpat[Z_RC] = 0;
+    pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
+    uint32_t re = e_simit;
+    if (! manualclock) re |= e_nanocontin;
+    if (brkwhenhltd) re |= e_brkwhenhltd;
+    pdpat[Z_RE] = re | e_softreset;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
-    pdpat[Z_RA] &= ~ a_softreset;
+    pdpat[Z_RE] = re;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
 
@@ -194,11 +195,10 @@ halted:;
 // do LOAD ADDRESS with zero in switch register
 static void ldad (uint16_t addr)
 {
-    pdpat[Z_RE] = addr * e_swSR0;
-    pdpat[Z_RB] = b_swLDAD;
+    pdpat[Z_RB] = addr * b_swSR0 | b_swLDAD;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (200000);
-    pdpat[Z_RB] = 0;
+    pdpat[Z_RB] = addr * b_swSR0;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
 }
@@ -206,11 +206,10 @@ static void ldad (uint16_t addr)
 // do DEPOSIT with 5000 in switch register (JMP 0)
 static void depos (uint16_t data)
 {
-    pdpat[Z_RE] = data * e_swSR0;
-    pdpat[Z_RB] = b_swDEP;
+    pdpat[Z_RB] = data * b_swSR0 | b_swDEP;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (200000);
-    pdpat[Z_RB] = 0;
+    pdpat[Z_RB] = data * b_swSR0;
     for (int i = 0; i < 1000; i ++) clockit ();
     usleep (1000);
 }
@@ -219,7 +218,6 @@ static void depos (uint16_t data)
 static void clockit ()
 {
     if (manualclock) {
-        pdpat[Z_RA] |=   a_nanostep;
-        pdpat[Z_RA] &= ~ a_nanostep;
+        pdpat[Z_RE] |= e_nanotrigger;
     }
 }

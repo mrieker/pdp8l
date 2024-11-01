@@ -53,12 +53,6 @@
 #define a_i_IO_SKIP     (1U << 12)
 #define a_i_MEMDONE     (1U << 13)
 #define a_i_STROBE      (1U << 14)
-#define a_brkwhenhltd   (1U << 26)
-#define a_simit         (1U << 27)
-//                      (1U << 28)
-#define a_softreset     (1U << 29)
-#define a_nanostep      (1U << 30)
-#define a_nanocycle     (1U << 31)
 
 #define b_swCONT        (1U <<  0)
 #define b_swDEP         (1U <<  1)
@@ -70,12 +64,19 @@
 #define b_swSTEP        (1U <<  7)
 #define b_swSTOP        (1U <<  8)
 #define b_swSTART       (1U <<  9)
+#define b_swSR      (07777U << 20)
 
 #define c_iINPUTBUS (07777U <<  0)
 #define c_iMEM      (07777U << 16)
 #define d_i_DMAADDR (07777U <<  0)
 #define d_i_DMADATA (07777U << 16)
-#define e_swSR      (07777U <<  0)
+
+#define e_simit         (1U <<  0)  //rw 0=real PDP-8/L; 1=pdp8lsim.v
+#define e_softreset     (1U <<  1)  //rw 0=normal; 1=power-on-reset (sim only)
+#define e_nanocontin    (1U <<  2)  //rw 0=single step mode (sim only); 1=normal continuous running
+#define e_nanotrigger   (1U <<  3)  //rw 0=ignored; 1=trigger single step (sim only)
+#define e_nanocstep     (1U <<  4)  //ro 0=stopped; 1=stepping
+#define e_brkwhenhltd   (1U <<  5)  //rw 0=ignore brk when halted; 1=process brk when halted (sim only)
 
 #define f_oBIOP1        (1U <<  0)
 #define f_oBIOP2        (1U <<  1)
@@ -131,11 +132,11 @@
 #define k_cyclectr  (01777U << 14)
 #define l_breakdata (07777U <<  0)
 
+#define b_swSR0      (b_swSR      & - b_swSR)
 #define c_iINPUTBUS0 (c_iINPUTBUS & - c_iINPUTBUS)
 #define c_iMEM0      (c_iMEM      & - c_iMEM)
 #define d_i_DMAADDR0 (d_i_DMAADDR & - d_i_DMAADDR)
 #define d_i_DMADATA0 (d_i_DMADATA & - d_i_DMADATA)
-#define e_swSR0      (e_swSR      & - e_swSR)
 #define g_lbIR0      (g_lbIR      & - g_lbIR)
 #define h_oBAC0      (h_oBAC      & - h_oBAC)
 #define h_oBMB0      (h_oBMB      & - h_oBMB)

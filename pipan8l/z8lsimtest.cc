@@ -76,7 +76,7 @@ static uint16_t acum;
 static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
-static uint32_t zrawrite, zrcwrite, zrdwrite;
+static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
 static uint32_t volatile *extmemptr;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *cmemat;
@@ -150,11 +150,11 @@ int main (int argc, char **argv)
     extmemptr = z8p.extmem ();
 
     // select simulator with manual clocking and reset the pdp8lsim.v processor
-    pdpat[Z_RA] = zrawrite = a_nanocycle | a_softreset | a_simit | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RA] = zrawrite = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = zrcwrite = 0;
     pdpat[Z_RD] = zrdwrite = d_i_DMAADDR | d_i_DMADATA;
-    pdpat[Z_RE] = 0;
+    pdpat[Z_RE] = zrewrite = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
     pdpat[Z_RH] = 0;
@@ -166,7 +166,7 @@ int main (int argc, char **argv)
     for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
-    pdpat[Z_RA] = zrawrite &= ~ a_softreset;
+    pdpat[Z_RE] = zrewrite = e_simit;
     for (int i = 0; i < 5; i ++) clockit ();
 
     // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
@@ -297,7 +297,7 @@ int main (int argc, char **argv)
                 // set random switch register contents if about to do an OSR instruction
                 if (((opcode & 07401) == 07400) && (opcode & 0004)) {
                     randsr = xrandbits (12);
-                    pdpat[Z_RE] = randsr * e_swSR0;
+                    pdpat[Z_RB] = randsr * b_swSR0;
                 }
 
                 // perform fetch memory cycle
@@ -564,17 +564,14 @@ int main (int argc, char **argv)
 //   data = data to send processor for the corresponding read
 static void doldad (uint16_t addr, uint16_t data)
 {
-    // put address in switch register
-    pdpat[Z_RE] = addr * e_swSR0;
-
-    // press load address switch
-    pdpat[Z_RB] |= b_swLDAD;
+    // put address in switch register and press load address switch
+    pdpat[Z_RB] = addr * b_swSR0 | b_swLDAD;
 
     // clock some cycles to arm the debounce circuit
     debounce ();
 
-    // release load address switch
-    pdpat[Z_RB] &= ~ b_swLDAD;
+    // release load address switch, leave address there
+    pdpat[Z_RB] = addr * b_swSR0;
 
     // it should now do a memory cycle, reading and writing that same data
     memorycycle (0, xmem_ifld, addr, data, data);
@@ -743,15 +740,14 @@ static void debounce ()
 // gate through one fpga clock cycle
 static void clockit ()
 {
-    pdpat[Z_RA] = zrawrite | a_nanostep;
-    pdpat[Z_RA] = zrawrite;
+    pdpat[Z_RE] = zrewrite | e_nanotrigger;
     clockno ++;
 
 #if 000
     uint32_t timestate = FIELD (Z_RK, k_timestate);
     printf ("clockit*: %9u _ea=%o timestate=%s timedelay=%u memstart=%u iMEM=%04o _iSTROBE=%u oBMB=%04o _iMEMDONE=%u\n",
         clockno,
-        FIELD(Z_RA,a_i_EA), timestatenames[timestate], FIELD(Z_RK,k_timedelay), FIELD(Z_RF,f_oMEMSTART), 
+        FIELD(Z_RA,a_i_EA), timestatenames[timestate], FIELD(Z_RK,k_timedelay), FIELD(Z_RF,f_oMEMSTART),
         FIELD(Z_RC,c_iMEM), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RH,h_oBMB), FIELD(Z_RA,a_i_MEMDONE));
     if (clockno == 2130) {
         printf ("clockit*: AIEE\n");
