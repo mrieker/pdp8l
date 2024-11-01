@@ -22,7 +22,7 @@
 
 // arm registers:
 //  [0] = ident='XM',sizecode=1,version
-//  [1] = <enable> <enlo4K> 0 <busy> <12-bit-data> <write> <15-bit-addr>
+//  [1] = <enable> <enlo4K> 000000000000000000000000000000
 //    enable = 0 : ignore io instructions, ie, be a dumb 4K system
 //             1 : handle io instructions
 //    enlo4K = 0 : PDP-8/L core stack will be used for low 4K addresses
@@ -70,13 +70,11 @@ module pdp8lxmem (
     ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
 );
 
-    reg busyonpdp, ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
+    reg ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
     reg iopstretch, lastintack, lastnanostep;
-    reg[14:00] ctladdr, xaddr;
-    reg[11:00] ctldata;
+    reg[14:00] xaddr;
     reg[7:0] memdelay;
-    reg[2:0] busyonarm, dfld, ifld, ifldafterjump, saveddfld, savedifld;
-    wire ctlbusy = busyonarm != 0;
+    reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] numcycles;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
@@ -85,10 +83,10 @@ module pdp8lxmem (
                         (jmpjms & exefet) ? ifldafterjump :
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D100F :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4K, 1'b0, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, busyonarm, busyonpdp, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
-                      { numcycles, lastintack, 23'b0 };//// : 32'hDEADBEEF;
+    assign armrdata = (armraddr == 0) ? 32'h584D1010 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4K, 30'b0 } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
+                      { numcycles, lastintack, 23'b0 };
 
     assign _ea = ~ (ctllo4K | (field != 0));
     assign _intinh = ~ intdisableduntiljump;
@@ -98,8 +96,6 @@ module pdp8lxmem (
             if (RESET) begin
                 // these get cleared on power up
                 // they remain as is when start switch is pressed
-                busyonarm     <= 0;
-                busyonpdp     <= 0;
                 ctlenab       <= 0;
                 ctllo4K       <= 0;
                 dfld          <= 0;
@@ -126,18 +122,10 @@ module pdp8lxmem (
         else if (armwrite) begin
             case (armwaddr)
 
-                // arm processor is wanting to access the memory
+                // arm processor is wanting to write the registers
                 1: begin
-                    if (busyonarm == 0) begin               // make sure we own ctl... regs
-                        ctlenab  <= armwdata[31];           // save overall enabled flag
-                        ctllo4K  <= armwdata[30];           // save low 4K enabled flag
-                        ctlwrite <= armwdata[15];           // see if this is a write access
-                        ctladdr  <= armwdata[14:00];        // save address to be accessed
-                        if (armwdata[15]) begin
-                            ctldata <= armwdata[27:16];
-                        end
-                        busyonarm <= 1;                     // pass ownership of ctl... to code below
-                    end
+                    ctlenab  <= armwdata[31];           // save overall enabled flag
+                    ctllo4K  <= armwdata[30];           // save low 4K enabled flag
                 end
             endcase
         end else if (iopstart) begin
@@ -220,51 +208,23 @@ module pdp8lxmem (
                 devtocpu <= 0;
             end
 
-            // maybe we have an arm request to process
-            if ((busyonarm != 0) & (busyonpdp == 0)) begin
-                case (busyonarm)
-                    1: begin
-                        xbraddr <= ctladdr;
-                        xbrenab <= 1;
-                        xbrwena <= ctlwrite;
-                        xbrwdat <= ctldata;
-                        busyonarm <= busyonarm + 1;
-                    end
-                    6: begin
-                        if (~ ctlwrite) begin
-                            ctldata <= xbrrdat;
-                        end
-                        xbrenab <= 0;
-                        xbrwena <= 0;
-                        busyonarm <= 0;
-                    end
-                    default: begin
-                        busyonarm <= busyonarm + 1;
-                    end
-                endcase
-            end
-
             // see if pdp is requesting a memory cycle
-            else case (memdelay)
+            case (memdelay)
                 0: begin end
 
                 // 150nS, start reading block memory
                 15: begin
-                    if (busyonarm == 0) begin
-                        busyonpdp <= 1;
-                        xbraddr   <= xaddr;
-                        xbrenab   <= 1;
-                        xbrwena   <= 0;
-                        memdelay  <= memdelay + 1;
-                    end
+                    xbraddr  <= xaddr;
+                    xbrenab  <= 1;
+                    xbrwena  <= 0;
+                    memdelay <= memdelay + 1;
                 end
 
                 // 200nS, send read data to cpu
                 20: begin
-                    busyonpdp <= 0;
-                    memrdat   <= xbrrdat;
-                    xbrenab   <= 0;
-                    memdelay  <= memdelay + 1;
+                    memrdat  <= xbrrdat;
+                    xbrenab  <= 0;
+                    memdelay <= memdelay + 1;
                 end
 
                 // 500nS, send strobe pulse for 100nS
@@ -281,23 +241,19 @@ module pdp8lxmem (
 
                 // 700nS, clock in write data, start writing to memory
                 70: begin
-                    if (busyonarm == 0) begin
-                        busyonpdp <= 1;
-                        xbraddr   <= xaddr;
-                        xbrwdat   <= memwdat;
-                        xbrenab   <= 1;
-                        xbrwena   <= 1;
-                        memdelay  <= memdelay + 1;
-                    end
+                    xbraddr  <= xaddr;
+                    xbrwdat  <= memwdat;
+                    xbrenab  <= 1;
+                    xbrwena  <= 1;
+                    memdelay <= memdelay + 1;
                 end
 
                 // 750nS, stop writing, turn on memdone pulse for 100nS
                 75: begin
-                    busyonpdp <= 0;
-                    xbrenab   <= 0;
-                    xbrwena   <= 0;
-                    memdelay  <= memdelay + 1;
-                    _mwdone   <= 0;
+                    xbrenab  <= 0;
+                    xbrwena  <= 0;
+                    memdelay <= memdelay + 1;
+                    _mwdone  <= 0;
                 end
 
                 // 850nS, all done, shut off memdone pulse
