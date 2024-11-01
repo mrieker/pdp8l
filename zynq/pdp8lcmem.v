@@ -41,7 +41,7 @@
 //    (rw) addr = address of memory word to access
 
 module pdp8lcmem (
-    input CLOCK, RESET,
+    input CLOCK, CSTEP, RESET,
 
     input armwrite,
     input[1:0] armraddr, armwaddr,
@@ -65,7 +65,7 @@ module pdp8lcmem (
     reg ctlenab;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1006 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D1007 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { 27'b0, brkts3, _brkdone, busyonarm } :
                       32'hDEADBEEF;
@@ -99,7 +99,7 @@ module pdp8lcmem (
         end
 
         // maybe we have dma cycle to process
-        else case (busyonarm)
+        else if (CSTEP) case (busyonarm)
 
             // delay asserting brkrqst for 20nS after outputting other control lines
             1: begin

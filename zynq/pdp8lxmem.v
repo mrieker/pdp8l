@@ -30,7 +30,7 @@
 //                 ...regardless of the enable bit setting
 
 module pdp8lxmem (
-    input CLOCK, RESET, BINIT,
+    input CLOCK, CSTEP, RESET, BINIT,
 
     input armwrite,
     input[1:0] armraddr, armwaddr,
@@ -64,14 +64,10 @@ module pdp8lxmem (
     input[11:00] xbrrdat,           // ... read data bus
     output reg xbrenab,             // ... chip enable
     output reg xbrwena              // ... write enable
-
-    // debug
-    ,input nanocycle    // 0=normal; 1=use nanostep for clocking
-    ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
 );
 
     reg ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
-    reg iopstretch, lastintack, lastnanostep;
+    reg iopstretch, lastintack;
     reg[14:00] xaddr;
     reg[7:0] memdelay;
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
@@ -83,7 +79,7 @@ module pdp8lxmem (
                         (jmpjms & exefet) ? ifldafterjump :
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1010 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1011 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 30'b0 } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
                       { numcycles, lastintack, 23'b0 };
@@ -101,7 +97,6 @@ module pdp8lxmem (
                 dfld          <= 0;
                 ifld          <= 0;
                 ifldafterjump <= 0;
-                lastnanostep  <= 0;
                 memdelay      <= 0;
                 _mrdone       <= 1;
                 _mwdone       <= 1;
@@ -128,13 +123,7 @@ module pdp8lxmem (
                     ctllo4K  <= armwdata[30];           // save low 4K enabled flag
                 end
             endcase
-        end else if (iopstart) begin
-            // iopstart lasts only 1 fpga clock cycle and not at same time as armwrite
-            // but maybe we miss it because of nanostep so stretch it
-            // the iop signals from processor last dozens of fpga/nanostep cycles
-            iopstretch <= ctlenab;
-        end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
-            lastnanostep <= 1;
+        end else if (CSTEP) begin
             numcycles <= numcycles + 1;
 
             // maybe we have load address switch to process
@@ -147,39 +136,35 @@ module pdp8lxmem (
             end
 
             // maybe there is an io instruction to process
-            else if (iopstretch) begin
-                iopstretch <= 0;
-
-                if (ioopcode[11:06] == 6'o62) begin
-                    // see mc8l memory extension, p6
-                    case (ioopcode[02:00])
-                        0,1,2,3: begin
-                            if (ioopcode[00]) dfld <= ioopcode[05:03];
-                            if (ioopcode[01]) begin
-                                ifldafterjump <= ioopcode[05:03];
-                                intdisableduntiljump <= 1;
+            // see mc8l memory extension, p6
+            else if (iopstart & (ioopcode[11:06] == 6'o62)) begin
+                case (ioopcode[02:00])
+                    0,1,2,3: begin
+                        if (ioopcode[00]) dfld <= ioopcode[05:03];
+                        if (ioopcode[01]) begin
+                            ifldafterjump <= ioopcode[05:03];
+                            intdisableduntiljump <= 1;
+                        end
+                    end
+                    4: begin
+                        case (ioopcode[05:03])
+                            1: begin    // 6214 RDF
+                                devtocpu[05:03] <= dfld;
                             end
-                        end
-                        4: begin
-                            case (ioopcode[05:03])
-                                1: begin    // 6214 RDF
-                                    devtocpu[05:03] <= dfld;
-                                end
-                                2: begin    // 6224 RIF
-                                    devtocpu[05:03] <= ifld;
-                                end
-                                3: begin    // 6234 RIB
-                                    devtocpu[05:03] <= savedifld;
-                                    devtocpu[02:00] <= saveddfld;
-                                end
-                                4: begin    // 6244 RMF
-                                    dfld <= saveddfld;
-                                    ifldafterjump <= savedifld;
-                                end
-                            endcase
-                        end
-                    endcase
-                end
+                            2: begin    // 6224 RIF
+                                devtocpu[05:03] <= ifld;
+                            end
+                            3: begin    // 6234 RIB
+                                devtocpu[05:03] <= savedifld;
+                                devtocpu[02:00] <= saveddfld;
+                            end
+                            4: begin    // 6244 RMF
+                                dfld <= saveddfld;
+                                ifldafterjump <= savedifld;
+                            end
+                        endcase
+                    end
+                endcase
             end
 
             // process interrupt acknowledge
@@ -271,9 +256,6 @@ module pdp8lxmem (
             // process each intack cycle only once
             // ie, don't process another one until this one is finished
             if (_intack) lastintack <= 0;
-        end
-        if (nanocycle & ~ nanostep) begin
-            lastnanostep <= 0;
         end
     end
 endmodule

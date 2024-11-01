@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Fri Nov  1 07:42:31 2024
+--Date        : Fri Nov  1 14:22:14 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper

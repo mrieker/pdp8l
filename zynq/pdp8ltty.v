@@ -28,7 +28,7 @@
 
 module pdp8ltty
     #(parameter[8:3] KBDEV=6'o03) (
-    input CLOCK, RESET, BINIT,
+    input CLOCK, CSTEP, RESET, BINIT,
 
     input armwrite,
     input[1:0] armraddr, armwaddr,
@@ -52,7 +52,7 @@ module pdp8ltty
     reg enable, intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541006 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541007 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, enable, 18'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 23'b0, intenab, 2'b0, KBDEV };
@@ -83,7 +83,7 @@ module pdp8ltty
                 //         and sets prfull = 0 indicating prchar is empty
                 2: begin prflag <= armwdata[31]; prfull <= armwdata[30]; end
             endcase
-        end else begin
+        end else if (CSTEP) begin
 
             // process the IOP only on the leading edge
             // ...but leave output signals to PDP-8/L in place until given the all clear

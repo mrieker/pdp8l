@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4041;
+    localparam VERSION = 32'h384C4043;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -287,8 +287,7 @@ module Zynq (
     wire[11:00] oMA;                     // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
 
     reg simit;
-    wire lastnanostep;
-    reg nanocycle, nanostep, softreset, brkwhenhltd;
+    reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
     wire iopstart, iopstop;
     wire firstiop1, firstiop2, firstiop4;
     wire acclr, intrq, ioskp;
@@ -429,10 +428,10 @@ module Zynq (
             saxi_WREADY  <= 0;                             // we are not ready to accept write data
             saxi_BVALID  <= 0;                             // we are not acknowledging any write
 
-            nanocycle <= 1;                               // by default, software provides clock
-            nanostep  <= 0;                               // by default, software clock is low
-            softreset <= 1;                               // by default, software reset asserted
-            brkwhenhltd <= 0;                             // by default, don't do breaks (dma) while halted (sim only)
+            simit       <= 0;
+            softreset   <= 0;
+            nanocontin  <= 0;
+            brkwhenhltd <= 0;
         end else begin
 
             /////////////////////
@@ -442,13 +441,13 @@ module Zynq (
             // check for PS sending us a read address
             if (saxi_ARREADY & saxi_ARVALID) begin
                 readaddr <= saxi_ARADDR[11:02];             // save address bits we care about
-                saxi_ARREADY <= 0;                         // we are no longer accepting a read address
-                saxi_RVALID <= 1;                          // we are sending out the corresponding data
+                saxi_ARREADY <= 0;                          // we are no longer accepting a read address
+                saxi_RVALID <= 1;                           // we are sending out the corresponding data
 
             // check for PS acknowledging receipt of data
             end else if (saxi_RVALID & saxi_RREADY) begin
-                saxi_ARREADY <= 1;                         // we are ready to accept an address again
-                saxi_RVALID <= 0;                          // we are no longer sending out data
+                saxi_ARREADY <= 1;                          // we are ready to accept an address again
+                saxi_RVALID <= 0;                           // we are no longer sending out data
             end
 
             //////////////////////
@@ -456,7 +455,7 @@ module Zynq (
             //////////////////////
 
             // check for PS sending us write data
-            if (saxi_WREADY & saxi_WVALID) begin
+            if (armwrite) begin
                 case (writeaddr)                            // write data to register
                      10'b0000000001: begin
                         arm_iBEMA         <= saxi_WDATA[00];
@@ -474,12 +473,8 @@ module Zynq (
                         arm_i_IO_SKIP     <= saxi_WDATA[12];
                         arm_i_MEMDONE     <= saxi_WDATA[13];
                         arm_i_STROBE      <= saxi_WDATA[14];
-                        brkwhenhltd       <= saxi_WDATA[26];
-                        simit             <= saxi_WDATA[27];
-                        softreset         <= saxi_WDATA[29];
-                        nanostep          <= saxi_WDATA[30];
-                        nanocycle         <= saxi_WDATA[31];
                     end
+
                     10'b0000000010: begin
                         arm_swCONT        <= saxi_WDATA[00];
                         arm_swDEP         <= saxi_WDATA[01];
@@ -491,20 +486,24 @@ module Zynq (
                         arm_swSTEP        <= saxi_WDATA[07];
                         arm_swSTOP        <= saxi_WDATA[08];
                         arm_swSTART       <= saxi_WDATA[09];
+                        arm_swSR          <= saxi_WDATA[31:20];
                     end
 
                     10'b0000000011: begin
-                        arm_iINPUTBUS <= saxi_WDATA[11:00];
-                        arm_iMEM      <= saxi_WDATA[27:16];
+                        arm_iINPUTBUS     <= saxi_WDATA[11:00];
+                        arm_iMEM          <= saxi_WDATA[27:16];
                     end
 
                     10'b0000000100: begin
-                        arm_i_DMAADDR <= saxi_WDATA[11:00];
-                        arm_i_DMADATA <= saxi_WDATA[27:16];
+                        arm_i_DMAADDR     <= saxi_WDATA[11:00];
+                        arm_i_DMADATA     <= saxi_WDATA[27:16];
                     end
 
                     10'b0000000101: begin
-                        arm_swSR      <= saxi_WDATA[11:00];
+                        simit             <= saxi_WDATA[00];
+                        softreset         <= saxi_WDATA[01];
+                        nanocontin        <= saxi_WDATA[02];
+                        brkwhenhltd       <= saxi_WDATA[05];
                     end
                 endcase
                 saxi_AWREADY <= 1;                           // we are ready to accept an address again
@@ -677,12 +676,6 @@ module Zynq (
     assign regctla[13] = dev_i_MEMDONE;
     assign regctla[14] = dev_i_STROBE;
     assign regctla[25:15] = 0;
-    assign regctla[26] = brkwhenhltd;
-    assign regctla[27] = simit;
-    assign regctla[28] = 0;
-    assign regctla[29] = softreset;
-    assign regctla[30] = nanostep;
-    assign regctla[31] = nanocycle;
 
     assign regctlb[00] = arm_swCONT;
     assign regctlb[01] = arm_swDEP;
@@ -694,14 +687,21 @@ module Zynq (
     assign regctlb[07] = arm_swSTEP;
     assign regctlb[08] = arm_swSTOP;
     assign regctlb[09] = arm_swSTART;
-    assign regctlb[31:10] = 0;
+    assign regctlb[19:10] = 0;
+    assign regctlb[31:20] = arm_swSR;
 
     assign regctlc[15:00] = { 4'b0, dev_iINPUTBUS };
     assign regctlc[31:16] = { 4'b0, dev_iMEM      };
     assign regctld[15:00] = { 4'b0, dev_i_DMAADDR };
     assign regctld[31:16] = { 4'b0, dev_i_DMADATA };
-    assign regctle[15:00] = { 4'b0, arm_swSR      };
-    assign regctle[31:16] = 0;
+
+    assign regctle[00] = simit;
+    assign regctle[01] = softreset;
+    assign regctle[02] = nanocontin;
+    assign regctle[03] = nanotrigger;
+    assign regctle[04] = nanocstep;
+    assign regctle[05] = brkwhenhltd;
+    assign regctle[31:06] = 0;
 
     assign regctlf[00] = dev_oBIOP1;
     assign regctlf[01] = dev_oBIOP2;
@@ -761,12 +761,33 @@ module Zynq (
     wire pwronreset = softreset | ~ RESET_N;    // some arm program is resetting or zynq is powering up
                                                 // - resets devices and they disconnect themselves from pio bus
 
-    assign LEDoutR = ~ pwronreset;
-    assign LEDoutG = 1;
-    assign LEDoutB = ~ nanocycle;
+    // when nanocontin is set to 1 by the arm,
+    //   this continuously shifts 1s into nanotrigger and nanoctep and everything runs normally
+    // when nanocontin is set to 0 by the arm,
+    //   it continuously shifts 0s into nanotrigger and nanocstep and everything stops
+    //   but then when a 1 is written to nanotrigger by the arm,
+    //     it shifts a 1 into nanocstep for 1 cycle and so everyting steps exactly one cycle
+    //     then it resumes shifting 0s into nanotrigger and nanocstep so everything stops
+    //     thus cstep lasts for a single cycle separate from an arm write
+    always @(posedge CLOCK) begin
+        if (~ RESET_N) begin
+            nanotrigger <= 0;
+            nanocstep   <= 0;
+        end else begin
+            // we can shift nanotrigger only when it is not being written by the arm
+            nanotrigger <= (armwrite & (writeaddr == 10'b0000000101)) ? saxi_WDATA[03] : nanocontin;
+            // nanocstep is read-only to the arm so can always be shifted other than reset
+            nanocstep   <= nanotrigger;
+        end
+    end
+
+    assign LEDoutR = simit;
+    assign LEDoutG = dev_o_B_RUN;
+    assign LEDoutB = 1;
 
     pdp8lsim siminst (
         .CLOCK         (CLOCK),
+        .CSTEP         (nanocstep),
         .RESET         (pwronreset),
         .iBEMA         (sim_iBEMA),
         .iCA_INCREMENT (sim_iCA_INCREMENT),
@@ -847,9 +868,6 @@ module Zynq (
         .debounced     (debounced),
         .lastswLDAD    (lastswLDAD),
         .lastswSTART   (lastswSTART),
-        .nanocycle     (nanocycle),
-        .nanostep      (nanostep),
-        .lastnanostep  (lastnanostep),
         .brkwhenhltd   (brkwhenhltd)
     );
 
@@ -863,7 +881,7 @@ module Zynq (
                                                         // device does not disconnect itself from piobus
 
     // generate iopstart pulse for an io instruction followed by iopstop
-    //  iopstart is pulsed 130nS after the first iop for an instruction and lasts a single fpga clock cycle
+    //  iopstart is pulsed 130nS after the first iop for an instruction and lasts a single CSTEP clock cycle
     //   it is delayed if armwrite is happening at the same time
     //   interfaces know they can decode the io opcode in dev_oBMB and drive the busses
     //  iopstop is turned on 70nS after the end of that same iop and lasts dozens or more cycles
@@ -873,8 +891,10 @@ module Zynq (
     // interfaces are assumed to have this form:
     //   if pwronreset do pwronreset processing
     //   else if armwrite do armwrite processing    // must take priority over iopstart cuz it lasts only 1 cycle
-    //   else if iopstart do iopstart processing    // single cycle delayed if same time as armwrite
-    //   else if iopstop do iopstop processing      // lasts for dozens of cycles
+    //   else if (CSTEP) begin
+    //     if iopstart do iopstart processing       // single cycle delayed if same time as armwrite
+    //     else if iopstop do iopstop processing    // lasts for dozens of cycles
+    //   end
 
     assign firstiop1 = dev_oBIOP1 & dev_oBMB[0]   ==   1'b1;    // any 110xxxxxxxx1 executes only on IOP1
     assign firstiop2 = dev_oBIOP2 & dev_oBMB[1:0] ==  2'b10;    // any 110xxxxxxx10 executes only on IOP2
@@ -885,20 +905,21 @@ module Zynq (
         if (pwronreset) begin
             iopsetcount <= 0;
             iopclrcount <= 7;
-        end else if (firstiop1 | firstiop2 | firstiop4) begin
-            // somewhere inside the first IOP for an instruction
-            // 130nS into it, blip a iopstart pulse for one fpga clock
-            //   but hold it off if there would be an armwrite at same time
-            iopclrcount <= 0;
-            if ((iopsetcount < 13) | ((iopsetcount == 13) & ~ armwrite) | (iopsetcount == 14)) begin
-                iopsetcount <= iopsetcount + 1;
-            end
-        end else begin
-            // somewhere outside the first IOPn for an instruction
-            // 70nS into it, raise and hold the stop signal until next iopulse
-            iopsetcount <= 0;
-            if (iopclrcount < 7) begin
-                iopclrcount <= iopclrcount + 1;
+        end else if (nanocstep) begin
+            if (firstiop1 | firstiop2 | firstiop4) begin
+                // somewhere inside the first IOP for an instruction
+                // 130nS into it, blip a iopstart pulse for one CSTEP clock
+                iopclrcount <= 0;
+                if ((iopsetcount < 13) | iopstart | (iopsetcount == 14)) begin
+                    iopsetcount <= iopsetcount + 1;
+                end
+            end else begin
+                // somewhere outside the first IOPn for an instruction
+                // 70nS into the void, raise and hold the stop signal until next iopulse (from a subsequent io instruction)
+                iopsetcount <= 0;
+                if (iopclrcount < 7) begin
+                    iopclrcount <= iopclrcount + 1;
+                end
             end
         end
     end
@@ -986,6 +1007,7 @@ module Zynq (
 
     pdp8ltty ttinst (
         .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
         .RESET (pwronreset),
         .BINIT (iobusreset),
 
@@ -1008,6 +1030,7 @@ module Zynq (
 
     pdp8ltty #(.KBDEV (8'o40)) tt40inst (
         .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
         .RESET (pwronreset),
         .BINIT (iobusreset),
 
@@ -1032,6 +1055,7 @@ module Zynq (
 
     pdp8lrk8je rkinst (
         .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
         .RESET (pwronreset),
         .BINIT (iobusreset),
 
@@ -1060,6 +1084,7 @@ module Zynq (
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
         .RESET (pwronreset),
         .BINIT (iobusreset),
 
@@ -1102,10 +1127,7 @@ module Zynq (
         .xbrwdat (xbrwdat),
         .xbrrdat (xbrrdat),
         .xbrenab (xbrenab),
-        .xbrwena (xbrwena),
-
-        .nanostep  (nanostep),
-        .nanocycle (nanocycle)
+        .xbrwena (xbrwena)
     );
 
     // core memory interface
@@ -1116,6 +1138,7 @@ module Zynq (
 
     pdp8lcmem cminst (
         .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
         .RESET (pwronreset),
 
         .armwrite (cmawrite),                   //< arm writing to backside register

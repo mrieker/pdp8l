@@ -21,7 +21,7 @@
 // PDP-8/L-like processor, using the signals on the B,C,D 34,35,36 connectors plus front panel
 
 module pdp8lsim (
-    input CLOCK, RESET,         // fpga 100MHz clock and reset
+    input CLOCK, CSTEP, RESET,  // fpga 100MHz clock and reset
     input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
     input iCA_INCREMENT,        // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
     input iDATA_IN,             // C36-M2,p15 B-2,J11-32,,,
@@ -106,9 +106,6 @@ module pdp8lsim (
     ,output reg lastswSTART
     ,output debounced
 
-    ,input nanocycle    // 0=normal; 1=use nanostep for clocking
-    ,input nanostep     // whenever nanocycle=1, clock on low-to-high transition
-    ,output reg lastnanostep
     ,input brkwhenhltd
 );
 
@@ -280,7 +277,7 @@ module pdp8lsim (
             o_LOAD_SF     <= 1;
 
             cyclectr      <= 0;
-        end else if (~ nanocycle | (~ lastnanostep & nanostep)) begin
+        end else if (CSTEP) begin
             cyclectr      <= cyclectr + 1;
 
             case (timestate)
@@ -709,7 +706,5 @@ module pdp8lsim (
             lastswLDAD  <= swLDAD;
             lastswSTART <= swSTART;
         end
-
-        lastnanostep <= nanostep;
     end
 endmodule
