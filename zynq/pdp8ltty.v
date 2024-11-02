@@ -52,7 +52,7 @@ module pdp8ltty
     reg enable, intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541007 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541008 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, enable, 18'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 23'b0, intenab, 2'b0, KBDEV };
@@ -64,7 +64,7 @@ module pdp8ltty
             if (RESET) begin
                 enable <= 0;
             end
-            intenab <= 0;
+            intenab <= 1;
             kbflag  <= 0;
             prflag  <= 0;
             prfull  <= 0;

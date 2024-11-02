@@ -97,12 +97,12 @@ module extmemmap (
             end
 
             // check for waiting for read to complete
-            else if ((reading > 0) && (reading < 3)) begin
-                reading <= reading + 1;
+            else if (reading == 1) begin
+                reading <= 2;
             end
 
             // check for read complete
-            else if ((reading == 3) & ~ saxi_RVALID) begin
+            else if ((reading == 2) & ~ saxi_RVALID) begin
                 saxi_RVALID <= 1;                           // data on saxi_RDATA is now valid
             end
 
