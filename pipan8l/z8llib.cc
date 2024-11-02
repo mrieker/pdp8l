@@ -31,6 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "disassemble.h"
 #include "padlib.h"
 #include "pindefs.h"
 #include "z8ldefs.h"
@@ -38,6 +39,30 @@
 
 // map Z8L bits to pipan8l bits
 static uint32_t ztop[] = {
+
+        // switches
+    Z_RB, b_swCONT,      P_CONT,
+    Z_RB, b_swDEP,       P_DEP,
+    Z_RB, b_swDFLD,      P_DFLD,
+    Z_RB, b_swEXAM,      P_EXAM,
+    Z_RB, b_swIFLD,      P_IFLD,
+    Z_RB, b_swLDAD,      P_LDAD,
+    Z_RB, b_swMPRT,      P_MPRT,
+    Z_RB, b_swSTEP,      P_STEP,
+    Z_RB, b_swSTOP,      P_STOP,
+    Z_RB, b_swSTART,     P_STRT,
+    Z_RB, b_swSR0 << 11, P_SR00,
+    Z_RB, b_swSR0 << 10, P_SR01,
+    Z_RB, b_swSR0 <<  9, P_SR02,
+    Z_RB, b_swSR0 <<  8, P_SR03,
+    Z_RB, b_swSR0 <<  7, P_SR04,
+    Z_RB, b_swSR0 <<  6, P_SR05,
+    Z_RB, b_swSR0 <<  5, P_SR06,
+    Z_RB, b_swSR0 <<  4, P_SR07,
+    Z_RB, b_swSR0 <<  3, P_SR08,
+    Z_RB, b_swSR0 <<  2, P_SR09,
+    Z_RB, b_swSR0 <<  1, P_SR10,
+    Z_RB, b_swSR0 <<  0, P_SR11,
 
         // light bulbs
     Z_RG, g_lbBRK,       P_BRK,
@@ -90,36 +115,14 @@ static uint32_t ztop[] = {
     Z_RJ, j_lbMB0 <<  1, P_MB10,
     Z_RJ, j_lbMB0 <<  0, P_MB11,
 
-        // switches
-    Z_RB, b_swCONT,      P_CONT,
-    Z_RB, b_swDEP,       P_DEP,
-    Z_RB, b_swDFLD,      P_DFLD,
-    Z_RB, b_swEXAM,      P_EXAM,
-    Z_RB, b_swIFLD,      P_IFLD,
-    Z_RB, b_swLDAD,      P_LDAD,
-    Z_RB, b_swMPRT,      P_MPRT,
-    Z_RB, b_swSTEP,      P_STEP,
-    Z_RB, b_swSTOP,      P_STOP,
-    Z_RB, b_swSTART,     P_STRT,
-    Z_RB, b_swSR0 << 11, P_SR00,
-    Z_RB, b_swSR0 << 10, P_SR01,
-    Z_RB, b_swSR0 <<  9, P_SR02,
-    Z_RB, b_swSR0 <<  8, P_SR03,
-    Z_RB, b_swSR0 <<  7, P_SR04,
-    Z_RB, b_swSR0 <<  6, P_SR05,
-    Z_RB, b_swSR0 <<  5, P_SR06,
-    Z_RB, b_swSR0 <<  4, P_SR07,
-    Z_RB, b_swSR0 <<  3, P_SR08,
-    Z_RB, b_swSR0 <<  2, P_SR09,
-    Z_RB, b_swSR0 <<  1, P_SR10,
-    Z_RB, b_swSR0 <<  0, P_SR11,
-
      0, 0, 0
 };
 
 static uint32_t const forceons[Z_N] = {
     0, a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
     0, 0, d_i_DMAADDR | d_i_DMADATA, e_simit | e_nanocontin | e_nanotrigger };
+
+static char const *const msnames[] = { MS_NAMES };
 
 
 
@@ -129,6 +132,7 @@ Z8LLib::Z8LLib ()
     extmem = NULL;
     pdpat  = NULL;
     xmemat = NULL;
+    tracefile = NULL;
 }
 
 Z8LLib::~Z8LLib ()
@@ -167,17 +171,36 @@ void Z8LLib::openpads ()
     // one 12-bit word in low end of our 32-bit word
     extmem = z8p->extmem ();
 
-    // put everything in power-on-reset state
+    // load initial registers
+    ////pdpat[Z_RE] = e_softreset | forceons[Z_RE];
     for (int i = 0; i < Z_N; i ++) {
-        pdpat[i] = ((i == Z_RE) ? e_softreset : 0) | forceons[i];
+        ////pdpat[i] = ((i == Z_RE) ? e_softreset : 0) | forceons[i];
+        pdpat[i] = forceons[i];
     }
+    ////pdpat[Z_RE] = forceons[Z_RE];
 
     // enable extended memory io instruction processing
     // locate lower 4K memory in extmem block memory so it can be accessed via extmem
     xmemat[1] = XM_ENABLE | XM_ENLO4K;
+
+    // tracing puts manual clocking in separate thread
+    char const *trenv = getenv ("z8llib_trace");
+    if ((trenv != NULL) && (trenv[0] != 0)) {
+        tracefile = fopen (trenv, "w");
+        if (tracefile == NULL) {
+            fprintf (stderr, "Z8LLib::openpads: error creating %s: %m\n", trenv);
+            ABORT ();
+        }
+        fprintf (stderr, "Z8LLib::openpads: tracing to %s\n", trenv);
+        pdpat[Z_RE] &= ~ (e_nanocontin | e_nanotrigger);
+        pthread_t tracetid;
+        int rc = pthread_create (&tracetid, NULL, trthreadwrap, this);
+        if (rc != 0) ABORT ();
+        pthread_detach (tracetid);
+    }
 }
 
-// read pins from zynq pdp8l.v
+// read switches and lightbulbs from zynq pdp8l.v
 void Z8LLib::readpads (uint16_t *pads)
 {
     uint32_t z8ls[Z_N];
@@ -200,24 +223,66 @@ void Z8LLib::readpads (uint16_t *pads)
     }
 }
 
-// write values to zynq pdp8l.v
+// write switches to zynq pdp8l.v
 void Z8LLib::writepads (uint16_t const *pads)
 {
-    uint32_t z8ls[Z_N];
-    memcpy (z8ls, forceons, sizeof z8ls);
-
-    for (int i = 0; ztop[i*3] != 0; i ++) {
+    uint32_t zrb = 0;   // all switches in Z_RB
+    for (int i = 0; ztop[i*3] == Z_RB; i ++) {
         uint32_t pb = ztop[i*3+2];
         uint32_t pi = pb >> 4;
         uint16_t pm = 1U << (pb & 15);
         if (pads[pi] & pm) {
-            uint32_t zi = ztop[i*3+0];
-            uint32_t zm = ztop[i*3+1];
-            z8ls[zi] |= zm;
+            zrb |= ztop[i*3+1];
         }
     }
+    pdpat[Z_RB] = zrb;
+}
 
-    for (int i = 0; i < Z_N; i ++) {
-        pdpat[i] = z8ls[i];
+void *Z8LLib::trthreadwrap (void *zhis)
+{
+    ((Z8LLib *) zhis)->tracethread ();
+    return NULL;
+}
+
+void Z8LLib::tracethread ()
+{
+    setlinebuf (tracefile);
+
+    while (true) {
+
+        // clock until it is in TS1, ie, where it is reading memory
+        while (! (pdpat[Z_RF] & f_oBTS_1)) {
+            pdpat[Z_RE] = e_simit | e_nanotrigger;
+        }
+
+        // clock until it just leaves TS1, ie, has finished reading memory
+        while (pdpat[Z_RF] & f_oBTS_1) {
+            pdpat[Z_RE] = e_simit | e_nanotrigger;
+        }
+
+        // capture what it read and where and why
+        uint16_t ac = (pdpat[Z_RH] & h_oBAC) / h_oBAC0;
+        uint16_t mr = (pdpat[Z_RH] & h_oBMB) / h_oBMB0;
+        uint16_t ma = (pdpat[Z_RI] & i_oMA)  / i_oMA0;
+        uint16_t ms = (pdpat[Z_RK] & k_majstate) / k_majstate0;
+        uint16_t mf = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
+
+        // clock to beginning of TS3 where it starts writing memory
+        while (! (pdpat[Z_RF] & f_oBTS_3)) {
+            pdpat[Z_RE] = e_simit | e_nanotrigger;
+        }
+
+        // capture what it is writing back
+        uint16_t mw = (pdpat[Z_RH] & h_oBMB) / h_oBMB0;
+
+        // write trace record
+        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o  MB=%04o", msnames[ms], ac, mf, ma, mr);
+        if (mw != mr) {
+            fprintf (tracefile, "->%04o", mw);
+        }
+        if (ms == MS_FETCH) {
+            fprintf (tracefile, "  %s", disassemble (mr, ma).c_str ());
+        }
+        fputc ('\n', tracefile);
     }
 }

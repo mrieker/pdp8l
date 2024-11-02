@@ -47,8 +47,7 @@
 #define EOL ESC_EREOL "\n"
 #define EOP ESC_EREOP
 
-static char const *const majstatenames[8] =
-    { "START", "FETCH", "DEFER", "EXEC", "WC", "CA", "BRK", "DEPOS" };
+static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[32] =
     { "IDLE", "TS1INIT", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
         "TP3BEG", "TP3END", "BEGIOP1", "DOIOP1", "BEGIOP2", "DOIOP2", "BEGIOP4", "DOIOP4",

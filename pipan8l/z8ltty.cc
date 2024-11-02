@@ -50,7 +50,7 @@
 static bool findtt (void *param, uint32_t volatile *ttyat)
 {
     uint32_t port = *(uint32_t *) param;
-    return ttyat[Z_TTYPN] == port;
+    return (ttyat[Z_TTYPN] & 077) == port;
 }
 
 int main (int argc, char **argv)

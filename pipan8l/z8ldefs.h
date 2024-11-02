@@ -158,6 +158,8 @@
 #define MS_BRK   6        // memory cycle is for dma data word transfer
 #define MS_DEPOS 7        // memory cycle is for deposit switch
 
+#define MS_NAMES "START","FETCH","DEFER","EXEC","WC","CA","BRK","DEPOS"
+
 #define TS_IDLE     0     // figure out what to do next, does console switch processing if not running
 #define TS_TS1INIT  1
 #define TS_TS1BODY  2     // tell memory to start reading location addressed by MA

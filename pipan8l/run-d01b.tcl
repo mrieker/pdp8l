@@ -1,0 +1,11 @@
+loadbin ../alltapes/maindec-8i-d01b-pb.bin
+puts ""
+puts "  start tty (./z8ltty) on another terminal"
+puts "  to run:"
+puts "    setsw sr 00144"
+puts "    flicksw ldad"
+puts "    setsw sr 07777"
+puts "    flicksw start"
+puts "    dumpit   ;# should show halted at MA=0146 AC=0000"
+puts "    flicksw cont"
+puts "  send a BEL to the tty every second"

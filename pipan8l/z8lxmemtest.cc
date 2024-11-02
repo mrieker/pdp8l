@@ -60,17 +60,18 @@ int main ()
 
     pdpat[Z_RE] = e_simit;
 
+    uint32_t stopat = 16;
     for (int j = 0; j < 4096; j ++) {
 
         // write randome to all locations
-        for (uint32_t xaddr = 0; xaddr < 32768; xaddr ++) {
+        for (uint32_t xaddr = 0; xaddr < stopat; xaddr ++) {
             uint32_t vdata = randbits (12);
             shadow[xaddr] = vdata;
             extmemptr[xaddr] = vdata;
         }
 
         // readback and verify
-        for (uint32_t xaddr = 0; xaddr < 32768; xaddr ++) {
+        for (uint32_t xaddr = 0; xaddr < stopat; xaddr ++) {
             uint16_t vdata = extmemptr[xaddr];
             if (vdata != shadow[xaddr]) {
                 printf ("%05o was %04o expected %04o\n", xaddr, vdata, shadow[xaddr]);
@@ -79,6 +80,7 @@ int main ()
 
         putchar ('*');
         fflush (stdout);
+        stopat = 32768;
     }
     putchar ('\n');
     return 0;

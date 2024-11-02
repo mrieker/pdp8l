@@ -107,10 +107,14 @@ struct Z8LLib : PadLib {
     virtual void writepads (uint16_t const *pads);
 
 private:
+    FILE *tracefile;
     uint32_t volatile *extmem;
     uint32_t volatile *pdpat;
     uint32_t volatile *xmemat;
     Z8LPage *z8p;
+
+    static void *trthreadwrap (void *zhis);
+    void tracethread ();
 };
 
 #endif
