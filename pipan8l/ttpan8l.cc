@@ -18,10 +18,13 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// continuously display what would be on PDP-8/L front panel
+// continuously display what would be on the PDP-8/L front panel
 // reads panel lights and switches from pipan8l via udp
 
-//  ./ttpan8l [<ipaddress-of-pipan8l>]
+// with -z8l, reads lights & switches from pdp8lsim.v simulator running in zynq
+// ...must be run directly on the zynq
+
+//  ./ttpan8l [-z8l | <ipaddress-of-pipan8l>]
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -39,6 +42,8 @@
 #include <unistd.h>
 
 #include "udppkt.h"
+#include "z8ldefs.h"
+#include "z8lutil.h"
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
@@ -74,47 +79,74 @@ static char outbuf[4096];
 
 int main (int argc, char **argv)
 {
-    char const *ipaddr = "127.0.0.1";
-    if (argc == 2) ipaddr = argv[1];
-    else if (argc != 1) {
-        fprintf (stderr, "usage: ttpan8l [<ipaddress-of-pipan8l>]\n");
-        return 1;
+    bool z8lit = false;
+    char const *ipaddr = NULL;
+    for (int i = 0; ++ i < argc;) {
+        if ((ipaddr == NULL) && (strcasecmp (argv[i], "-z8l") == 0)) {
+            z8lit = true;
+            continue;
+        }
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "unknown option %s\n", argv[i]);
+            return 1;
+        }
+        if (z8lit || (ipaddr != NULL)) {
+            fprintf (stderr, "unknown argument %s\n", argv[i]);
+            return 1;
+        }
+        ipaddr = argv[i];
     }
 
+    int udpfd = -1;
     struct sockaddr_in server;
+    uint32_t volatile *z8lat = NULL;
     memset (&server, 0, sizeof server);
-    server.sin_family = AF_INET;
-    server.sin_port   = htons (UDPPORT);
-    if (! inet_aton (ipaddr, &server.sin_addr)) {
-        struct hostent *he = gethostbyname (ipaddr);
-        if (he == NULL) {
-            fprintf (stderr, "bad server ip address %s\n", ipaddr);
+
+    if (z8lit) {
+
+        // running on a zynq with pdp8l code loaded running in simulator mode
+        Z8LPage *z8page = new Z8LPage ();
+        z8lat = z8page->findev ("8L", NULL, NULL, false);
+        if (z8lat == NULL) {
+            fprintf (stderr, "pdp8lsim.v registers not found\n");
             return 1;
         }
-        if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
-            fprintf (stderr, "bad server ip address %s type\n", ipaddr);
+    } else {
+
+        // running on some system to read panel state form pipan8l.cc via udp
+        if (ipaddr == NULL) ipaddr = "127.0.0.1";
+
+        server.sin_family = AF_INET;
+        server.sin_port   = htons (UDPPORT);
+        if (! inet_aton (ipaddr, &server.sin_addr)) {
+            struct hostent *he = gethostbyname (ipaddr);
+            if (he == NULL) {
+                fprintf (stderr, "bad server ip address %s\n", ipaddr);
+                return 1;
+            }
+            if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
+                fprintf (stderr, "bad server ip address %s type\n", ipaddr);
+                return 1;
+            }
+            server.sin_addr = *(struct in_addr *)he->h_addr;
+        }
+
+        udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+        if (udpfd < 0) ABORT ();
+
+        struct sockaddr_in client;
+        memset (&client, 0, sizeof client);
+        client.sin_family = AF_INET;
+        if (bind (udpfd, (sockaddr *) &client, sizeof client) < 0) {
+            fprintf (stderr, "error binding: %m\n");
             return 1;
         }
-        server.sin_addr = *(struct in_addr *)he->h_addr;
+
+        struct timeval timeout;
+        memset (&timeout, 0, sizeof timeout);
+        timeout.tv_usec = 100000;
+        if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
     }
-
-    setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
-
-    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
-    if (udpfd < 0) ABORT ();
-
-    struct sockaddr_in client;
-    memset (&client, 0, sizeof client);
-    client.sin_family = AF_INET;
-    if (bind (udpfd, (sockaddr *) &client, sizeof client) < 0) {
-        fprintf (stderr, "error binding: %m\n");
-        return 1;
-    }
-
-    struct timeval timeout;
-    memset (&timeout, 0, sizeof timeout);
-    timeout.tv_usec = 100000;
-    if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
 
     UDPPkt udppkt;
     memset (&udppkt, 0, sizeof udppkt);
@@ -124,37 +156,78 @@ int main (int argc, char **argv)
     uint64_t lastseq = 0;
     uint64_t seq = 0;
 
+    setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
+
     while (true) {
 
-        // ping the server so it sends something out
-    ping:;
-        udppkt.seq = ++ seq;
-        int rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &server, sizeof server);
-        if (rc != sizeof udppkt) {
-            if (rc < 0) {
-                fprintf (stderr, "error sending udp packet: %m\n");
-            } else {
-                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
-            }
-            return 1;
-        }
+        if (z8lit) {
+            ++ seq;
 
-        // read state from server
-        do {
-            rc = read (udpfd, &udppkt, sizeof udppkt);
+            // get signals from pdp8lsim.v registers
+            uint32_t rb = z8lat[Z_RB];
+            uint32_t rg = z8lat[Z_RG];
+            uint32_t ri = z8lat[Z_RI];
+            uint32_t rj = z8lat[Z_RJ];
+
+            udppkt.sr    = (rb & b_swSR)  / b_swSR0;
+            udppkt.mprt  = (rb & b_swMPRT)  != 0;
+            udppkt.dfld  = (rb & b_swDFLD)  != 0;
+            udppkt.ifld  = (rb & b_swIFLD)  != 0;
+            udppkt.ldad  = (rb & b_swLDAD)  != 0;
+            udppkt.start = (rb & b_swSTART) != 0;
+            udppkt.cont  = (rb & b_swCONT)  != 0;
+            udppkt.stop  = (rb & b_swSTOP)  != 0;
+            udppkt.step  = (rb & b_swSTEP)  != 0;
+            udppkt.exam  = (rb & b_swEXAM)  != 0;
+            udppkt.dep   = (rb & b_swDEP)   != 0;
+
+            udppkt.ir    = ((rg & g_lbIR) / g_lbIR0) << 9;
+            udppkt.ea    = (rg & g_lbEA)    != 0;
+            udppkt.stf   = (rg & g_lbFET)   != 0;
+            udppkt.ste   = (rg & g_lbEXE)   != 0;
+            udppkt.std   = (rg & g_lbDEF)   != 0;
+            udppkt.stwc  = (rg & g_lbWC)    != 0;
+            udppkt.stca  = (rg & g_lbCA)    != 0;
+            udppkt.stb   = (rg & g_lbBRK)   != 0;
+            udppkt.link  = (rg & g_lbLINK)  != 0;
+            udppkt.ion   = (rg & g_lbION)   != 0;
+            udppkt.run   = (rg & g_lbRUN)   != 0;
+
+            udppkt.ac    = (ri & i_lbAC)  / i_lbAC0;
+            udppkt.ma    = (rj & j_lbMA)  / j_lbMA0;
+            udppkt.mb    = (rj & j_lbMB)  / j_lbMB0;
+        } else {
+
+            // ping the server so it sends something out
+        ping:;
+            udppkt.seq = ++ seq;
+            int rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &server, sizeof server);
             if (rc != sizeof udppkt) {
                 if (rc < 0) {
-                    if (errno == EAGAIN) goto ping;
-                    fprintf (stderr, "error receiving udp packet: %m\n");
+                    fprintf (stderr, "error sending udp packet: %m\n");
                 } else {
-                    fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                    fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
                 }
                 return 1;
             }
-        } while (udppkt.seq < seq);
-        if (udppkt.seq > seq) {
-            fprintf (stderr, "bad seq rcvd %llu, sent %llu\n", (long long unsigned) udppkt.seq, (long long unsigned) seq);
-            return 1;
+
+            // read state from server
+            do {
+                rc = read (udpfd, &udppkt, sizeof udppkt);
+                if (rc != sizeof udppkt) {
+                    if (rc < 0) {
+                        if (errno == EAGAIN) goto ping;
+                        fprintf (stderr, "error receiving udp packet: %m\n");
+                    } else {
+                        fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                    }
+                    return 1;
+                }
+            } while (udppkt.seq < seq);
+            if (udppkt.seq > seq) {
+                fprintf (stderr, "bad seq rcvd %llu, sent %llu\n", (long long unsigned) udppkt.seq, (long long unsigned) seq);
+                return 1;
+            }
         }
 
         // measure updates per second

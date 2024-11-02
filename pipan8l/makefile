@@ -36,7 +36,7 @@ mcp23017.$(MACH): mcp23017.$(MACH).o $(LIBS)
 pipan8l.$(MACH): pipan8l.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
 
-ttpan8l.$(MACH): ttpan8l.$(MACH).o
+ttpan8l.$(MACH): ttpan8l.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
 z8lcmemtest.$(MACH): z8lcmemtest.$(MACH).o $(LIBS)
