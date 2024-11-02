@@ -1,4 +1,5 @@
 *~
+*.class
 .Xil
 .nfs*
 pdp8l.cache
