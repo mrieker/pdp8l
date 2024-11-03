@@ -36,6 +36,8 @@
 #define Z_RJ 10
 #define Z_RK 11
 #define Z_RL 12
+#define Z_RM 13     // 0000 xbrwdat 0000 xbrrdat
+#define Z_RN 14     // memcycctr
 #define Z_N 13      // total number of registers
 
 #define a_iBEMA         (1U <<  0)
@@ -126,10 +128,11 @@
 #define j_lbMA      (07777U <<  0)
 #define j_lbMB      (07777U << 16)
 
-#define k_majstate  (    7U <<  0)
-#define k_timedelay (  077U <<  3)
-#define k_timestate (  037U <<  9)
-#define k_cyclectr  (01777U << 14)
+#define k_majstate  (  017U <<  0)
+#define k_timedelay (  077U <<  4)
+#define k_timestate (  037U << 10)
+#define k_cyclectr  (01777U << 15)
+#define k_nextmajst (  017U << 25)
 #define l_breakdata (07777U <<  0)
 
 #define b_swSR0      (b_swSR      & - b_swSR)
@@ -149,37 +152,45 @@
 #define k_timestate0 (k_timestate & - k_timestate)
 #define l_breakdata0 (l_breakdata & - l_breakdata)
 
-#define MS_START 0        // figure out what to do next (also for exam & ldad switches)
-#define MS_FETCH 1        // memory cycle is fetching instruction
-#define MS_DEFER 2        // memory cycle is reading pointer
-#define MS_EXEC  3        // memory cycle is for executing instruction
-#define MS_WC    4        // memory cycle is for incrementing dma word count
-#define MS_CA    5        // memory cycle is for reading dma address
-#define MS_BRK   6        // memory cycle is for dma data word transfer
-#define MS_DEPOS 7        // memory cycle is for deposit switch
+#define MS_HALT   0     // figure out what to do next (also for exam & ldad switches)
+#define MS_FETCH  1     // memory cycle is fetching instruction
+#define MS_DEFER  2     // memory cycle is reading pointer
+#define MS_EXEC   3     // memory cycle is for executing instruction
+#define MS_WC     4     // memory cycle is for incrementing dma word count
+#define MS_CA     5     // memory cycle is for reading dma address
+#define MS_BRK    6     // memory cycle is for dma data word transfer
+#define MS_INTAK  7     // memory cycle is for interrupt acknowledge
+#define MS_DEPOS  8     // memory cycle is for deposit switch
+#define MS_EXAM   9     // memory cycle is for examine switch
+#define MS_BRKWH 10     // memory cycle is for break when halted
 
-#define MS_NAMES "START","FETCH","DEFER","EXEC","WC","CA","BRK","DEPOS"
+#define MS_NAMES "HALT","FETCH","DEFER","EXEC","WC","CA","BRK","INTAK","DEPOS","EXAM","BRKWH","???11","???12","???13","???14","???15"
 
-#define TS_IDLE     0     // figure out what to do next, does console switch processing if not running
-#define TS_TS1INIT  1
-#define TS_TS1BODY  2     // tell memory to start reading location addressed by MA
-#define TS_TP1BEG   3
-#define TS_TP1END   4
-#define TS_TS2BODY  5     // get contents of memory into MB and modify according to majstate S_...
-#define TS_TP2BEG   6
-#define TS_TP2END   7
-#define TS_TS3BODY  8     // write contents of MB back to memory
-#define TS_TP3BEG   9
-#define TS_TP3END  10
-#define TS_BEGIOP1 11
-#define TS_DOIOP1  12     // maybe output IOP1
-#define TS_BEGIOP2 13
-#define TS_DOIOP2  14     // maybe output IOP2
-#define TS_BEGIOP4 15
-#define TS_DOIOP4  16     // maybe output IOP4
-#define TS_TS4BODY 17     // finish up instruction (modify ac, link, pc, etc)
-#define TS_TP4BEG  18
-#define TS_TP4END  19
+#define TS_TSIDLE   0     // figure out what to do next, does console switch processing if not running
+#define TS_TS1BODY  1     // tell memory to start reading location addressed by MA
+#define TS_TP1BEG   2
+#define TS_TP1END   3
+#define TS_TS2BODY  4     // get contents of memory into MB and modify according to majstate S_...
+#define TS_TP2BEG   5
+#define TS_TP2END   6
+#define TS_TS3BODY  7     // write contents of MB back to memory
+#define TS_TP3BEG   8
+#define TS_TP3END   9
+#define TS_BEGIOP1 10
+#define TS_DOIOP1  11     // maybe output IOP1
+#define TS_BEGIOP2 12
+#define TS_DOIOP2  13     // maybe output IOP2
+#define TS_BEGIOP4 14
+#define TS_DOIOP4  15     // maybe output IOP4
+#define TS_TS4BODY 16     // finish up instruction (modify ac, link, pc, etc)
+#define TS_TP4BEG  17
+#define TS_TP4END  18
+
+#define TS_NAMES \
+    "TSIDLE",   "TS1BODY",  "TP1BEG",   "TP1END",   "TS2BODY",  "TP2BEG",   "TP2END",   "TS3BODY",  \
+    "TP3BEG",   "TP3END",   "BEGIOP1",  "DOIOP1",   "BEGIOP2",  "DOIOP2",   "BEGIOP4",  "DOIOP4",   \
+    "TS4BODY",  "TP4BEG",   "TP4END",   "???19",    "???20",    "???21",    "???22",    "???23",    \
+    "???24",    "???25",    "???26",    "???27",    "???28",    "???29",    "???30",    "???31"
 
 // pdp8lcmem.v registers
 #define CM_ADDR  (077777U << 0)

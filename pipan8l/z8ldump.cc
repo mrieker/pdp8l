@@ -166,9 +166,11 @@ int main (int argc, char **argv)
         printf ("  lbMB=%04o", FIELD (Z_RJ, j_lbMB));
 
         printf ("  majstate=%-5s", majstatenames[FIELD(Z_RK,k_majstate)]);
+        printf ("  nextmajst=%-5s", majstatenames[FIELD(Z_RK,k_nextmajst)]);
         printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
-        printf ("  cyclectr=%04u" EOL, FIELD (Z_RK, k_cyclectr));
+        printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
+        printf ("  memcycctr=%010u" EOL, zynqpage[Z_RN]);
 
         for (int i = 0; i < 1024;) {
             uint32_t idver = z8ls[i];

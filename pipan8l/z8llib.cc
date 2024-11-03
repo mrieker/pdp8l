@@ -186,7 +186,7 @@ void Z8LLib::openpads ()
     // tracing puts manual clocking in separate thread
     char const *trenv = getenv ("z8llib_trace");
     if ((trenv != NULL) && (trenv[0] != 0)) {
-        tracefile = fopen (trenv, "w");
+        tracefile = (trenv[0] == '|') ? popen (trenv + 1, "w") : fopen (trenv, "w");
         if (tracefile == NULL) {
             fprintf (stderr, "Z8LLib::openpads: error creating %s: %m\n", trenv);
             ABORT ();
@@ -275,8 +275,13 @@ void Z8LLib::tracethread ()
         // capture what it is writing back
         uint16_t mw = (pdpat[Z_RH] & h_oBMB) / h_oBMB0;
 
+        bool interruptrequest = (pdpat[Z_RA] & a_i_INT_RQST) == 0;
+        bool interruptsenabled = (pdpat[Z_RG] & g_lbION) != 0;          // enabled just after starting fetch of next instruction
+        bool intsinhibduntiljmp = (pdpat[Z_RA] & a_i_INT_INHIBIT) == 0; // cleared at TS1 started
+
         // write trace record
-        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o  MB=%04o", msnames[ms], ac, mf, ma, mr);
+        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o IRQ=%o ION=%o IIUJ=%o  MB=%04o", msnames[ms], ac, mf, ma,
+                interruptrequest, interruptsenabled, intsinhibduntiljmp, mr);
         if (mw != mr) {
             fprintf (tracefile, "->%04o", mw);
         }

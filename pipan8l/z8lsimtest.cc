@@ -37,41 +37,19 @@
 
 #define FIELD(index,mask) ((pdpat[index] & mask) / (mask & - mask))
 
-#define XM_ADDR   (077777U << 0)
-#define XM_WRITE  (1U << 15)
-#define XM_DATA   (07777U << 16)
-#define XM_BUSY   (1U << 28)
-#define XM_ENLO4K (1U << 30)
-#define XM_ENABLE (1U << 31)
-#define XM_ADDR0  (1U << 0)
-#define XM_DATA0  (1U << 16)
-
-#define XM2_SAVEDIFLD (7U <<  8)
-#define XM2_SAVEDDFLD (7U << 11)
-#define XM2_IFLDAFJMP (7U << 14)
-#define XM2_IFLD      (7U << 17)
-#define XM2_DFLD      (7U << 20)
-#define XM2_FIELD     (7U << 27)
-#define XM2_SAVEDIFLD0 (1U <<  8)
-#define XM2_SAVEDDFLD0 (1U << 11)
-#define XM2_IFLDAFJMP0 (1U << 14)
-#define XM2_IFLD0      (1U << 17)
-#define XM2_DFLD0      (1U << 20)
-#define XM2_FIELD0     (1U << 27)
-
 static char const *const majstatenames[] = { MS_NAMES };
-static char const *const timestatenames[32] =
-    { "IDLE", "TS1INIT", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
-        "TP3BEG", "TP3END", "BEGIOP1", "DOIOP1", "BEGIOP2", "DOIOP2", "BEGIOP4", "DOIOP4",
-        "TS4BODY", "TP4BEG", "TP4END", "???20", "???21", "???22", "???23",
-        "???24", "???25", "???26", "???27", "???28", "???29", "???30", "???31" };
+static char const *const timestatenames[] = { TS_NAMES };
 
+static bool brkrequest;
 static bool intdelayed;
 static bool intenabled;
 static bool intrequest;
 static bool linc;
+static bool perclock;
+static bool threecycle;
 static int nseqs;
 static uint16_t acum;
+static uint16_t dmaaddr;
 static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
@@ -173,13 +151,14 @@ int main (int argc, char **argv)
     xmemat[1] = XM_ENABLE | XM_ENLO4K;
     for (int i = 0; i < 5; i ++) clockit ();
 
-    // softreset should clear these registers
-    xmem_dfld = 0;
+    // get initial conditions
+    xmem_ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
+    xmem_dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
     xmem_ifld = 0;
-    xmem_ifldafterjump = false;
+    xmem_ifldafterjump = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
     xmem_intdisableduntiljump = false;
-    xmem_saveddfld = 0;
-    xmem_savedifld = 0;
+    xmem_savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
+    xmem_saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
 
     // set program counter to 01234
     doldad (01234, 07654);
@@ -189,6 +168,7 @@ int main (int argc, char **argv)
     dostart ();
 
     // run random instructions, verifying the cycles
+    bool contforcesfetch = false;
     uint32_t instrno = 0;
     while (true) {
 
@@ -202,22 +182,10 @@ int main (int argc, char **argv)
         uint16_t opcode  = 0;
         uint16_t randsr  = 0;
 
-        // clock to TS_IDLE so we know it is about to check for breaks and interrupt requests
-        for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
-            if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before fetch\n");
-            clockit ();
-        }
-
         // maybe do a dma cycle
-        if ((FIELD (Z_RK, k_majstate) == MS_START) && (xrandbits (8) == 0)) {
+        if (brkrequest && ! contforcesfetch) {
 
-            // have both TS_IDLE and MS_START, raise BRK_RQST and next clock should be in it
-            bool threecycle = xrandbits (1);
-            uint16_t dmaaddr = xrandbits (12);
             printf ("DMA %d-cycle", (threecycle ? 3 : 1));
-            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
-            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
-            clockit ();
             if (threecycle) {
 
                 // WC state reads wordcount from dmaaddr, increments it and writes it back
@@ -260,13 +228,7 @@ int main (int argc, char **argv)
 
             // maybe interrupt request is next
             uint8_t datafield = xmem_ifld;
-            ////printf ("main*: intrequest=%o intenabled=%o xmem_intdisableduntiljump=%o _int_inhibit=%o majstate=%s\n",
-            ////    intrequest, intenabled, xmem_intdisableduntiljump, FIELD (Z_RA, a_i_INT_INHIBIT), majstatenames[FIELD(Z_RK,k_majstate)]);
-            if (intrequest && intenabled && ! xmem_intdisableduntiljump && FIELD (Z_RA, a_i_INT_INHIBIT) && (FIELD (Z_RK, k_majstate) == MS_START)) {
-                for (int i = 0; FIELD (Z_RF, f_o_LOAD_SF); i ++) {
-                    if (i > 10) fatalerr ("timed out waiting for LOAD_SF interrupt acknowledge\n");
-                    clockit ();
-                }
+            if (intrequest && ! xmem_intdisableduntiljump && intenabled && ! contforcesfetch) {
                 printf ("interrupt acknowledge");
 
                 intrequest = false; //TODO: drop request random number of cycles later
@@ -285,12 +247,14 @@ int main (int argc, char **argv)
                 opcode     = 04000;
             } else {
 
+                // we are about to do the fetch after the cont switch
+                contforcesfetch = false;
+
                 // delayed ION active now that we are about to do a fetch
                 intenabled = intdelayed;
 
                 // send random opcode
-                do opcode = xrandbits (12);  // HLT with interrupt barfs
-                while (intrequest && intenabled && (opcode & 07402) == 07402);
+                opcode = xrandbits (12);
                 printf ("OP=%04o  %s", opcode, disassemble (opcode, pctr).c_str ());
 
                 // set random switch register contents if about to do an OSR instruction
@@ -420,21 +384,23 @@ int main (int argc, char **argv)
                                     }
                                 } else if ((opcode & 7) == 4) {
                                     switch ((opcode >> 3) & 7) {
-                                        case 1: {
+                                        case 1: {   // 6214
                                             acbits = xmem_dfld << 3;
                                             break;
                                         }
-                                        case 2: {
+                                        case 2: {   // 6224
                                             acbits = xmem_ifld << 3;
                                             break;
                                         }
-                                        case 3: {
+                                        case 3: {   // 6234
                                             acbits = (xmem_savedifld << 3) | xmem_saveddfld;
                                             break;
                                         }
-                                        case 4: {
+                                        case 4: {   // 6244
+                                            printf (" [ifld=%o dfld=%o]", xmem_savedifld, xmem_saveddfld);
                                             xmem_dfld = xmem_saveddfld;
                                             xmem_ifldafterjump = xmem_savedifld;
+                                            xmem_intdisableduntiljump = true;
                                             break;
                                         }
                                     }
@@ -531,6 +497,7 @@ int main (int argc, char **argv)
                             }
                             printf ("  cont");
                             docont ();
+                            contforcesfetch = true; // cont switch in pdp8lsim.v always does fetch next (no brk, irq, etc)
                         }
                     } else {
                         printf (" ignored");
@@ -539,15 +506,26 @@ int main (int argc, char **argv)
             }
         }
 
-        // step to MS_START state so we know AC,LINK have been updated
-        for (int i = 0; FIELD (Z_RK, k_majstate) != MS_START; i ++) {
-            if (i > 1000) fatalerr ("timed out clocking to MS_START\n");
+        // step to TS_TSIDLE so we know everything has been updated
+        for (int i = 0; FIELD (Z_RK, k_timestate) != TS_TSIDLE; i ++) {
+            if (i > 1000) fatalerr ("timed out clocking to TS_TSIDLE\n");
             clockit ();
         }
 
         // the accumulator and link should be up to date
         verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
         verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
+
+        // saved ifld,dfld should be up to date
+        // but if next cycle is INTAK they should be zero
+        if (FIELD(Z_RK,k_nextmajst) != MS_INTAK) {
+            uint8_t actual_savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
+            uint8_t actual_saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
+            if ((actual_savedifld != xmem_savedifld) || (actual_saveddfld != xmem_saveddfld)) {
+                fatalerr ("saved actual ifld %o, dfld %o, expect ifld %o, dfld %o\n",
+                    actual_savedifld, actual_saveddfld, xmem_savedifld, xmem_saveddfld);
+            }
+        }
 
         // print how many cycles it took (each clock is 10nS)
         uint32_t clocks = clockno - startclockno;
@@ -579,9 +557,9 @@ static void doldad (uint16_t addr, uint16_t data)
 // do a 'start' operation
 static void dostart ()
 {
-    // wait for TS_IDLE so businit doesn't mess up memory cycle
-    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before pressing start switch\n");
+    // wait for TS_TSIDLE so businit doesn't mess up memory cycle
+    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_TSIDLE; i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS_TSIDLE before pressing start switch\n");
         clockit ();
     }
 
@@ -654,9 +632,8 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     extmemptr[xaddr] = rdata;
 
     // clock until we see TS1
-    // give it extra time cuz it could be at end of TS3 for previous cycle
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
-        if (i > 3000) fatalerr ("timed out waiting for TS1 asserted\n");
+        if (i > 1000) fatalerr ("timed out waiting for TS1 asserted\n");
         clockit ();
     }
 
@@ -683,6 +660,29 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // MB should now have the value we wrote to the memory location
     verify12 (Z_RH, h_oBMB, rdata, "MB during read");
 
+    // maybe request dma or interrupt
+    // processor samples it at end of TS3
+    // don't do interrupt if we are about to execute an HLT instruction or it will puque
+#if 000
+    if (! brkrequest) {
+        brkrequest = xrandbits (8) == 0;
+        if (brkrequest) {
+            dmaaddr = randbits (12);
+            threecycle = randbits (2) == 0;
+            printf ("  <<brkrequest=1 threecycle=%o>>  ", threecycle);
+            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
+            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
+        }
+    }
+#endif
+    if (! intrequest && ((state != g_lbFET) || ((rdata & 07402) != 07402))) {
+        intrequest = xrandbits (8) == 0;
+        if (intrequest) {
+            printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
+            pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
+        }
+    }
+
     // wait for it to enter TS3, meanwhile cpu (pdp8lsim.v) should possibly be modifying
     // the value and sending the value (modified or not) back to the memory
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
@@ -705,27 +705,15 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
         printf ("address %05o contained %04o at end of cycle, should be %04o\n", xaddr, vdata, wdata);
         fatalerr ("memory validation error\n");
     }
-
-    ////for (int i = 0; i < 10; i ++) clockit ();
-
-    // maybe start requesting an interrupt
-    // don't do it if we are about to execute an HLT instruction or it will puque
-    if (! intrequest && ((state != g_lbFET) || ((rdata & 07402) != 07402))) {
-        intrequest = xrandbits (10) == 0;
-        if (intrequest) {
-            printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
-            pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
-        }
-    }
 }
 
 // one of the debounceable switches was just pressed
 // wait for debounced signal to be set
 static void debounce ()
 {
-    // wait for TS_IDLE so switch release will be detected
-    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_IDLE; i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS_IDLE before waiting for debounce\n");
+    // wait for TS_TSIDLE so switch release will be detected
+    for (int i = 0; FIELD (Z_RK, k_timestate) != TS_TSIDLE; i ++) {
+        if (i > 1000) fatalerr ("timed out waiting for TS_TSIDLE before waiting for debounce\n");
         clockit ();
     }
 
@@ -742,16 +730,29 @@ static void clockit ()
     pdpat[Z_RE] = zrewrite | e_nanotrigger;
     clockno ++;
 
+    if (perclock) {
+        uint32_t timestate = FIELD (Z_RK, k_timestate);
+        uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
+        uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
+        uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
+
 #if 000
-    uint32_t timestate = FIELD (Z_RK, k_timestate);
-    printf ("clockit*: %9u _ea=%o timestate=%s timedelay=%u memstart=%u iMEM=%04o _iSTROBE=%u oBMB=%04o _iMEMDONE=%u\n",
-        clockno,
-        FIELD(Z_RA,a_i_EA), timestatenames[timestate], FIELD(Z_RK,k_timedelay), FIELD(Z_RF,f_oMEMSTART),
-        FIELD(Z_RC,c_iMEM), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RH,h_oBMB), FIELD(Z_RA,a_i_MEMDONE));
-    if (clockno == 2130) {
-        printf ("clockit*: AIEE\n");
-    }
+        uint8_t savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
+        uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
+
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s ifld=%o dfld=%o ifaj=%o savedifld=%o saveddfld=%o\n",
+            clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
+            majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
+            ifld, dfld, ifaj, savedifld, saveddfld);
 #endif
+#if 111
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intrequest=%o intinhibit=%o intenabled=%o ifld=%o dfld=%o ifaj=%o\n",
+            clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
+            majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
+            ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
+            ifld, dfld, ifaj);
+#endif
+    }
 }
 
 // compute if a Group 2 instruction would skip
