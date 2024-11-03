@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4043;
+    localparam VERSION = 32'h384C4044;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -293,6 +293,8 @@ module Zynq (
     wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
     reg[2:0] iopclrcount;               // count fpga cycles where no IOP is on
+    reg[31:00] memcycctr;
+    reg lastmemstart;
 
     // synchroniSed input wires
     wire q_ADDR_ACCEPT;
@@ -402,6 +404,7 @@ module Zynq (
         (readaddr        == 10'b0000001011) ? regctlk    :
         (readaddr        == 10'b0000001100) ? { 11'b0, xbrenab, 3'b0, xbrwena, 1'b0, xbraddr } :
         (readaddr        == 10'b0000001101) ? { 4'b0, xbrwdat, 4'b0, xbrrdat } :
+        (readaddr        == 10'b0000001110) ? memcycctr  :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:04] ==  8'b00001010)   ? ttardata   :  // 00001010xx00
         (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
@@ -753,6 +756,19 @@ module Zynq (
     assign regctli[31:16] = { 4'b0, sim_lbAC };
     assign regctlj[15:00] = { 4'b0, sim_lbMA };
     assign regctlj[31:16] = { 4'b0, sim_lbMB };
+
+    // count memory cycles
+    always @(posedge CLOCK) begin
+        if (~ RESET_N) begin
+            memcycctr <= 0;
+            lastmemstart <= 0;
+        end else begin
+            if (~ lastmemstart & dev_oMEMSTART) begin
+                memcycctr <= memcycctr + 1;
+            end
+            lastmemstart <= dev_oMEMSTART;
+        end
+    end
 
     ///////////////////////////////////
     //  simulated PDP-8/L processor  //
