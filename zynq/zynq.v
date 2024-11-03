@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4044;
+    localparam VERSION = 32'h384C4047;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -877,17 +877,18 @@ module Zynq (
         .swSR          (arm_swSR),
         .swSTART       (arm_swSTART),
 
-        .majstate      (regctlk[02:00]),
-        .timedelay     (regctlk[08:03]),
-        .timestate     (regctlk[13:09]),
-        .cyclectr      (regctlk[23:14]),
+        .majstate      (regctlk[03:00]),
+        .timedelay     (regctlk[09:04]),
+        .timestate     (regctlk[14:10]),
+        .cyclectr      (regctlk[24:15]),
+        .nextmajst     (regctlk[27:25]),
         .debounced     (debounced),
         .lastswLDAD    (lastswLDAD),
         .lastswSTART   (lastswSTART),
         .brkwhenhltd   (brkwhenhltd)
     );
 
-    assign regctlk[31:29] = 0;
+    assign regctlk[31:28] = 0;
 
     /////////////////////
     //  io interfaces  //
@@ -1131,6 +1132,7 @@ module Zynq (
         .exefet   (dev_oE_SET_F_SET),   // next mem cycle is for fetch or execute
         ._intack  (dev_o_LOAD_SF),      // next mem cycle is ackmowledging interrupt
         .jmpjms   (dev_oJMP_JMS),       // instruction register holds JMP or JMS instruction
+        .tp3      (dev_oBTP3),          // finished writing memory
         ._zf_enab (dev_o_SP_CYC_NEXT),  // special (WC or CA) cycle is next
         ._ea      (xm_ea),              // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
         ._intinh  (xm_intinh),          // block interrupt delivery

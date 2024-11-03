@@ -3032,8 +3032,8 @@
           "blk_mem_gen_0/clkb",
           "axi_interconnect_1/M01_ACLK",
           "system_ila_0/clk",
-          "Zynq_0/CLOCK",
-          "extmemmap_0/CLOCK"
+          "extmemmap_0/CLOCK",
+          "Zynq_0/CLOCK"
         ]
       },
       "processing_system7_0_FCLK_RESET0_N": {
@@ -3043,8 +3043,8 @@
           "axi_interconnect_1/S00_ARESETN",
           "axi_interconnect_1/ARESETN",
           "axi_interconnect_1/M01_ARESETN",
-          "Zynq_0/RESET_N",
-          "extmemmap_0/RESET_N"
+          "extmemmap_0/RESET_N",
+          "Zynq_0/RESET_N"
         ]
       },
       "processing_system7_0_FCLK_RESET0_N1": {

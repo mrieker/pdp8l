@@ -53,7 +53,7 @@ module pdp8lxmem (
     output reg _mwdone,             // pulse to cpu saying data has been written
     input[2:0] brkfld,              // field for dma
 
-    input _bf_enab, _df_enab, exefet, _intack, jmpjms, _zf_enab,
+    input _bf_enab, _df_enab, exefet, _intack, jmpjms, tp3, _zf_enab,
     output _ea, _intinh,
 
     input ldaddrsw,                 // load address switch
@@ -66,9 +66,7 @@ module pdp8lxmem (
     output reg xbrwena              // ... write enable
 );
 
-    reg ctlenab, ctllo4K, ctlwrite, intdisableduntiljump;
-    reg iopstretch, lastintack;
-    reg[14:00] xaddr;
+    reg ctlenab, ctllo4K, ctlwrite, intinhibeduntiljump, lastintack;
     reg[7:0] memdelay;
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] numcycles;
@@ -76,16 +74,15 @@ module pdp8lxmem (
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
                         ~ _bf_enab ? brkfld :           // break field if cpu says so
-                        (jmpjms & exefet) ? ifldafterjump :
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1011 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1013 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 30'b0 } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
                       { numcycles, lastintack, 23'b0 };
 
     assign _ea = ~ (ctllo4K | (field != 0));
-    assign _intinh = ~ intdisableduntiljump;
+    assign _intinh = ~ intinhibeduntiljump;
 
     always @(posedge CLOCK) begin
         if (BINIT) begin
@@ -104,8 +101,7 @@ module pdp8lxmem (
                 xbrwena       <= 0;
             end
             // these get cleared on power up or start switch
-            intdisableduntiljump <= 0;
-            iopstretch <= 0;
+            intinhibeduntiljump <= 0;
             lastintack <= 0;
             numcycles  <= 0;
             saveddfld  <= 0;
@@ -143,7 +139,7 @@ module pdp8lxmem (
                         if (ioopcode[00]) dfld <= ioopcode[05:03];
                         if (ioopcode[01]) begin
                             ifldafterjump <= ioopcode[05:03];
-                            intdisableduntiljump <= 1;
+                            intinhibeduntiljump <= 1;
                         end
                     end
                     4: begin
@@ -161,31 +157,74 @@ module pdp8lxmem (
                             4: begin    // 6244 RMF
                                 dfld <= saveddfld;
                                 ifldafterjump <= savedifld;
+                                intinhibeduntiljump <= 1;
                             end
                         endcase
                     end
                 endcase
             end
 
-            // process interrupt acknowledge
-            else if (~ _intack & ~ lastintack) begin
+            // maybe pdp is requesting a memory cycle on extended memory
+            // includes the lower 4K if our enlo4K bit is set cuz that forces _EA=0
+            else if (memstart & ~ _ea & (memdelay == 0)) begin
+                memdelay <= memdelay + 1;
+            end
+
+            // somewhere in middle of instruction to be followed by jms 0 for an interrupt
+            //  tp3     = blip near end of writing memory (our external block ram, sim's localcore array, or PDP-8/L core stack)
+            //  _intack = next cycle will be the exec of the jms 0 for calling interrupt service routine
+            // the interrupt service routine always starts in field 0
+            // tp3 is timing used by mc8l board
+            else if (tp3 & ~ _intack & ~ lastintack) begin
                 lastintack <= 1;        // only once per low-to-high transition
                 saveddfld  <= dfld;     // save data & instruction fields
-                savedifld  <= ifld;
-                dfld <= 0;              // interrupt routine is in field 0
+                savedifld  <= jmpjms ? ifldafterjump : ifld;
+                dfld <= 0;              // interrupt routine starts in field 0
                 ifld <= 0;
                 ifldafterjump <= 0;
             end
 
-            // maybe pdp is requesting a memory cycle on extended memory
-            // includes the lower 4K if our enlo4K bit is set cuz that forces _EA=0
-            else if (memstart & ~ _ea & (memdelay == 0)) begin
-                xaddr <= { field, memaddr };
-                if (jmpjms & exefet) begin
-                    ifld <= ifldafterjump;
-                    intdisableduntiljump <= 0;
-                end
-                memdelay <= memdelay + 1;
+            // somewhere in middle of jmp/jms, don't inhibit interrupts any more
+            //  tp3    = blip near end of writing memory (our external block ram, sim's localcore array, or PDP-8/L core stack)
+            //  jmpjms = JMP or JMS opcode currently in instruction register
+            //  exefet = EXEC or FETCH state is next
+            //
+            // cases:
+            //  direct JMP:
+            //                      <- here with jmpjms = 0
+            //   jmp fetch:  old IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   next fetch: new IF
+            //
+            //  indirect JMP:
+            //                      <- here with jmpjms = 0
+            //   jmp fetch:  old IF
+            //                      <- here with jmpjms = 1, exefet = 0
+            //   jmp defer:  old IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   next fetch: new IF
+            //
+            //  direct JMS:
+            //                      <- here with jmpjms = 0
+            //   jms fetch:  old IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   jms exec:   new IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   next fetch: new IF
+            //
+            //  indirect JMS:
+            //                      <- here with jmpjms = 0
+            //   jms fetch:  old IF
+            //                      <- here with jmpjms = 1, exefet = 0
+            //   jms defer:  old IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   jms exec:   new IF
+            //                      <- here with jmpjms = 1, exefet = 1
+            //   next fetch: new IF
+            //
+            else if (tp3 & jmpjms & exefet) begin
+                intinhibeduntiljump <= 0;
+                ifld <= ifldafterjump;
             end
 
             // processor no longer sending an IOP, stop sending data over the bus so it doesn't jam other devices
@@ -199,7 +238,7 @@ module pdp8lxmem (
 
                 // 150nS, start reading block memory
                 15: begin
-                    xbraddr  <= xaddr;
+                    xbraddr  <= { field, memaddr };
                     xbrenab  <= 1;
                     xbrwena  <= 0;
                     memdelay <= memdelay + 1;
@@ -226,7 +265,6 @@ module pdp8lxmem (
 
                 // 700nS, clock in write data, start writing to memory
                 70: begin
-                    xbraddr  <= xaddr;
                     xbrwdat  <= memwdat;
                     xbrenab  <= 1;
                     xbrwena  <= 1;

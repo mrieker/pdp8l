@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Sat Nov  2 08:18:02 2024
+--Date        : Sun Nov  3 17:46:37 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -130,9 +130,9 @@ end myboard_wrapper;
 architecture STRUCTURE of myboard_wrapper is
   component myboard is
   port (
-    LEDoutR_0 : out STD_LOGIC;
-    LEDoutG_0 : out STD_LOGIC;
     LEDoutB_0 : out STD_LOGIC;
+    LEDoutG_0 : out STD_LOGIC;
+    LEDoutR_0 : out STD_LOGIC;
     bDMABUSA_0 : inout STD_LOGIC;
     bDMABUSB_0 : inout STD_LOGIC;
     bDMABUSC_0 : inout STD_LOGIC;
@@ -169,6 +169,14 @@ architecture STRUCTURE of myboard_wrapper is
     bPIOBUSL_0 : inout STD_LOGIC;
     bPIOBUSM_0 : inout STD_LOGIC;
     bPIOBUSN_0 : inout STD_LOGIC;
+    iB36V1_0 : out STD_LOGIC;
+    iBEMA_0 : out STD_LOGIC;
+    iCA_INCREMENT_0 : out STD_LOGIC;
+    iD36B2_0 : out STD_LOGIC;
+    iDATA_IN_0 : out STD_LOGIC;
+    iMEMINCR_0 : out STD_LOGIC;
+    iMEM_07_0 : out STD_LOGIC;
+    iTHREECYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
     i_BRK_RQST_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
@@ -179,26 +187,6 @@ architecture STRUCTURE of myboard_wrapper is
     i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
-    iB36V1_0 : out STD_LOGIC;
-    iBEMA_0 : out STD_LOGIC;
-    iCA_INCREMENT_0 : out STD_LOGIC;
-    iD36B2_0 : out STD_LOGIC;
-    iDATA_IN_0 : out STD_LOGIC;
-    iMEM_07_0 : out STD_LOGIC;
-    iMEMINCR_0 : out STD_LOGIC;
-    iTHREECYCLE_0 : out STD_LOGIC;
-    o_ADDR_ACCEPT_0 : in STD_LOGIC;
-    o_B_RUN_0 : in STD_LOGIC;
-    o_BF_ENABLE_0 : in STD_LOGIC;
-    o_BUSINIT_0 : in STD_LOGIC;
-    o_DF_ENABLE_0 : in STD_LOGIC;
-    o_KEY_CLEAR_0 : in STD_LOGIC;
-    o_KEY_DF_0 : in STD_LOGIC;
-    o_KEY_IF_0 : in STD_LOGIC;
-    o_KEY_LOAD_0 : in STD_LOGIC;
-    o_LOAD_SF_0 : in STD_LOGIC;
-    o_SP_CYC_NEXT_0 : in STD_LOGIC;
-    oB_BREAK_0 : in STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
     oBIOP2_0 : in STD_LOGIC;
     oBIOP4_0 : in STD_LOGIC;
@@ -207,12 +195,24 @@ architecture STRUCTURE of myboard_wrapper is
     oBTS_1_0 : in STD_LOGIC;
     oBTS_3_0 : in STD_LOGIC;
     oBWC_OVERFLOW_0 : in STD_LOGIC;
+    oB_BREAK_0 : in STD_LOGIC;
     oC36B2_0 : in STD_LOGIC;
     oD35B2_0 : in STD_LOGIC;
     oE_SET_F_SET_0 : in STD_LOGIC;
     oJMP_JMS_0 : in STD_LOGIC;
     oLINE_LOW_0 : in STD_LOGIC;
     oMEMSTART_0 : in STD_LOGIC;
+    o_ADDR_ACCEPT_0 : in STD_LOGIC;
+    o_BF_ENABLE_0 : in STD_LOGIC;
+    o_BUSINIT_0 : in STD_LOGIC;
+    o_B_RUN_0 : in STD_LOGIC;
+    o_DF_ENABLE_0 : in STD_LOGIC;
+    o_KEY_CLEAR_0 : in STD_LOGIC;
+    o_KEY_DF_0 : in STD_LOGIC;
+    o_KEY_IF_0 : in STD_LOGIC;
+    o_KEY_LOAD_0 : in STD_LOGIC;
+    o_LOAD_SF_0 : in STD_LOGIC;
+    o_SP_CYC_NEXT_0 : in STD_LOGIC;
     r_BAC_0 : out STD_LOGIC;
     r_BMB_0 : out STD_LOGIC;
     r_MA_0 : out STD_LOGIC;
