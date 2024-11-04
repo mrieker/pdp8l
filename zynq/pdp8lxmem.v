@@ -68,7 +68,7 @@ module pdp8lxmem (
 
     reg ctlenab, ctllo4K, ctlwrite, intinhibeduntiljump, lastintack;
     reg[7:0] memdelay;
-    reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
+    reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
     reg[7:0] numcycles;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
@@ -76,7 +76,7 @@ module pdp8lxmem (
                         ~ _bf_enab ? brkfld :           // break field if cpu says so
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1013 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1014 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4K, 30'b0 } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
                       { numcycles, lastintack, 23'b0 };
@@ -102,10 +102,12 @@ module pdp8lxmem (
             end
             // these get cleared on power up or start switch
             intinhibeduntiljump <= 0;
-            lastintack <= 0;
-            numcycles  <= 0;
-            saveddfld  <= 0;
-            savedifld  <= 0;
+            lastintack   <= 0;
+            numcycles    <= 0;
+            oldsaveddfld <= 0;
+            oldsavedifld <= 0;
+            saveddfld    <= 0;
+            savedifld    <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -133,10 +135,28 @@ module pdp8lxmem (
 
             // maybe there is an io instruction to process
             // see mc8l memory extension, p6
+            // note: if _intack is asserted, the _intack code below that saves ifld,dfld,etc has already executed at tp3 time
+            //       so anything here must take that into account, using the saved values instead of current values
             else if (iopstart & (ioopcode[11:06] == 6'o62)) begin
                 case (ioopcode[02:00])
                     0,1,2,3: begin
-                        if (ioopcode[00]) dfld <= ioopcode[05:03];
+
+                        // check for CDFn instruction
+                        if (ioopcode[00]) begin
+                            // won't be followed by intack, just set the field
+                            if (_intack) begin
+                                dfld <= ioopcode[05:03];
+                            end
+                            // will be followed by intack,
+                            // the dfld register was already saved in saveddfld and dfld was set to 0
+                            // so we must save the new dfld in saveddfld and leave dfld set to 0
+                            else begin
+                                saveddfld <= ioopcode[05:03];
+                            end
+                        end
+
+                        // check for CIFn instruction
+                        // won't be followed by intack cuz it blocks interrupts
                         if (ioopcode[01]) begin
                             ifldafterjump <= ioopcode[05:03];
                             intinhibeduntiljump <= 1;
@@ -145,19 +165,45 @@ module pdp8lxmem (
                     4: begin
                         case (ioopcode[05:03])
                             1: begin    // 6214 RDF
-                                devtocpu[05:03] <= dfld;
+                                devtocpu[05:03] <= _intack ? dfld : saveddfld;
                             end
                             2: begin    // 6224 RIF
-                                devtocpu[05:03] <= ifld;
+                                devtocpu[05:03] <= _intack ? ifld : savedifld;
                             end
                             3: begin    // 6234 RIB
-                                devtocpu[05:03] <= savedifld;
-                                devtocpu[02:00] <= saveddfld;
+                                devtocpu[05:03] <= _intack ? savedifld : oldsavedifld;
+                                devtocpu[02:00] <= _intack ? saveddfld : oldsaveddfld;
                             end
+
                             4: begin    // 6244 RMF
-                                dfld <= saveddfld;
-                                ifldafterjump <= savedifld;
-                                intinhibeduntiljump <= 1;
+
+                                // if no interrupt, do just what book says
+                                if (_intack) begin
+                                    dfld          <= saveddfld;
+                                    ifldafterjump <= savedifld;
+                                end
+
+                                // RMF should never be followed by interrupt but if it is...
+                                //  here's what a programmer should expect:
+                                //   DFLD=2, SAVEDDFLD=3, IFLD=7, SAVEDIFLD=4
+                                //     RMF      sets DFLD=3, IFLDAFTERJUMP=4
+                                //   DFLD=3, SAVEDDFLD=3, IFLD=7, SAVEDIFLD=4, IFLDAFTERJUMP=4
+                                //     INTACK   sets SAVEDDFLD=3, SAVEDIFLD=7, DFLD=IFLD=IFLDJAFTERJUMP=0
+                                //   DFLD=0, SAVEDDFLD=3, IFLD=0, SAVEDIFLD=7, IFLDAFTERJUMP=0
+
+                                //  the intack code below has done (back at TP3 time):
+                                //   OLDSAVEDDFLD=3
+                                //   OLDSAVEDIFLD=4
+                                //   SAVEDDFLD=2
+                                //   SAVEDIFLD=7
+                                //   DFLD=0
+                                //   IFLD=0
+                                //   IFLDAFTERJUMP=0
+                                //  and now we are at IOP4 time to fix things up:
+                                //   SAVEDDFLD=3
+                                else begin
+                                    saveddfld <= oldsaveddfld;
+                                end
                             end
                         endcase
                     end
@@ -177,6 +223,8 @@ module pdp8lxmem (
             // tp3 is timing used by mc8l board
             else if (tp3 & ~ _intack & ~ lastintack) begin
                 lastintack <= 1;        // only once per low-to-high transition
+                oldsaveddfld <= saveddfld;
+                oldsavedifld <= savedifld;
                 saveddfld  <= dfld;     // save data & instruction fields
                 savedifld  <= jmpjms ? ifldafterjump : ifld;
                 dfld <= 0;              // interrupt routine starts in field 0
