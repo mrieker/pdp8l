@@ -266,6 +266,7 @@ module pdp8lsim (
         // and they aren't inhibited via 62x2/62x3 (CIF), next is int ack
         else if (~ i_INT_RQST &                                         // some device is requesting an interrupt
                     intenabled &                                        // 6001 was executed at least one instruction ago
+                    ~ ((ir == 6) & (mbuf[08:00] == 9'o002)) &           // not blocked by current 6002 (IOF) instruction
                     (i_INT_INHIBIT | oJMP_JMS) &                        // not blocked by prior 62x2/62x3 until jump or currently jumping
                     ~ ((ir == 6) & ((mbuf[08:00] & 9'o706) == 9'o202))) begin   // not blocked by 62x2/62x3 currently executing
             hltbrkintfet <= MS_INTAK;
