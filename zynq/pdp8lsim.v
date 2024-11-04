@@ -689,6 +689,8 @@ module pdp8lsim (
                     if (timedelay == 0) begin
                         case (nextmajst)
                             MS_FETCH: madr <= pctr;
+                            MS_WC:    madr <= ~ i_DMAADDR;
+                            MS_BRK:   if (majstate != MS_CA) madr <= ~ i_DMAADDR;
                             MS_INTAK: begin
                                 intdelayed <= 0;
                                 intenabled <= 0;
