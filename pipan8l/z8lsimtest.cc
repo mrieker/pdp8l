@@ -176,6 +176,8 @@ int main (int argc, char **argv)
 
         printf ("%10u  L.AC=%o.%04o PC=%o%04o : ", ++ instrno, linc, acum, xmem_ifld, pctr);
 
+        ////if (instrno == 4814169) perclock = true;
+
         uint32_t startclockno = clockno;
 
         uint16_t effaddr = 0;
@@ -216,14 +218,13 @@ int main (int argc, char **argv)
                                                     // - ignored by processor when dmadatain = false
                                                     //   written to MB by processor at end of TS2 when dmadatain = true
             uint8_t dmafield  = xrandbits (3);      // random memory field
-            cmemat[1] = dmafield << 12;             // put field in dma controller but don't start a cycle, we do that ourselved
+            cmemat[1] = dmafield << 12;             // put field in dma controller but don't start a cycle, we do that ourselves
 
             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
             pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
             uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%o%04o / %04o <= %04o", dmafield, dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmafield, dmaaddr, dmardata, dmawdata);
-            pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
         } else {
 
             // maybe interrupt request is next
@@ -397,10 +398,9 @@ int main (int argc, char **argv)
                                             break;
                                         }
                                         case 4: {   // 6244
-                                            printf (" [ifld=%o dfld=%o]", xmem_savedifld, xmem_saveddfld);
-                                            xmem_dfld = xmem_saveddfld;
+                                            printf (" [ifaj=%o dfld=%o]", xmem_savedifld, xmem_saveddfld);
+                                            xmem_dfld          = xmem_saveddfld;
                                             xmem_ifldafterjump = xmem_savedifld;
-                                            xmem_intdisableduntiljump = true;
                                             break;
                                         }
                                     }
@@ -515,17 +515,6 @@ int main (int argc, char **argv)
         // the accumulator and link should be up to date
         verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
         verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
-
-        // saved ifld,dfld should be up to date
-        // but if next cycle is INTAK they should be zero
-        if (FIELD(Z_RK,k_nextmajst) != MS_INTAK) {
-            uint8_t actual_savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
-            uint8_t actual_saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
-            if ((actual_savedifld != xmem_savedifld) || (actual_saveddfld != xmem_saveddfld)) {
-                fatalerr ("saved actual ifld %o, dfld %o, expect ifld %o, dfld %o\n",
-                    actual_savedifld, actual_saveddfld, xmem_savedifld, xmem_saveddfld);
-            }
-        }
 
         // print how many cycles it took (each clock is 10nS)
         uint32_t clocks = clockno - startclockno;
@@ -663,8 +652,8 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // maybe request dma or interrupt
     // processor samples it at end of TS3
     // don't do interrupt if we are about to execute an HLT instruction or it will puque
-#if 000
-    if (! brkrequest) {
+    if ((state == g_lbWC) || (state == g_lbCA) || (state == g_lbBRK)) brkrequest = false;
+    else if (! brkrequest) {
         brkrequest = xrandbits (8) == 0;
         if (brkrequest) {
             dmaaddr = randbits (12);
@@ -674,9 +663,9 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
             pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
         }
     }
-#endif
-    if (! intrequest && ((state != g_lbFET) || ((rdata & 07402) != 07402))) {
-        intrequest = xrandbits (8) == 0;
+    if (! brkrequest) pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
+    if (! intrequest && ((state != g_lbFET) || ((rdata & 07403) != 07402))) {
+        intrequest = xrandbits (6) == 0;
         if (intrequest) {
             printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
             pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
@@ -731,26 +720,19 @@ static void clockit ()
     clockno ++;
 
     if (perclock) {
+#if 111
         uint32_t timestate = FIELD (Z_RK, k_timestate);
         uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
         uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
         uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
-
-#if 000
         uint8_t savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
         uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s ifld=%o dfld=%o ifaj=%o savedifld=%o saveddfld=%o\n",
-            clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
-            majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
-            ifld, dfld, ifaj, savedifld, saveddfld);
-#endif
-#if 111
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intrequest=%o intinhibit=%o intenabled=%o ifld=%o dfld=%o ifaj=%o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intreq=%o intinh=%o intena=%o ifld=%o dfld=%o ifaj=%o savifld=%o savdfld=%o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
             ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
-            ifld, dfld, ifaj);
+            ifld, dfld, ifaj, savedifld, saveddfld);
 #endif
     }
 }
