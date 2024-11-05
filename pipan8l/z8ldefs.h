@@ -40,6 +40,9 @@
 #define Z_RN 14     // memcycctr
 #define Z_N 13      // total number of registers
 
+#define ZZ_RA (a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE)
+#define ZZ_RD (d_i_DMAADDR | d_i_DMADATA)
+
 #define a_iBEMA         (1U <<  0)
 #define a_iCA_INCREMENT (1U <<  1)
 #define a_iDATA_IN      (1U <<  2)

@@ -19,9 +19,11 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
+// It does not write to the zynq memory pages so does not alter zynq state
 
 //  ./z8ldump.armv7l
 
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,19 +49,22 @@
 #define EOL ESC_EREOL "\n"
 #define EOP ESC_EREOP
 
-static char const *const majstatenames[] = { MS_NAMES };
-static char const *const timestatenames[32] =
-    { "IDLE", "TS1INIT", "TS1BODY", "TP1BEG", "TP1END", "TS2BODY", "TP2BEG", "TP2END", "TS3BODY",
-        "TP3BEG", "TP3END", "BEGIOP1", "DOIOP1", "BEGIOP2", "DOIOP2", "BEGIOP4", "DOIOP4",
-        "TS4BODY", "TP4BEG", "TP4END", "???20", "???21", "???22", "???23",
-        "???24", "???25", "???26", "???27", "???28", "???29", "???30", "???31" };
-
 #define FIELD(index,mask) ((z8ls[index] & mask) / (mask & - mask))
+
+static char const *const majstatenames[] = { MS_NAMES };
+static char const *const timestatenames[] = { TS_NAMES };
+
+static bool volatile exitflag;
+
+static void siginthand (int signum)
+{
+    exitflag = true;
+}
 
 int main (int argc, char **argv)
 {
     Z8LPage z8p;
-    uint32_t volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
+    uint32_t const volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
     uint32_t ver = zynqpage[Z_VER];
     fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
     if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
@@ -67,7 +72,9 @@ int main (int argc, char **argv)
         ABORT ();
     }
 
-    while (true) {
+    signal (SIGINT, siginthand);
+
+    while (! exitflag) {
         usleep (1000);
 
         uint32_t z8ls[1024];
@@ -170,7 +177,7 @@ int main (int argc, char **argv)
         printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
         printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
-        printf ("  memcycctr=%010u" EOL, zynqpage[Z_RN]);
+        printf ("  memcycctr=%010u" EOL, z8ls[Z_RN]);
 
         for (int i = 0; i < 1024;) {
             uint32_t idver = z8ls[i];

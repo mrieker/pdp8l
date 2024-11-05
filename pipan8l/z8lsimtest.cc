@@ -120,6 +120,7 @@ int main (int argc, char **argv)
         ABORT ();
     }
     printf ("CM version %08X\n", cmemat[0]);
+    cmemat[1] = 0;  // disable outputs so it doesn't interfere with arm_i_DMAADDR, arm_i_DMADATA, arm_iDATA_IN
 
     // get pointer to the 32K-word ram
     // maps each 12-bit word into low 12 bits of 32-bit word
@@ -127,10 +128,10 @@ int main (int argc, char **argv)
     extmemptr = z8p.extmem ();
 
     // select simulator with manual clocking and reset the pdp8lsim.v processor
-    pdpat[Z_RA] = zrawrite = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RA] = zrawrite = ZZ_RA;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = zrcwrite = 0;
-    pdpat[Z_RD] = zrdwrite = d_i_DMAADDR | d_i_DMADATA;
+    pdpat[Z_RD] = zrdwrite = ZZ_RD;
     pdpat[Z_RE] = zrewrite = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
