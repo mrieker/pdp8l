@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4049;
+    localparam VERSION = 32'h384C404A;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -881,14 +881,14 @@ module Zynq (
         .timedelay     (regctlk[09:04]),
         .timestate     (regctlk[14:10]),
         .cyclectr      (regctlk[24:15]),
-        .nextmajst     (regctlk[27:25]),
+        .nextmajst     (regctlk[28:25]),
         .debounced     (debounced),
         .lastswLDAD    (lastswLDAD),
         .lastswSTART   (lastswSTART),
         .brkwhenhltd   (brkwhenhltd)
     );
 
-    assign regctlk[31:28] = 0;
+    assign regctlk[31:29] = 0;
 
     /////////////////////
     //  io interfaces  //
@@ -1171,7 +1171,9 @@ module Zynq (
         .brkaddr  (cmbrkaddr),                  //> lower address bits
         .brkwdat  (cmbrkwdat),                  //> data to write to memory
         .brkrdat  (dev_oBMB),                   //< data read from memory
-        .brkts3   (dev_oB_BREAK & dev_oBTS_3),  //< TS3 of break cycle (memory writeback occurring)
+        .brkcycle (dev_oB_BREAK),               //< next mem cycle is for the break
+        .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
+        .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
         ._brkdone (dev_o_ADDR_ACCEPT)           //< cycle complete (TP4 in break cycle)
     );
 

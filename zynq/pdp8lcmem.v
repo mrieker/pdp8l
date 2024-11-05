@@ -54,6 +54,8 @@ module pdp8lcmem (
     output[11:00] brkaddr,
     output[11:00] brkwdat,
     input[11:00] brkrdat,
+    input brkcycle,
+    input brkts1,
     input brkts3,
     input _brkdone
 );
@@ -65,9 +67,9 @@ module pdp8lcmem (
     reg ctlenab;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1007 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D1008 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { 27'b0, brkts3, _brkdone, busyonarm } :
+                      (armraddr == 2) ? { 24'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
                       32'hDEADBEEF;
 
     assign brkema   = ctladdr[14:12];
@@ -101,37 +103,50 @@ module pdp8lcmem (
         // maybe we have dma cycle to process
         else if (CSTEP) case (busyonarm)
 
-            // delay asserting brkrqst for 20nS after outputting other control lines
+            // delay asserting brkrqst for 30nS after outputting other control lines
             1: begin
                 busyonarm <= 2;
             end
+
             2: begin
-                brkrqst   <= 1;
                 busyonarm <= 3;
             end
 
-            // when TS3 for break state starts, we can drop brkrqst
-            // if this is a read request, MB contains the data
             3: begin
+                brkrqst   <= 1;
+                busyonarm <= 4;
+            end
+
+            // wait for TS1 with B_BREAK indicating this cycle is for us
+            4: begin
+                if (brkcycle & brkts1) begin
+                    busyonarm <= 5;
+                    brkrqst   <= 0;
+                end
+            end
+
+            // wait for TS3 to start
+            // if this is a read request, MB contains the data
+            // ...and tell the arm the data is ready
+            5: begin
                 if (brkts3) begin
-                    brkrqst <= 0;
                     if (~ ctlwrite) begin
                         ctldata  <= brkrdat;
                         ctlrdone <= 1;
                     end
-                    busyonarm <= 4;
+                    busyonarm <= 6;
                 end
             end
 
             // wait for ADDR_ACCEPTED asserted (occurs at TP4)
-            4: begin
+            6: begin
                 if (~ _brkdone) begin
-                    busyonarm <= 5;
+                    busyonarm <= 7;
                 end
             end
 
             // wait for ADDR_ACCEPTED negated before accepting another request from arm
-            5: begin
+            7: begin
                 if (_brkdone) begin
                     busyonarm <= 0;
                 end
