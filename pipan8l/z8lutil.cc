@@ -52,8 +52,8 @@ Z8LPage::Z8LPage ()
 
 Z8LPage::~Z8LPage ()
 {
-    munmap (zynqptr, 4096);
-    munmap (extmemptr, 0x20000);
+    if (zynqptr != NULL) munmap (zynqptr, 4096);
+    if (extmemptr != NULL) munmap (extmemptr, 0x20000);
     close (zynqfd);
     zynqpage = NULL;
     zynqptr = NULL;
