@@ -110,7 +110,7 @@ module pdp8lsim (
     ,input brkwhenhltd
 );
 
-    localparam MS_HALT  =  0;       // waiting for console (also used for ldad, exam cycles)
+    localparam MS_HALT  =  0;       // waiting for console
     localparam MS_FETCH =  1;       // memory cycle is fetching instruction
     localparam MS_DEFER =  2;       // memory cycle is reading pointer
     localparam MS_EXEC  =  3;       // memory cycle is for executing instruction
@@ -145,7 +145,7 @@ module pdp8lsim (
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
     reg lastswCONT, lastswDEP, lastswEXAM;
-    reg irusedf, link;
+    reg irusedf, link, memen;
     wire runff, tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ir;
     reg[3:0] hltbrkintfet;
@@ -307,6 +307,7 @@ module pdp8lsim (
             lastswLDAD  <= 0;
             lastswSTART <= 0;
             majstate    <= MS_HALT;
+            memen       <= 0;
             nextmajst   <= MS_HALT;
 
             oBWC_OVERFLOW <= 0;
@@ -393,8 +394,11 @@ module pdp8lsim (
                 // MEMSTART is asserted during this interval
                 // clock read data from internal or external memory into MB at the end
                 TS_TS1BODY: begin
-                    ldad <= 0;
-                    if (i_EA) begin
+                    if (timedelay == 0) begin
+                        ldad      <= 0;
+                        memen     <= i_EA;
+                        timedelay <= 1;
+                    end else if (memen) begin
                         if (timedelay != 62) timedelay <= timedelay + 1;
                         else begin
                             mbuf      <= localcore[madr];
@@ -403,8 +407,8 @@ module pdp8lsim (
                         end
                     end else begin
                         case (timedelay)
-                            0: if (! i_STROBE) timedelay <= 1;
-                            1: if (i_STROBE) begin
+                            1: if (! i_STROBE) timedelay <= 2;
+                            2: if (i_STROBE) begin
                                 mbuf      <= iMEM;
                                 timedelay <= 0;
                                 timestate <= TS_TP1BEG;
@@ -529,7 +533,7 @@ module pdp8lsim (
                     end
 
                     // if localcore, wait 280nS, clock into memory then start TP3
-                    if (i_EA) begin
+                    if (memen) begin
                         if (timedelay != 28) timedelay <= timedelay + 1;
                         else begin
                             localcore[madr] <= mbuf;
