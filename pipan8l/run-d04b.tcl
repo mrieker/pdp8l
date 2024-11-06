@@ -1,9 +1,17 @@
+puts ""
+puts "d04b: random jmp test"
+
+openttypipes
 loadbin ../alltapes/maindec-08-d04b-pb.bin
 setsw sr 00200
 flicksw ldad
 setsw sr 04000
-puts ""
-puts "  random JMP test"
-puts "  start tty (./z8ltty) on another terminal"
-puts "  do 'flicksw start' to start test"
-puts "  prints <CR><LF>04 on the tty every 15 seconds"
+flicksw start
+
+puts "d04b: waiting for 3 <CR><LF>04s, should be about 45 seconds"
+for {set i 0} {$i < 3} {incr i} {
+    waitforttypr 30000 "04"
+    puts "d04b: got a 04"
+}
+puts "SUCCESS!"
+exit 0

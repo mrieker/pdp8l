@@ -66,14 +66,16 @@ int main (int argc, char **argv)
     }
 
     struct termios term_modified, term_original;
-    if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();
-    term_modified = term_original;
-    cfmakeraw (&term_modified);
-    if (tcsetattr (STDIN_FILENO, TCSANOW, &term_modified) < 0) ABORT ();
+    bool stdintty = isatty (STDIN_FILENO) > 0;
+    if (stdintty) {
+        if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();
+        term_modified = term_original;
+        cfmakeraw (&term_modified);
+        if (tcsetattr (STDIN_FILENO, TCSANOW, &term_modified) < 0) ABORT ();
+        fprintf (stderr, "use control-\\ for stop char\r\n");
+    }
 
     ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
-
-    printf ("use control-\\ for stop char\r\n");
 
     uint64_t readnextkbat   = 0;
     uint64_t setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
@@ -93,7 +95,7 @@ int main (int argc, char **argv)
             uint32_t prreg = ttyat[Z_TTYPR];
             if (prreg & PR_FULL) {
                 uint8_t prchar = prreg & 0177;
-                if (prchar == 7) {
+                if ((prchar == 7) && stdintty) {
                     int rc = write (STDOUT_FILENO, "<BEL>", 5);
                     if (rc <= 0) ABORT ();
                 } else {
@@ -111,16 +113,17 @@ int main (int argc, char **argv)
             if ((rc >= 0) && (polls[0].revents & POLLIN)) {
                 uint8_t kbchar;
                 rc = read (STDIN_FILENO, &kbchar, 1);
+                if ((rc == 0) && ! stdintty) break;
                 if (rc <= 0) ABORT ();
-                if (kbchar == '\\' - '@') break;
+                if ((kbchar == '\\' - '@') && stdintty) break;
                 ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | 0200 | kbchar;
                 readnextkbat = nowus + 100000;
             }
         }
     }
 
-    if (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0) ABORT ();
-    printf ("\n");
+    if (stdintty && (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0)) ABORT ();
+    fprintf (stderr, "\n");
 
     return 0;
 }

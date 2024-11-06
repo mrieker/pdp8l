@@ -898,6 +898,9 @@ static void *udpthread (void *dummy)
     int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
     if (udpfd < 0) ABORT ();
 
+    // prevent TCL script exec commands from inheriting the fd and keeping it open
+    if (fcntl (udpfd, F_SETFD, FD_CLOEXEC) < 0) ABORT ();
+
     struct sockaddr_in server;
     memset (&server, 0, sizeof server);
     server.sin_family = AF_INET;
