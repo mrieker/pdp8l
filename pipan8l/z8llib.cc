@@ -118,10 +118,7 @@ static uint32_t ztop[] = {
      0, 0, 0
 };
 
-static uint32_t const forceons[Z_N] = {
-    0, a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE,
-    0, 0, d_i_DMAADDR | d_i_DMADATA, e_simit | e_nanocontin | e_nanotrigger };
-
+static uint32_t const forceons[Z_N] = { 0, ZZ_RA, 0, 0, ZZ_RD, e_simit | e_nanocontin | e_nanotrigger };
 static char const *const msnames[] = { MS_NAMES };
 
 
@@ -280,7 +277,7 @@ void Z8LLib::tracethread ()
         bool intsinhibduntiljmp = (pdpat[Z_RA] & a_i_INT_INHIBIT) == 0; // cleared at TS1 started
 
         // write trace record
-        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o IRQ=%o ION=%o IIUJ=%o  MB=%04o", msnames[ms], ac, mf, ma,
+        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o  IRQ=%o ION=%o IIUJ=%o  MB=%04o", msnames[ms], ac, mf, ma,
                 interruptrequest, interruptsenabled, intsinhibduntiljmp, mr);
         if (mw != mr) {
             fprintf (tracefile, "->%04o", mw);

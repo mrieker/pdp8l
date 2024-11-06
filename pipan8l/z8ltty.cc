@@ -72,7 +72,7 @@ int main (int argc, char **argv)
         term_modified = term_original;
         cfmakeraw (&term_modified);
         if (tcsetattr (STDIN_FILENO, TCSANOW, &term_modified) < 0) ABORT ();
-        fprintf (stderr, "use control-\\ for stop char\r\n");
+        fprintf (stderr, "z8ltty: use control-\\ for stop char\r\n");
     }
 
     ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
