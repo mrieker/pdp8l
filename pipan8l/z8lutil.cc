@@ -26,15 +26,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
+#include "z8ldefs.h"
 #include "z8lutil.h"
+
+uint32_t Z8LPage::mypid = getpid ();
 
 Z8LPage::Z8LPage ()
 {
     extmemptr = NULL;
     zynqpage = NULL;
     zynqptr = NULL;
+
+    cmemat = NULL;
+    xmemat = NULL;
+    extmemat = NULL;
 
     zynqfd = open ("/proc/zynqpdp8l", O_RDWR);
     if (zynqfd < 0) {
@@ -60,6 +68,9 @@ Z8LPage::~Z8LPage ()
     zynqptr = NULL;
     extmemptr = NULL;
     zynqfd = -1;
+    cmemat = NULL;
+    xmemat = NULL;
+    extmemat = NULL;
 }
 
 // find a device in the Z8L page
@@ -122,35 +133,97 @@ uint32_t volatile *Z8LPage::extmem ()
     return (uint32_t volatile *) extmemptr;
 }
 
-// get exclusive access (co-operative) to pdp8lcmem.v device by the calling process
-void Z8LPage::cmlock (uint32_t volatile *cmemat)
+#define CMWAIT(pred) do {                                               \
+    uint32_t started = 0;                                               \
+    while (true) {                                                      \
+        int i;                                                          \
+        for (i = 1000000; -- i >= 0;) if (pred) break;                  \
+        if (i >= 0) break;                                              \
+        uint32_t now = time (NULL);                                     \
+        if (started == 0) started = now;                                \
+        else if (now - started > 1) {                                   \
+            fprintf (stderr, "z8lpage: cmem controller is stuck\n");    \
+            ABORT ();                                                   \
+        }                                                               \
+    }                                                                   \
+} while (false)
+
+// read from processor memory
+uint16_t Z8LPage::dmaread (uint16_t xaddr)
 {
-    ASSERT ((cmemat[0] & 0xFFFF0000U) == 0x434D0000U);  // "CM"
-    uint32_t mypid = getpid ();
-    for (int i = 0; i < 100; i ++) {
+    ASSERT (xaddr <= 077777);
+    if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
+    if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
+    if ((xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
+        cmlock ();
+        CMWAIT (! (cmemat[1] & CM_BUSY));
+        cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
+        uint32_t ca;
+        CMWAIT ((ca = cmemat[1]) & CM_RRDY);
+        cmunlk ();
+        return (ca & CM_DATA) / CM_DATA0;
+    }
+    if (extmemat == NULL) extmemat = extmem ();
+    return extmemat[xaddr];
+}
+
+// write to processor memory
+// always use cmem to write memory, writes to extmem might be ignored:
+//  processor does TS1 read of location 00031 (such as fetch jmp 0031 in boot code)
+//  this code does extmem write to 00031
+//  processor does TS3 writeback to 00031, throwing extmem write away
+void Z8LPage::dmawrite (uint16_t xaddr, uint16_t data)
+{
+    ASSERT (xaddr <= 077777);
+    if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
+    if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
+    cmlock ();
+    CMWAIT (! (cmemat[1] & CM_BUSY));
+    cmemat[1] = CM_ENAB | data * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
+    cmunlk ();
+}
+
+// make sure last write has completed
+void Z8LPage::dmaflush ()
+{
+    cmlock ();
+    CMWAIT (! (cmemat[1] & CM_BUSY));
+    cmunlk ();
+}
+
+// get exclusive access (co-operative) to pdp8lcmem.v device by the calling process
+void Z8LPage::cmlock ()
+{
+    if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
+
+    uint32_t started = 0;
+    while (true) {
         uint32_t lkpid;
-        for (int j = 0; j < 100; j ++) {
+        for (int i = 1000000; -- i >= 0;) {
             cmemat[3] = mypid;
             lkpid = cmemat[3];
             if (lkpid == mypid) return;
         }
+        uint32_t now = time (NULL);
+        if (started == 0) started = now;
+        else if (now - started > 1) {
+            fprintf (stderr, "z8lpage: cmem controller is stuckn");
+            ABORT ();
+        }
         if ((lkpid != 0) && (kill (lkpid, 0) < 0) && (errno == ESRCH)) {
-            fprintf (stderr, "Z8L::cmlock: pid %u died, releasing lock\n", lkpid);
-            cmemat[3] = 0;
+            fprintf (stderr, "Z8LPage::cmlock: pid %u died, releasing lock\n", lkpid);
+            cmemat[3] = lkpid;
         }
     }
-    fprintf (stderr, "Z8L::cmlock: timed out acquiring lock\n");
-    ABORT ();
 }
 
 // release exclusive access to pdp8lcmem.v device by the calling process
-void Z8LPage::cmunlk (uint32_t volatile *cmemat)
+void Z8LPage::cmunlk ()
 {
-    ASSERT ((cmemat[0] & 0xFFFF0000U) == 0x434D0000U);  // "CM"
-    uint32_t mypid = getpid ();
+    ASSERT (cmemat != NULL);
     uint32_t lkpid = cmemat[3];
     ASSERT (lkpid == mypid);
-    cmemat[3] = 0;
+    cmemat[3] = lkpid;
 }
 
 // generate a random number

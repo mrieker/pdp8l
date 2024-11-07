@@ -32,14 +32,22 @@ struct Z8LPage {
     uint32_t volatile *findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lock);
     uint32_t volatile *extmem ();
 
-    static void cmlock (uint32_t volatile *cmemat);
-    static void cmunlk (uint32_t volatile *cmemat);
+    uint16_t dmaread (uint16_t xaddr);
+    void dmawrite (uint16_t xaddr, uint16_t data);
+    void dmaflush ();
+    void cmlock ();
+    void cmunlk ();
 
 private:
     int zynqfd;
+    uint32_t volatile *cmemat;
+    uint32_t volatile *extmemat;
+    uint32_t volatile *xmemat;
     uint32_t volatile *zynqpage;
     void *extmemptr;
     void *zynqptr;
+
+    static uint32_t mypid;
 };
 
 uint32_t randbits (int nbits);

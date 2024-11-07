@@ -40,10 +40,7 @@ static char const *const timestatenames[] = { TS_NAMES };
 
 static uint32_t clockno;
 static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
-static uint32_t volatile *extmemptr;
 static uint32_t volatile *pdpat;
-static uint32_t volatile *cmemat;
-static uint32_t volatile *xmemat;
 
 static void clockit ();
 static void fatalerr (char const *fmt, ...);
@@ -61,24 +58,6 @@ int main (int argc, char **argv)
         ABORT ();
     }
     printf ("8L version %08X\n", pdpat[Z_VER]);
-    xmemat = z8p.findev ("XM", NULL, NULL, false);
-    if (xmemat == NULL) {
-        fprintf (stderr, "z8lsimtest: can't find xmem device\n");
-        ABORT ();
-    }
-    printf ("XM version %08X\n", xmemat[0]);
-    cmemat = z8p.findev ("CM", NULL, NULL, false);
-    if (cmemat == NULL) {
-        fprintf (stderr, "z8lsimtest: can't find cmem device\n");
-        ABORT ();
-    }
-    printf ("CM version %08X\n", cmemat[0]);
-    cmemat[1] = 0;  // disable outputs so it doesn't interfere with arm_i_DMAADDR, arm_i_DMADATA, arm_iDATA_IN
-
-    // get pointer to the 32K-word ram
-    // maps each 12-bit word into low 12 bits of 32-bit word
-    // upper 20 bits discarded on write, readback as zeroes
-    extmemptr = z8p.extmem ();
 
     // select simulator with manual clocking
     pdpat[Z_RA] = zrawrite = ZZ_RA;
@@ -92,11 +71,6 @@ int main (int argc, char **argv)
     pdpat[Z_RI] = 0;
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
-
-    // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
-    // ...so we can directly access its contents via extmemptr
-    xmemat[1] = XM_ENABLE | XM_ENLO4K;
-    for (int i = 0; i < 5; i ++) clockit ();
 
     uint32_t instrno = 0;
     while (true) {
@@ -137,7 +111,7 @@ int main (int argc, char **argv)
         // beginning of TS3, MB should now have the possibly modified value
         uint16_t mbwr = FIELD (Z_RH, h_oBMB);
 
-        // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
+        // wait for it to leave TS3, where pdp8lsim.v writes the value to memory
         for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
             if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
             clockit ();

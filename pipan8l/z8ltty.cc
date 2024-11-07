@@ -20,8 +20,9 @@
 
 // Performs TTY I/O for the PDP-8/L Zynq I/O board
 
-//  ./z8ltty    - default tty port 03
-//  ./z8ltty 40 - tty port 40
+//  ./z8ltty [-cps <charspersec>] [<octalportnumber>]
+//     charspersec defaults to 10
+//     octalportnumber defaults to 03
 
 #include <errno.h>
 #include <fcntl.h>
@@ -56,7 +57,31 @@ static bool findtt (void *param, uint32_t volatile *ttyat)
 int main (int argc, char **argv)
 {
     uint32_t port = 3;
-    if (argc > 1) port = strtoul (argv[1], NULL, 8);
+    uint32_t cps = 10;
+    char *p;
+    for (int i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-cps") == 0) {
+            if ((++ i >= argc) || (argv[i][0] == '-')) {
+                fprintf (stderr, "missing value for -cps\n");
+                return 1;
+            }
+            cps = strtoul (argv[i], &p, 0);
+            if ((*p != 0) || (cps == 0)) {
+                fprintf (stderr, "-cps value %s must be positive integer\n", argv[i]);
+                return 1;
+            }
+            continue;
+        }
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "unknown option %s\n", argv[i]);
+            return 1;
+        }
+        port = strtoul (argv[i], &p, 8);
+        if ((*p != 0) || (port > 076)) {
+            fprintf (stderr, "port number %s must be octal integer in range 0..076\n", argv[i]);
+            return 1;
+        }
+    }
 
     Z8LPage z8p;
     uint32_t volatile *ttyat = z8p.findev ("TT", findtt, &port, true);
@@ -102,7 +127,7 @@ int main (int argc, char **argv)
                     int rc = write (STDOUT_FILENO, &prchar, 1);
                     if (rc <= 0) ABORT ();
                 }
-                setprintdoneat = nowus + 100000;
+                setprintdoneat = nowus + 1000000 / cps;
             }
         }
 
@@ -117,7 +142,7 @@ int main (int argc, char **argv)
                 if (rc <= 0) ABORT ();
                 if ((kbchar == '\\' - '@') && stdintty) break;
                 ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | 0200 | kbchar;
-                readnextkbat = nowus + 100000;
+                readnextkbat = nowus + 1000000 / cps;
             }
         }
     }

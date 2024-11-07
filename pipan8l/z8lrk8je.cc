@@ -105,27 +105,42 @@ static bool volatile exiting;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static sigset_t sigintmask;
-static uint32_t volatile *cmemat;
 static uint32_t volatile *rkat;
-static uint32_t volatile *extmem;
-static uint32_t volatile *xmemat;
+static Z8LPage *z8p;
 
 static void siginthand (int signum);
 static void processtcl (Tcl_Interp *interp);
 static int loaddisk (bool readwrite, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+static bool loadfile (Tcl_Interp *interp, bool readwrite, int diskno, char const *filenm);
 static void *thread (void *dummy);
 static char *lockfile (int fd, int how);
 static int relockfile (int fd, int how);
-static bool dmaread (uint16_t xaddr, uint16_t *data_r);
-static bool dmawrite (uint16_t xaddr, uint16_t data);
-static void dmaflush ();
 static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);
-static int writeformat (Tcl_Interp *interp, int fd);
+static bool writeformat (Tcl_Interp *interp, int fd);
 
 int main (int argc, char **argv)
 {
+    memset (fds, -1, sizeof fds);
+
+    bool loaded = false;
     char const *fn = NULL;
     for (int i = 0; ++ i < argc;) {
+        if ((strcasecmp (argv[i], "-loadro") == 0) || (strcasecmp (argv[i], "-loadrw") == 0)) {
+            if ((i + 2 >= argc) || (argv[i+1][0] == '-') || (argv[i+2][0] == '-')) {
+                fprintf (stderr, "missing disknumber and/or filename for -loadro/rw\n");
+                return 1;
+            }
+            char *p;
+            int diskno = strtol (argv[i+1], &p, 0);
+            if ((*p != 0) || (diskno < 0) || (diskno > 3)) {
+                fprintf (stderr, "disknumber %s must be integer in range 0..3\n", argv[i+1]);
+                return 1;
+            }
+            if (! loadfile (NULL, strcasecmp (argv[i], "-loadrw") == 0, diskno, argv[i+2])) return 1;
+            loaded = true;
+            i += 2;
+            continue;
+        }
         if (argv[i][0] == '-') {
             fprintf (stderr, "unknown option %s\n", argv[i]);
             return 1;
@@ -137,21 +152,17 @@ int main (int argc, char **argv)
         fn = argv[i];
     }
 
-    Z8LPage z8p;
-    rkat = z8p.findev ("RK", NULL, NULL, true);
+    z8p  = new Z8LPage ();
+    rkat = z8p->findev ("RK", NULL, NULL, true);
     if (rkat == NULL) {
         fprintf (stderr, "rk8je controller not found\n");
         return 1;
     }
-    cmemat = z8p.findev ("CM", NULL, NULL, false);
-    xmemat = z8p.findev ("XM", NULL, NULL, false);
-    extmem = z8p.extmem ();
 
     rkat[RK_FLG] = F_ENABLE;    // enable board to process io instructions
 
     nsperus = 1000;
-    memset (fds, -1, sizeof fds);
-    debug = 1;
+    debug = 0;
 
     // spawn thread to do io
     pthread_t threadid;
@@ -198,7 +209,7 @@ int main (int argc, char **argv)
     // process tcl from stdin
     if (isatty (STDIN_FILENO) > 0) {
 
-        if (fn == NULL) {
+        if ((fn == NULL) && ! loaded) {
             ctrlcflag = true;
         } else {
             puts ("z8lrk8je: press ctrl-C for command prompt");
@@ -336,42 +347,47 @@ static int loaddisk (bool readwrite, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         }
         char const *filenm = Tcl_GetString (objv[2]);
 
-        int fd = open (filenm, readwrite ? O_RDWR | O_CREAT : O_RDONLY, 0666);
-        if (fd < 0) {
-            Tcl_SetResultF (interp, "%m");
-            return TCL_ERROR;
-        }
-        char *lockerr = lockfile (fd, readwrite ? F_WRLCK : F_RDLCK);
-        if (lockerr != NULL) {
-            Tcl_SetResultF (interp, "%s", lockerr);
-            close (fd);
-            free (lockerr);
-            return TCL_ERROR;
-        }
-        long oldsize = lseek (fd, 0, SEEK_END);
-        if (readwrite && (ftruncate (fd, NBLKS * 512) < 0)) {
-            Tcl_SetResultF (interp, "%m");
-            close (fd);
-            return TCL_ERROR;
-        }
-        if (readwrite && (oldsize == 0)) {
-            int rc = writeformat (interp, fd);
-            if (rc != TCL_OK) {
-                close (fd);
-                return rc;
-            }
-        }
-        fprintf (stderr, "IODevRK8JE::scriptcmd: drive %d loaded with read%s file %s\n", diskno, (readwrite ? "/write" : "-only"), filenm);
-        LOCKIT;
-        close (fds[diskno]);
-        fds[diskno] = fd;
-        ros[diskno] = ! readwrite;
-        UNLKIT;
-        return TCL_OK;
+        return loadfile (interp, readwrite, diskno, filenm) ? TCL_OK : TCL_ERROR;
     }
 
     Tcl_SetResultF (interp, "rkloadro/rkloadrw <disknumber> <filename>");
     return TCL_ERROR;
+}
+
+static bool loadfile (Tcl_Interp *interp, bool readwrite, int diskno, char const *filenm)
+{
+    int fd = open (filenm, readwrite ? O_RDWR | O_CREAT : O_RDONLY, 0666);
+    if (fd < 0) {
+        if (interp == NULL) fprintf (stderr, "error opening %s: %m\n", filenm);
+        else Tcl_SetResultF (interp, "%m");
+        return false;
+    }
+    char *lockerr = lockfile (fd, readwrite ? F_WRLCK : F_RDLCK);
+    if (lockerr != NULL) {
+        if (interp == NULL) fprintf (stderr, "error locking %s: %m\n", filenm);
+        else Tcl_SetResultF (interp, "%s", lockerr);
+        close (fd);
+        free (lockerr);
+        return false;
+    }
+    long oldsize = lseek (fd, 0, SEEK_END);
+    if (readwrite && (ftruncate (fd, NBLKS * 512) < 0)) {
+        if (interp == NULL) fprintf (stderr, "error extending %s: %m\n", filenm);
+        else Tcl_SetResultF (interp, "%m");
+        close (fd);
+        return false;
+    }
+    if (readwrite && (oldsize == 0) && ! writeformat (interp, fd)) {
+        close (fd);
+        return false;
+    }
+    fprintf (stderr, "IODevRK8JE::loadfile: drive %d loaded with read%s file %s\n", diskno, (readwrite ? "/write" : "-only"), filenm);
+    LOCKIT;
+    close (fds[diskno]);
+    fds[diskno] = fd;
+    ros[diskno] = ! readwrite;
+    UNLKIT;
+    return true;
 }
 
 // rkunload <disknumber>
@@ -433,7 +449,7 @@ void *thread (void *dummy)
 
     memset (lastdas, 0, sizeof lastdas);
 
-    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: thread started\n");
+    if (debug > 1) fprintf (stderr, "IODevRK8JE::thread*: thread started\r\n");
 
     while (! exiting) {
         usleep (1000);
@@ -445,7 +461,6 @@ void *thread (void *dummy)
             command  = rkat[RK_CMD];
             diskaddr = rkat[RK_DAD];
             memaddr  = rkat[RK_MEM];
-            if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: startio sts=%08X cmd=%08X dad=%08X mem=%08X\n", status, command, diskaddr, memaddr);
 
             int cyldiff, fd, rc;
             struct timespec endts, nowts;
@@ -457,6 +472,9 @@ void *thread (void *dummy)
             wcnt   = (command & 00100) ? 128 : 256;
             xma    = ((command << 9) & 070000) | memaddr;
             diskno = (command >> 1) & 3;
+
+            if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: startio sts=%04o mem=%05o dsk=%o dad=%04o wct=%u blk=%05o cmd=%o\r\n",
+                status, xma, diskno, diskaddr, wcnt, blknum, command >> 9);
 
             // maybe just setting write-locked mode
             if ((command >> 9) == 2) {
@@ -515,10 +533,10 @@ void *thread (void *dummy)
 
                 // read data
                 case 1: {
-                    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: %u treating read all as normal read\n", diskno);
+                    if (debug > 1) fprintf (stderr, "IODevRK8JE::thread*: %u treating read all as normal read\r\n", diskno);
                 }
                 case 0: {
-                    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: %u reading %u words at %u into %05o (%u ms)\n", diskno, wcnt, blknum, xma, (uint32_t) ((delns + 500000) / 1000000));
+                    if (debug > 1) fprintf (stderr, "IODevRK8JE::thread*: %u reading %u words at %u into %05o (%u ms)\r\n", diskno, wcnt, blknum, xma, (uint32_t) ((delns + 500000) / 1000000));
                     ASSERT (wcnt * 2 <= sizeof temp);
                     rc = pread (fd, temp, wcnt * 2, blknum * 512);
                     if (rc < wcnt * 2) {
@@ -531,9 +549,10 @@ void *thread (void *dummy)
                         break;
                     }
                     for (icnt = 0; icnt < wcnt; icnt ++) {
-                        if (! dmawrite ((xma & 070000) | ((xma + icnt) & 007777), temp[icnt] & 07777)) goto drlt;
+                        z8p->dmawrite ((xma & 070000) | ((xma + icnt) & 007777), temp[icnt] & 07777);
                     }
                     memaddr = (memaddr + wcnt) & 07777;
+                    z8p->dmaflush ();
                     SETST (ST_DONE);                                            // done
                     break;
                 }
@@ -546,10 +565,10 @@ void *thread (void *dummy)
 
                 // write data
                 case 5: {
-                    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: %u treating write all as normal write\n", diskno);
+                    if (debug > 1) fprintf (stderr, "IODevRK8JE::thread*: %u treating write all as normal write\r\n", diskno);
                 }
                 case 4: {
-                    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: %u writing %u words at %u from %05o (%u ms)\n", diskno, wcnt, blknum, xma, (uint32_t) ((delns + 500000) / 1000000));
+                    if (debug > 1) fprintf (stderr, "IODevRK8JE::thread*: %u writing %u words at %u from %05o (%u ms)\r\n", diskno, wcnt, blknum, xma, (uint32_t) ((delns + 500000) / 1000000));
                     if (ros[diskno]) {
                         SETST (ST_DONE | ST_WLER);                              // write lock error
                         wcnt = 0;
@@ -557,7 +576,7 @@ void *thread (void *dummy)
                     }
                     ASSERT (wcnt * 2 <= sizeof temp);
                     for (icnt = 0; icnt < wcnt; icnt ++) {
-                        if (! dmaread ((xma & 070000) | ((xma + icnt) & 007777), &temp[icnt])) goto drlt;
+                        temp[icnt] = z8p->dmaread ((xma & 070000) | ((xma + icnt) & 007777));
                     }
                     if (wcnt < 256) memset (&temp[wcnt], 0, 512 - 2 * wcnt);
                     rc = pwrite (fd, temp, 512, blknum * 512);
@@ -583,15 +602,13 @@ void *thread (void *dummy)
             }
 
             // update status
-        drlt:;
-            SETST (ST_DONE | ST_DRLT);
         iodone:;
+            if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: startio sts=%04o mem= %04o\r\n", status, memaddr);
             ASSERT (status & ST_DONE);
+            rkat[RK_MEM] = memaddr;     // update memory address register
+            rkat[RK_FLG] = F_ENABLE;    // clear F_STBUSY (F_STRTIO is already clear), ie, let pdp write registers
+            rkat[RK_STS] = status;      // update status register
         ioabrt:;
-            dmaflush ();
-            rkat[RK_MEM] = memaddr;
-            rkat[RK_FLG] = F_ENABLE;
-            rkat[RK_STS] = status;
         }
         UNLKIT;
     }
@@ -636,72 +653,6 @@ static int relockfile (int fd, int how)
     flockit.l_whence = SEEK_SET;
     flockit.l_len    = 4096;
     return fcntl (fd, F_SETLK, &flockit);
-}
-
-// read from processor memory
-static bool dmaread (uint16_t xaddr, uint16_t *data_r)
-{
-    if ((xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
-        Z8LPage::cmlock (cmemat);
-        for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
-            if (i > 100000) {
-                Z8LPage::cmunlk (cmemat);
-                fprintf (stderr, "dmaread: cmem controller stuck\n");
-                return false;
-            }
-        }
-        cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
-        uint32_t ca;
-        for (int i = 0; ! ((ca = cmemat[1]) & CM_RRDY); i ++) {
-            if (i > 100000) {
-                Z8LPage::cmunlk (cmemat);
-                fprintf (stderr, "dmaread: cmem controller stuck\n");
-                return false;
-            }
-        }
-        Z8LPage::cmunlk (cmemat);
-        *data_r = (ca & CM_DATA) / CM_DATA0;
-    } else {
-        *data_r = extmem[xaddr];
-    }
-    return true;
-}
-
-// write to processor memory
-static bool dmawrite (uint16_t xaddr, uint16_t data)
-{
-    if (true) { //// (xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
-        fprintf (stderr, "dmawrite*:   cmem[%05o] <= %04o\n", xaddr, data);
-        Z8LPage::cmlock (cmemat);
-        for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
-            if (i > 100000) {
-                Z8LPage::cmunlk (cmemat);
-                fprintf (stderr, "dmawrite: cmem controller stuck\n");
-                return false;
-            }
-        }
-        cmemat[1] = CM_ENAB | data * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
-        Z8LPage::cmunlk (cmemat);
-    } else {
-        fprintf (stderr, "dmawrite*: extmem[%05o] <= %04o\n", xaddr, data);
-        extmem[xaddr] = data;
-    }
-    return true;
-}
-
-// make sure last read/write has completed before setting status bits
-static void dmaflush ()
-{
-    if (! (xmemat[1] & XM_ENLO4K)) {
-        Z8LPage::cmlock (cmemat);
-        for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
-            if (i > 1000) {
-                fprintf (stderr, "dmaflush: cmem controller stuck\n");
-                ABORT ();
-            }
-        }
-        Z8LPage::cmunlk (cmemat);
-    }
 }
 
 // set result to formatted string
@@ -1109,7 +1060,7 @@ static uint16_t const format2buf[] = {
     001515, 003054, 001042, 003045, 001041, 007041, 005240, 004532
 };
 
-static int writeformat (Tcl_Interp *interp, int fd)
+static bool writeformat (Tcl_Interp *interp, int fd)
 {
     uint32_t        const ofss[] = { format1ofs, format2ofs };
     uint16_t const *const bufs[] = { format1buf, format2buf };
@@ -1117,10 +1068,15 @@ static int writeformat (Tcl_Interp *interp, int fd)
     for (int i = 0; i < 2; i ++) {
         int rc = pwrite (fd, bufs[i], sizeof format1buf, ofss[i]);
         if (rc != (int) sizeof format2buf) {
-            if (rc < 0) Tcl_SetResultF (interp, "error writing format: %m\n");
-            else Tcl_SetResultF (interp, "only wrote %d of %d-byte format\n", rc, (int) sizeof format2buf);
-            return TCL_ERROR;
+            if (interp == NULL) {
+                if (rc < 0) fprintf (stderr, "error writing format: %m\n");
+                else fprintf (stderr, "only wrote %d of %d-byte format\n", rc, (int) sizeof format2buf);
+            } else {
+                if (rc < 0) Tcl_SetResultF (interp, "error writing format: %m");
+                else Tcl_SetResultF (interp, "only wrote %d of %d-byte format", rc, (int) sizeof format2buf);
+            }
+            return false;
         }
     }
-    return TCL_OK;
+    return true;
 }
