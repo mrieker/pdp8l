@@ -55,7 +55,7 @@ module pdp8lrk8je (
     reg[11:00] command, diskaddr, memaddr, status;
     reg stbusy, startio, enable;
 
-    assign armrdata = (armraddr == 0) ? 32'h524B2004 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h524B2005 : // [31:16] = 'RK'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { 20'b0, command  } :
                       (armraddr == 2) ? { 20'b0, diskaddr } :
                       (armraddr == 3) ? { 20'b0, memaddr  } :
@@ -87,7 +87,7 @@ module pdp8lrk8je (
                 1: command  <= armwdata[11:00];
                 2: diskaddr <= armwdata[11:00];
                 3: memaddr  <= armwdata[11:00];
-                4: status   <= armwdata[11:00];
+                4: status   <= { armwdata[11:ST_CBSY+1], status[ST_CBSY], armwdata[ST_CBSY-1:00] };
                 5: begin enable <= armwdata[00]; startio <= armwdata[01]; stbusy <= armwdata[02]; end
             endcase
         end
@@ -158,12 +158,13 @@ module pdp8lrk8je (
                             AC_CLEAR <= 1;
                             devtocpu <= 0;
                             diskaddr <= cputodev;
+                            status   <= 0;
                             startio  <= 1;
                             stbusy   <= 1;
                         end
                     end
 
-                    // DLCA - load current address register from the AC
+                    // DLCA - load current memory address register from the AC
                     12'o6744: begin
                         if (stbusy) begin
                             status[ST_CBSY] <= 1;
