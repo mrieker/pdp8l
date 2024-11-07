@@ -5,6 +5,7 @@ proc helpini {} {
     puts "  assem <addr> <opcd> ... - assemble and write to memory"
     puts "  disas <start> <stop>    - disassemble given range"
     puts "  dumpit                  - dump registers and switches"
+    puts "  dumpmem <start> <stop>  - dump memory in octal"
     puts "  flicksw <switch>        - flick momentary switch on then off"
     puts "  loadbin <filename>      - load bin file, verify, return start address"
     puts "  loadrim <filename>      - load rim file, verify"
@@ -17,6 +18,7 @@ proc helpini {} {
     puts "  steploop                - step one cycle, dump, then loop on enter key"
     puts "  wait                    - wait for CTRLC or STOP"
     puts "  wrmem <addr> <data>     - write memory at the given address"
+    puts "  zeromem <start> <stop>  - zero the given address range"
     puts ""
     puts "  global vars"
     puts "    bncyms                - milliseconds for de-bouncing circuit"
@@ -31,8 +33,8 @@ proc assem {addr opcd args} {
 }
 
 # disassemble block of memory
-# - disass addr         ;# disassemble in vacinity of given address
-# - disass start stop   ;# disassemble the given range
+# - disas addr         ;# disassemble in vacinity of given address
+# - disas start stop   ;# disassemble the given range
 proc disas {start {stop ""}} {
     # if just one arg, make the range start-8..start+8
     if {$stop == ""} {
@@ -44,6 +46,19 @@ proc disas {start {stop ""}} {
         set op [rdmem $pc]
         set as [disasop $op $pc]
         puts [format "%04o  %04o  %s" $pc $op $as]
+    }
+}
+
+# dump block of memory
+# - dumpmem start stop
+proc dumpmem {start stop} {
+    set start [expr {$start & 077770}]
+    for {set addr $start} {$addr <= $stop} {incr addr 8} {
+        puts -nonewline [format "  %05o " $addr]
+        for {set i 0} {$i < 8} {incr i} {
+            puts -nonewline [format " %04o" [rdmem [expr {$addr+$i}]]]
+        }
+        puts ""
     }
 }
 
@@ -489,6 +504,18 @@ proc wait {} {
         if [ctrlcflag] {return "CTRLC"}
     }
     return "STOP"
+}
+
+# zero block of memory
+# - zeromem start stop
+proc zeromem {start stop} {
+    setsw sr $start
+    flicksw ldad
+    setsw sr 0
+    for {set addr $start} {$addr <= $stop} {incr addr} {
+        if {$addr % 8 == 0} {puts [format "%04o" $addr]}
+        flicksw dep
+    }
 }
 
 # milliseconds to hold a momentary switch on
