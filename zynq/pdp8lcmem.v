@@ -39,6 +39,9 @@
 //                 read: data read from memory (write=0) or written to memory (write=1)
 //    (rw) write = write given data to memory
 //    (rw) addr = address of memory word to access
+//  [3] = 32-bit test-and-set cell
+//        always accepts writing zero
+//        accepts writing non-zero only when currently zero
 
 module pdp8lcmem (
     input CLOCK, CSTEP, RESET,
@@ -64,13 +67,14 @@ module pdp8lcmem (
     reg[14:00] ctladdr;
     reg[11:00] ctldata;
     reg[2:0] busyonarm;
+    reg[31:00] armlock;
     reg ctlenab;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1008 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D1009 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { 24'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
-                      32'hDEADBEEF;
+                      armlock;
 
     assign brkema   = ctladdr[14:12];
     assign brkaddr  = ctladdr[11:00];
@@ -79,6 +83,7 @@ module pdp8lcmem (
 
     always @(posedge CLOCK) begin
         if (RESET) begin
+            armlock   <= 0;
             brkrqst   <= 0;
             busyonarm <= 0;
             ctlenab   <= 0;
@@ -95,6 +100,15 @@ module pdp8lcmem (
                         ctlrdone  <= 0;
                         ctlenab   <= armwdata[31];
                         busyonarm <= { 2'b00, armwdata[31] };
+                    end
+                end
+
+                // test-and-set cell for arm processor use
+                //  writing zero is always accepted
+                //  writing non-zero is accepted only if cell is currently zero
+                3: begin
+                    if ((armlock == 0) || (armwdata == 0)) begin
+                        armlock <= armwdata;
                     end
                 end
             endcase
