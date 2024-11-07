@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,6 +120,37 @@ uint32_t volatile *Z8LPage::extmem ()
         }
     }
     return (uint32_t volatile *) extmemptr;
+}
+
+// get exclusive access (co-operative) to pdp8lcmem.v device by the calling process
+void Z8LPage::cmlock (uint32_t volatile *cmemat)
+{
+    ASSERT ((cmemat[0] & 0xFFFF0000U) == 0x434D0000U);  // "CM"
+    uint32_t mypid = getpid ();
+    for (int i = 0; i < 100; i ++) {
+        uint32_t lkpid;
+        for (int j = 0; j < 100; j ++) {
+            cmemat[3] = mypid;
+            lkpid = cmemat[3];
+            if (lkpid == mypid) return;
+        }
+        if ((lkpid != 0) && (kill (lkpid, 0) < 0) && (errno == ESRCH)) {
+            fprintf (stderr, "Z8L::cmlock: pid %u died, releasing lock\n", lkpid);
+            cmemat[3] = 0;
+        }
+    }
+    fprintf (stderr, "Z8L::cmlock: timed out acquiring lock\n");
+    ABORT ();
+}
+
+// release exclusive access to pdp8lcmem.v device by the calling process
+void Z8LPage::cmunlk (uint32_t volatile *cmemat)
+{
+    ASSERT ((cmemat[0] & 0xFFFF0000U) == 0x434D0000U);  // "CM"
+    uint32_t mypid = getpid ();
+    uint32_t lkpid = cmemat[3];
+    ASSERT (lkpid == mypid);
+    cmemat[3] = 0;
 }
 
 // generate a random number

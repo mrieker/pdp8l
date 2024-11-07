@@ -100,7 +100,6 @@ static FunDef const fundefs[] = {
 #define LOCKIT if (pthread_mutex_lock (&lock) != 0) ABORT ()
 #define UNLKIT if (pthread_mutex_unlock (&lock) != 0) ABORT ()
 
-static bool forcextmem = true;
 static bool volatile ctrlcflag;
 static bool volatile exiting;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -144,16 +143,8 @@ int main (int argc, char **argv)
         fprintf (stderr, "rk8je controller not found\n");
         return 1;
     }
-    if (! forcextmem) {
-        cmemat = z8p.findev ("CM", NULL, NULL, true);
-        xmemat = z8p.findev ("XM", NULL, NULL, true);
-    } else {
-        xmemat = z8p.findev ("XM", NULL, NULL, false);
-        if (! (xmemat[1] & XM_ENLO4K)) {
-            fprintf (stderr, "z8lrk8je: requires XM_ENLO4K set\n");
-            ABORT ();
-        }
-    }
+    cmemat = z8p.findev ("CM", NULL, NULL, false);
+    xmemat = z8p.findev ("XM", NULL, NULL, false);
     extmem = z8p.extmem ();
 
     rkat[RK_FLG] = F_ENABLE;    // enable board to process io instructions
@@ -442,6 +433,8 @@ void *thread (void *dummy)
 
     memset (lastdas, 0, sizeof lastdas);
 
+    if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: thread started\n");
+
     while (! exiting) {
         usleep (1000);
         LOCKIT;
@@ -452,6 +445,7 @@ void *thread (void *dummy)
             command  = rkat[RK_CMD];
             diskaddr = rkat[RK_DAD];
             memaddr  = rkat[RK_MEM];
+            if (debug > 0) fprintf (stderr, "IODevRK8JE::thread*: startio sts=%08X cmd=%08X dad=%08X mem=%08X\n", status, command, diskaddr, memaddr);
 
             int cyldiff, fd, rc;
             struct timespec endts, nowts;
@@ -595,6 +589,7 @@ void *thread (void *dummy)
             ASSERT (status & ST_DONE);
         ioabrt:;
             dmaflush ();
+            rkat[RK_MEM] = memaddr;
             rkat[RK_FLG] = F_ENABLE;
             rkat[RK_STS] = status;
         }
@@ -646,21 +641,25 @@ static int relockfile (int fd, int how)
 // read from processor memory
 static bool dmaread (uint16_t xaddr, uint16_t *data_r)
 {
-    if (! forcextmem && (xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
+    if ((xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
+        Z8LPage::cmlock (cmemat);
         for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
-            if (i > 1000) {
+            if (i > 100000) {
+                Z8LPage::cmunlk (cmemat);
                 fprintf (stderr, "dmaread: cmem controller stuck\n");
                 return false;
             }
         }
-        cmemat[1] = xaddr * CM_ADDR0;
+        cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
         uint32_t ca;
         for (int i = 0; ! ((ca = cmemat[1]) & CM_RRDY); i ++) {
-            if (i > 1000) {
+            if (i > 100000) {
+                Z8LPage::cmunlk (cmemat);
                 fprintf (stderr, "dmaread: cmem controller stuck\n");
                 return false;
             }
         }
+        Z8LPage::cmunlk (cmemat);
         *data_r = (ca & CM_DATA) / CM_DATA0;
     } else {
         *data_r = extmem[xaddr];
@@ -671,15 +670,20 @@ static bool dmaread (uint16_t xaddr, uint16_t *data_r)
 // write to processor memory
 static bool dmawrite (uint16_t xaddr, uint16_t data)
 {
-    if (! forcextmem && (xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
+    if (true) { //// (xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
+        fprintf (stderr, "dmawrite*:   cmem[%05o] <= %04o\n", xaddr, data);
+        Z8LPage::cmlock (cmemat);
         for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
-            if (i > 1000) {
+            if (i > 100000) {
+                Z8LPage::cmunlk (cmemat);
                 fprintf (stderr, "dmawrite: cmem controller stuck\n");
                 return false;
             }
         }
-        cmemat[1] = data * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
+        cmemat[1] = CM_ENAB | data * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
+        Z8LPage::cmunlk (cmemat);
     } else {
+        fprintf (stderr, "dmawrite*: extmem[%05o] <= %04o\n", xaddr, data);
         extmem[xaddr] = data;
     }
     return true;
@@ -688,13 +692,15 @@ static bool dmawrite (uint16_t xaddr, uint16_t data)
 // make sure last read/write has completed before setting status bits
 static void dmaflush ()
 {
-    if (! forcextmem) {
+    if (! (xmemat[1] & XM_ENLO4K)) {
+        Z8LPage::cmlock (cmemat);
         for (int i = 0; cmemat[1] & CM_BUSY; i ++) {
             if (i > 1000) {
                 fprintf (stderr, "dmaflush: cmem controller stuck\n");
                 ABORT ();
             }
         }
+        Z8LPage::cmunlk (cmemat);
     }
 }
 

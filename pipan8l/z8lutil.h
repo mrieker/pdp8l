@@ -31,6 +31,10 @@ struct Z8LPage {
     virtual ~Z8LPage ();
     uint32_t volatile *findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lock);
     uint32_t volatile *extmem ();
+
+    static void cmlock (uint32_t volatile *cmemat);
+    static void cmunlk (uint32_t volatile *cmemat);
+
 private:
     int zynqfd;
     uint32_t volatile *zynqpage;

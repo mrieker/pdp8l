@@ -24,6 +24,7 @@
 //  $ z8lpan.sh testmem.tcl
 //  pipan8l> looptest testrands
 
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
