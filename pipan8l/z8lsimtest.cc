@@ -50,6 +50,7 @@ static bool threecycle;
 static int nseqs;
 static uint16_t acum;
 static uint16_t dmaaddr;
+static uint16_t multquot;
 static uint16_t pctr;
 static uint16_t *seqs;
 static uint32_t clockno;
@@ -175,7 +176,7 @@ int main (int argc, char **argv)
 
         // once through this loop per instruction
 
-        printf ("%10u  L.AC=%o.%04o PC=%o%04o : ", ++ instrno, linc, acum, xmem_ifld, pctr);
+        printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
 
         ////if (instrno == 4814169) perclock = true;
 
@@ -501,7 +502,11 @@ int main (int argc, char **argv)
                             contforcesfetch = true; // cont switch in pdp8lsim.v always does fetch next (no brk, irq, etc)
                         }
                     } else {
-                        printf (" ignored");
+                        uint16_t newac = (opcode & 0200) ? 0 : acum;
+                        if (opcode & 0100) newac |= multquot;
+                        if (opcode & 0020) multquot = acum;
+                        if (opcode & 0056) printf (" 0056-ignored");
+                        acum = newac;
                     }
                 }
             }
