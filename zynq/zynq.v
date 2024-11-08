@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C404B;
+    localparam VERSION = 32'h384C404C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -375,6 +375,11 @@ module Zynq (
     wire[11:00] xmmem;
     wire xm_intinh, xm_mrdone, xm_mwdone, xm_ea;
 
+    // extended arithmetic interface wires
+    wire[31:00] eaardata;
+    wire[11:00] eaibus;
+    wire eaacclr, eaioskp;
+
     // core memory interface wires
     wire[31:00] cmardata;
     wire cmbrkrqst, cmbrkwrite;
@@ -410,6 +415,7 @@ module Zynq (
         (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
         (readaddr[11:04] ==  8'b00001100)   ? xmardata   :  // 00001100xx00
         (readaddr[11:04] ==  8'b00001101)   ? cmardata   :  // 00001101xx00
+        (readaddr[11:04] ==  8'b00001110)   ? eaardata   :  // 00001110xx00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
@@ -418,6 +424,7 @@ module Zynq (
     wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001011;     // 00001011xx00
     wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001100;     // 00001100xx00
     wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001101;     // 00001101xx00
+    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00001110;     // 00001101xx00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -1003,12 +1010,12 @@ module Zynq (
     assign dev_iBEMA         =      arm_iBEMA;
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
     assign dev_iDATA_IN      =      arm_iDATA_IN   | cmbrkwrite;
-    assign dev_iINPUTBUS     =      arm_iINPUTBUS  | ttibus  | tt40ibus  | rkibus | xmibus;
+    assign dev_iINPUTBUS     =      arm_iINPUTBUS  | ttibus  | tt40ibus  | rkibus | xmibus | eaibus;
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_iMEM          =      arm_iMEM       | xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
     assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
-    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR | ttacclr | tt40acclr | rkacclr);
+    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR | ttacclr | tt40acclr | rkacclr | eaacclr);
     assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST | cmbrkrqst);
     assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR  | cmbrkaddr);
     assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA  | cmbrkwdat);
@@ -1016,7 +1023,7 @@ module Zynq (
     assign dev_i_EMA         =      arm_i_EMA;
     assign dev_i_INT_INHIBIT =      arm_i_INT_INHIBIT & xm_intinh;
     assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST | ttintrq | tt40intrq | rkintrq);
-    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP  | ttioskp | tt40ioskp | rkioskp);
+    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP  | ttioskp | tt40ioskp | rkioskp | eaioskp);
     assign dev_i_MEMDONE     =      arm_i_MEMDONE     & xm_mwdone;
     assign dev_i_STROBE      =      arm_i_STROBE      & xm_mrdone;
 
@@ -1175,6 +1182,30 @@ module Zynq (
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
         ._brkdone (dev_o_ADDR_ACCEPT)           //< cycle complete (TP4 in break cycle)
+    );
+
+    // extended arithmetic
+
+    pdp8lextar eainst (
+        .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
+
+        .armwrite (eaawrite),
+        .armraddr (readaddr[3:2]),
+        .armwaddr (writeaddr[3:2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (eaardata),
+
+        .iopstart (iopstart),
+        .iopstop  (iopstop),
+        .ioopcode (dev_oBMB),
+        .cputodev (dev_oBAC),
+
+        .devtocpu (eaibus),
+        .acclear  (eaacclr),
+        .ioskip   (eaioskp)
     );
 
 endmodule

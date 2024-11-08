@@ -147,7 +147,7 @@ module pdp8lsim (
     reg lastswCONT, lastswDEP, lastswEXAM;
     reg irusedf, link, memen;
     wire runff, tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
-    reg[2:0] ir;
+    reg[2:0] ireg;
     reg[3:0] hltbrkintfet;
     reg[11:00] acum, madr, mbuf, pctr;
     reg[23:00] debounce;
@@ -164,7 +164,7 @@ module pdp8lsim (
     assign oBTS_1      = ts1;
     assign oBTS_3      = ts3;
     assign oBUSINIT    = RESET | (~ runff & swSTART);   // power-on reset or start switch and mftp0 (p4 A-3)
-    assign oJMP_JMS    = (ir[2:1] == 2);                // JMP or JMS is loaded in IR (p22 C-2, p5 C-6)
+    assign oJMP_JMS    = (ireg[2:1] == 2);              // JMP or JMS is loaded in IR (p22 C-2, p5 C-6)
     assign oLINE_LOW   = RESET;
     assign oMA         = madr;
     assign oMEMSTART   = (timestate == TS_TS1BODY);
@@ -183,7 +183,7 @@ module pdp8lsim (
     assign lbEXE  = (majstate == MS_EXEC) | (majstate == MS_INTAK);
     assign lbFET  = (majstate == MS_FETCH);
     assign lbION  = intenabled;
-    assign lbIR   = ir;
+    assign lbIR   = ireg;
     assign lbLINK = link;
     assign lbMA   = madr;
     assign lbMB   = mbuf;
@@ -191,6 +191,9 @@ module pdp8lsim (
     assign lbWC   = (majstate == MS_WC);
 
     assign debounced = debounce[1]; // 84mS:[23];
+
+    // IR holds an IO opcode (including extended arithmetic)
+    reg iopea;
 
     // these signals are valid from beginning of TS3 to beginning of next TS3
     // before TS3, the describe the current state
@@ -242,7 +245,7 @@ module pdp8lsim (
     wire[11:00] g2acum = (mbuf[07] ? 0 : acum) | (mbuf[02] ? swSR : 0);
 
     // this memory cycle does io
-    wire withio = (majstate == MS_FETCH) & (mbuf[11:09] == 6);
+    wire withio = (majstate == MS_FETCH) & iopea;
 
     // get incoming ac bits from io bus
     wire[11:00] ioac = (i_AC_CLEAR ? acum : 0) | iINPUTBUS;
@@ -266,9 +269,9 @@ module pdp8lsim (
         // and they aren't inhibited via 62x2/62x3 (CIF), next is int ack
         else if (~ i_INT_RQST &                                         // some device is requesting an interrupt
                     intenabled &                                        // 6001 was executed at least one instruction ago
-                    ~ ((ir == 6) & (mbuf[08:00] == 9'o002)) &           // not blocked by current 6002 (IOF) instruction
+                    ~ ((ireg == 6) & (mbuf[08:00] == 9'o002)) &         // not blocked by current 6002 (IOF) instruction
                     (i_INT_INHIBIT | oJMP_JMS) &                        // not blocked by prior 62x2/62x3 until jump or currently jumping
-                    ~ ((ir == 6) & ((mbuf[08:00] & 9'o706) == 9'o202))) begin   // not blocked by 62x2/62x3 currently executing
+                    ~ ((ireg == 6) & ((mbuf[08:00] & 9'o706) == 9'o202))) begin // not blocked by 62x2/62x3 currently executing
             hltbrkintfet <= MS_INTAK;
         end
 
@@ -278,7 +281,7 @@ module pdp8lsim (
 
     // main processing loop
     // set tp1 near end of ts1, then this circuit will transition to ts2 then clear tp1
-    // likewise for ts2, 3, 4, but do not enter ts4 is 'withio' is set
+    // likewise for ts2, 3, 4, but do not enter ts4 if 'withio' is set
 
     assign tp1 = (timestate == TS_TP1BEG) | (timestate == TS_TP1END);
     assign tp2 = (timestate == TS_TP2BEG) | (timestate == TS_TP2END);
@@ -300,6 +303,7 @@ module pdp8lsim (
             hidestep    <= 0;
             intdelayed  <= 0;
             intenabled  <= 0;
+            iopea       <= 0;
             ldad        <= 0;
             lastswCONT  <= 0;
             lastswDEP   <= 0;
@@ -438,12 +442,13 @@ module pdp8lsim (
                         case (majstate)
                             MS_FETCH: begin
                                 intenabled <= intdelayed;
-                                ir         <= mbuf[11:09];
+                                ireg       <= mbuf[11:09];
+                                iopea      <= mbuf[11] & mbuf[10] & (~ mbuf[9] | (mbuf[8] & mbuf[0]));
                                 irusedf    <= ~ mbuf[11] & mbuf[08];
                                 pctr       <= pctr + 1;
                             end
                             MS_DEFER: if (madr[11:03] == 1) mbuf <= mbuf + 1;
-                            MS_EXEC, MS_INTAK: case (ir)
+                            MS_EXEC, MS_INTAK: case (ireg)
                                 2: mbuf <= mbuf + 1;  // isz
                                 3: mbuf <= acum;      // dca
                                 4: mbuf <= pctr;      // jms
@@ -494,7 +499,7 @@ module pdp8lsim (
 
                             // nearing end of FETCH cycle
                             MS_FETCH: begin
-                                case (ir)
+                                case (ireg)
 
                                     // add, tad, isz, dca, jms
                                     0, 1, 2, 3, 4: nextmajst <= mbuf[08] ? MS_DEFER : MS_EXEC;
@@ -508,7 +513,7 @@ module pdp8lsim (
                             end
 
                             // nearing end of DEFER cycle
-                            MS_DEFER: nextmajst <= (ir == 5) ? hltbrkintfet : MS_EXEC;
+                            MS_DEFER: nextmajst <= (ireg == 5) ? hltbrkintfet : MS_EXEC;
 
                             // nearing end of EXEC cycle
                             MS_EXEC, MS_INTAK: nextmajst <= hltbrkintfet;
@@ -639,7 +644,7 @@ module pdp8lsim (
 
                             // end of FETCH cycle
                             MS_FETCH: begin
-                                case (ir)
+                                if (~ iopea) case (ireg)
 
                                     // add, tad, isz, dca, jms
                                     0, 1, 2, 3, 4: madr <= effaddr;
@@ -650,10 +655,7 @@ module pdp8lsim (
                                                  else pctr <= effaddr;
                                     end
 
-                                    // iot - io cycles were already performed as part of this mem cycle so start another fetch
-                                    6: begin end
-
-                                    // opr - perform operation and start another fetch
+                                    // opr (other than extended arithmetic) - perform operation and start another fetch
                                     7: begin
                                         if (~ mbuf[08]) begin
                                             acum <= g1acum;
@@ -668,13 +670,13 @@ module pdp8lsim (
 
                             // end of DEFER cycle
                             MS_DEFER: begin
-                                if (ir == 5) pctr <= mbuf;
-                                        else madr <= mbuf;
+                                if (ireg == 5) pctr <= mbuf;
+                                          else madr <= mbuf;
                             end
 
                             // end of EXEC cycle
                             MS_EXEC, MS_INTAK: begin
-                                case (ir)
+                                case (ireg)
                                     0: acum <= acum & mbuf;                         // and
                                     1: begin link <= tadlink; acum <= tadacum; end  // tad
                                     2: if (mbuf == 0) pctr <= pctr + 1;             // isz
@@ -709,7 +711,8 @@ module pdp8lsim (
                             MS_INTAK: begin
                                 intdelayed <= 0;
                                 intenabled <= 0;
-                                ir         <= 4;
+                                ireg       <= 4;
+                                iopea      <= 0;
                                 madr       <= 0;
                             end
                         endcase
