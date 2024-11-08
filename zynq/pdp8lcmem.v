@@ -40,8 +40,8 @@
 //    (rw) write = write given data to memory
 //    (rw) addr = address of memory word to access
 //  [3] = 32-bit test-and-set cell
-//        always accepts writing zero
-//        accepts writing non-zero only when currently zero
+//        always accepts writing anything when currently zero
+//        otherwise writing its current value back clears it to zero
 
 module pdp8lcmem (
     input CLOCK, CSTEP, RESET,
@@ -71,7 +71,7 @@ module pdp8lcmem (
     reg ctlenab;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1009 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D100A :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { 24'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
                       armlock;
@@ -104,11 +104,14 @@ module pdp8lcmem (
                 end
 
                 // test-and-set cell for arm processor use
-                //  writing zero is always accepted
-                //  writing non-zero is accepted only if cell is currently zero
+                //  anything can be written when it is currently zero
+                //  otherwise writing the same number back clears it to zero
+                //  all other writes are ignored
                 3: begin
-                    if ((armlock == 0) || (armwdata == 0)) begin
+                    if (armlock == 0) begin
                         armlock <= armwdata;
+                    end else if (armlock == armwdata) begin
+                        armlock <= 0;
                     end
                 end
             endcase
