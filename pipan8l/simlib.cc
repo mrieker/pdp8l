@@ -19,13 +19,24 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // simulate being the PDP-8/L to test pipan8l.cc
+// does not require raspi or zynq (can run on pc)
+// invoke with -sim option on pipan8l command line
 
+// it simulates a PDP-8/L with 8K memory and a teletype
+// support for the upper 4K is incomplete
+// to access the teletype:
+//  write keyboard characters to pipe pipan8l_ttykb
+//  read printer characters from pipe pipan8l_ttypr
+
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <tcl.h>
 #include <unistd.h>
 
@@ -71,10 +82,72 @@ SimLib::SimLib ()
     runtid = 0;
     memset (memarray, 0, sizeof memarray);
     memset (wrpads, 0, sizeof wrpads);
+
+    kbflag    = false;
+    prflag    = false;
+    prfull    = false;
+    ttinten   = true;
+    ttintrq   = false;
+    kbreadfd  = -1;
+    prwritefd = -1;
+    kbchar    = 0;
+    prchar    = 0;
+    kbnextus  = 0;
+    prnextus  = 0;
 }
 
 void SimLib::openpads ()
-{ }
+{
+    unlink ("pipan8l_ttykb");
+    unlink ("pipan8l_ttypr");
+    if (mkfifo ("pipan8l_ttykb", 0666) < 0) {
+        fprintf (stderr, "SimLib::openpads: error creating pipan8l_ttykb fifo: %m\n");
+        ABORT ();
+    }
+    if (mkfifo ("pipan8l_ttypr", 0666) < 0) {
+        fprintf (stderr, "SimLib::openpads: error creating pipan8l_ttypr fifo: %m\n");
+        ABORT ();
+    }
+    kbreadfd  = open ("pipan8l_ttykb", O_RDONLY | O_NONBLOCK);
+    if (kbreadfd < 0) {
+        fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttykb fifo: %m\n");
+        ABORT ();
+    }
+    pthread_t tid;
+    if (pthread_create (&tid, NULL, openttyprpipe, this) < 0) ABORT ();
+
+    char const *env = getenv ("pipan8l_ttycps");
+    if ((env != NULL) && (env[0] != 0)) {
+        int cps = atoi (env);
+        if (cps < 1) cps = 1;
+        if (cps > 1000000) cps = 1000000;
+        usperch = 1000000 / cps;
+    } else {
+        usperch = 100000;
+    }
+}
+
+void *SimLib::openttyprpipe (void *zhis)
+{
+    pthread_detach (pthread_self ());
+
+    // O_NONBLOCK doesn't seem to work with O_WRONLY so do in blocking style then modify
+    int fd = open ("pipan8l_ttypr", O_WRONLY);
+    if (fd < 0) {
+        fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttypr fifo: %m\n");
+        ABORT ();
+    }
+
+    // now set to non-blocking mode
+    if (fcntl (fd, F_SETFL, O_NONBLOCK) < 0) ABORT ();
+
+    fprintf (stderr, "SimLib::openpads: tty connected\n");
+
+    // ok to let main program use it now
+    ((SimLib *)zhis)->prwritefd = fd;
+
+    return NULL;
+}
 
 // simulate reading the paddle pins
 void SimLib::readpads (uint16_t *pads)
@@ -286,6 +359,18 @@ void SimLib::runthread ()
 // step through to end of next state
 void SimLib::singlestep ()
 {
+    polltty ();
+    if (ionreg && ttintrq) {
+        idelay = false;
+        ionreg = false;
+        state  = EXE;
+        mareg  = 0;
+        memarray[0] = mbreg = pcreg;
+        pcreg  = 1;
+        return;
+    }
+    ionreg = idelay;
+
     ////printf ("singlestep*: beg PC=%04o IR=%o ST=%s\n", pcreg, irtop, ststr ());
 
     switch (state) {
@@ -359,8 +444,6 @@ void SimLib::singlestep ()
 
         default: ABORT ();
     }
-
-    ////printf ("singlestep*: end PC=%04o IR=%o ST=%s\n", pcreg, irtop, ststr ());
 }
 
 // at end of EXE state for previous instruction,
@@ -471,7 +554,6 @@ void SimLib::dooperate ()
     }
 
     else if (! (mbreg & 00001)) {
-
         bool skip = false;
         if ((mbreg & 0100) && (acreg & 04000)) skip = true;     // SMA
         if ((mbreg & 0040) && (acreg ==    0)) skip = true;     // SZA
@@ -481,10 +563,7 @@ void SimLib::dooperate ()
 
         if (mbreg & 00200) acreg  = 0;
         if (mbreg & 00004) acreg |= swreg;
-        if (mbreg & 00002) {
-            runreg = false;
-            pthread_exit (NULL);
-        }
+        if (mbreg & 00002) runreg = false;
     }
 
     else {
@@ -495,8 +574,56 @@ void SimLib::dooperate ()
 // end of fetch with I/O instruction, do the I/O as part of the fetch cycle
 void SimLib::doioinst ()
 {
-    if (mbreg == 06001) ionreg = true;
-    if (mbreg == 06002) ionreg = false;
+    switch (mbreg) {
+        case 06001: ionreg = true; break;
+        case 06002: idelay = false; ionreg = false; break;
+
+        case 06031: if (kbflag) pcreg = (pcreg + 1) & 07777; break;
+        case 06032: acreg = 0; kbflag = 0; break;
+        case 06034: acreg |= kbchar; break;
+        case 06035: ttinten = acreg & 1; break;
+        case 06036: acreg = kbchar; kbflag = 0; break;
+        case 06041: if (prflag) pcreg = (pcreg + 1) & 07777; break;
+        case 06042: prflag = 0; break;
+        case 06044: prchar = acreg; prfull = 1; break;
+        case 06045: if (ttintrq) pcreg = (pcreg + 1) & 07777; break;
+        case 06046: prchar = acreg; prflag = 0; prfull = 1; break;
+    }
+}
+
+void SimLib::polltty ()
+{
+    struct timeval nowtv;
+    if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
+    uint64_t nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
+
+    if (prfull && (nowus >= prnextus) && (prwritefd >= 0)) {
+        prchar &= 0177;
+        int rc  = write (prwritefd, &prchar, 1);
+        if (rc > 0) {
+            prflag   = 1;
+            prfull   = 0;
+            prnextus = nowus + usperch;
+        } else if ((rc == 0) || ((errno != EAGAIN) && (errno != EWOULDBLOCK))) {
+            if (rc == 0) fprintf (stderr, "SimLib::polltty: eof writing to tty pipe\n");
+            else fprintf (stderr, "SimLib::polltty: error writing to tty pipe: %m\n");
+            ABORT ();
+        }
+    }
+
+    if (nowus >= kbnextus) {
+        int rc = read (kbreadfd, &kbchar, 1);
+        if (rc > 0) {
+            kbchar  |= 0200;
+            kbflag   = 1;
+            kbnextus = nowus + usperch;
+        } else if ((rc < 0) && (errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+            fprintf (stderr, "SimLib::polltty: error reading from tty pipe: %m\n");
+            ABORT ();
+        }
+    }
+
+    ttintrq = ttinten & (kbflag | prflag);
 }
 
 char const *SimLib::ststr ()

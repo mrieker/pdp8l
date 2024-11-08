@@ -10,6 +10,7 @@ proc helpini {} {
     puts "  loadbin <filename>      - load bin file, verify, return start address"
     puts "  loadrim <filename>      - load rim file, verify"
     puts "  octal <val>             - convert value to 4-digit octal string"
+    puts "  openttypipes            - access tty device pipes"
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
@@ -31,6 +32,16 @@ proc helpini {} {
 # - assem 0201 sna cla
 proc assem {addr opcd args} {
     wrmem $addr [assemop $addr $opcd $args]
+}
+
+# close the tty pipes (see openttypipes)
+proc closettypipes {} {
+    global wrkbpipe rdprpipe
+    chan close $wrkbpipe
+    while {[readttychartimed 100] != ""} { }
+    chan close $rdprpipe
+    set wrkbpipe ""
+    set rdprpipe ""
 }
 
 # disassemble block of memory
@@ -108,6 +119,16 @@ proc dumppins {} {
         }
         puts ""
     }
+}
+
+;# convert given character to escaped form if necessary
+proc escapechr {ch} {
+    if {$ch == ""} {return "\\d"}
+    scan $ch "%c" ii
+    if {$ii == 10} {return "\\n"}
+    if {$ii == 13} {return "\\r"}
+    if {($ii <= 31) || ($ii >= 127)} {return [format "\\%03o" $ii]}
+    return $ch
 }
 
 # flick momentary switch on then off
@@ -434,6 +455,19 @@ proc octal {val} {
     return [format %04o $val]
 }
 
+;# function to open tty port available as pipes
+;# - using pipan8l with real PDP-8/L: softlink pipan8l_ttykb and _ttypr to real tty port
+;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes pipan8l_ttykb and _ttypr
+;# - using pipan8l on zynq with pdp8ltty.v (started via z8lpan.sh): overridden by z8lpanini.tcl
+proc openttypipes {} {
+    global wrkbpipe rdprpipe
+    set rdprpipe [open "pipan8l_ttypr" "r"]
+    set wrkbpipe [open "pipan8l_ttykb" "w"]
+    chan configure $rdprpipe -translation binary
+    chan configure $wrkbpipe -translation binary
+    chan configure $rdprpipe -blocking 0
+}
+
 # increment a variable but return its previous value
 # useful for doing series of assem commands
 # http://www.tcl.tk/man/tcl8.6/TclCmd/upvar.htm
@@ -444,6 +478,17 @@ proc postinc name {
     return $oldval
 }
 
+;# read character from tty with timeout (see openttypipes)
+proc readttychartimed {msec} {
+    global rdprpipe
+    for {set i 0} {$i < $msec} {incr i} {
+        set ch [chan read $rdprpipe 1]
+        if {$ch != ""} {return $ch}
+        after 1
+    }
+    return ""
+}
+
 # read memory location
 # - does loadaddress which reads the location
 proc rdmem {addr} {
@@ -452,6 +497,35 @@ proc rdmem {addr} {
     setsw sr [expr {$addr & 07777}]
     flicksw ldad
     return [getreg mb]
+}
+
+;# function to send the given string to the tty (see openttypipes)
+;# also checks for echoing
+proc sendtottykb {str} {
+    global wrkbpipe
+    set len [string length $str]
+    for {set i 0} {$i < $len} {incr i} {
+        after 1500
+        set ex [string index $str $i]
+        puts -nonewline $wrkbpipe $ex
+        chan flush $wrkbpipe
+        while true {
+            set ch [readttychartimed 1000]
+            if {$ch == ""} {
+                puts "sendtottykb: timed out receiving echo"
+                exit 1
+            }
+            if {$ch > " "} break
+            if {$ch == $ex} break
+            if {$i > 0} break
+            puts "sendtottykb*: tossing char [escapechr $ch]"
+        }
+        if {$ch != $ex} {
+            puts "sendtottykb: sent char [escapechr $ex] to tty kb but echoed as [escapechr $ch]"
+            exit 1
+        }
+        puts "sendtottykb*: sent char [escapechr $ex] to tty"
+    }
 }
 
 # load PC and start at given address
@@ -494,6 +568,7 @@ proc stopandreset {} {
             puts "stopandreset: cpu did not stop"
             exit 1
         }
+        flushit
     }
     set oldmem0 [rdmem 0]
     assem 0 HLT
@@ -503,20 +578,10 @@ proc stopandreset {} {
             puts "stopandreset: cpu did not halt"
             exit 1
         }
+        flushit
     }
     wrmem 0 $oldmem0
     setsw step 0
-}
-
-# write memory location
-# - does loadaddress, then deposit to write
-proc wrmem {addr data args} {
-    setsw ifld [expr {$addr >> 12}]
-    setsw dfld [expr {$addr >> 12}]
-    setsw sr [expr {$addr & 07777}]
-    flicksw ldad
-    setsw sr $data
-    flicksw dep
 }
 
 # wait for control-C or processor stopped
@@ -528,6 +593,35 @@ proc wait {} {
         if [ctrlcflag] {return "CTRLC"}
     }
     return "STOP"
+}
+
+;# function to wait for the given string from the tty (see openttypipes)
+proc waitforttypr {msec str} {
+    set len [string length $str]
+    for {set i 0} {$i < $len} {incr i} {
+        while true {
+            set ch [readttychartimed $msec]
+            if {$ch > " "} break
+            if {$i > 0} break
+        }
+        set ex [string index $str $i]
+        if {$ch != $ex} {
+            puts "waitforttypr: expected char [escapechr $ex] on tty but got [escapechr $ch]"
+            exit 1
+        }
+        puts "waitforttypr*: matched char [escapechr $ex] on tty"
+    }
+}
+
+# write memory location
+# - does loadaddress, then deposit to write
+proc wrmem {addr data args} {
+    setsw ifld [expr {$addr >> 12}]
+    setsw dfld [expr {$addr >> 12}]
+    setsw sr [expr {$addr & 07777}]
+    flicksw ldad
+    setsw sr $data
+    flicksw dep
 }
 
 # zero block of memory
@@ -543,7 +637,7 @@ proc zeromem {start stop} {
 }
 
 # milliseconds to hold a momentary switch on
-set bncyms 120
+set bncyms [getenv bncyms 120]
 
 # make sure processor is stopped
 # and turn off all the other switches

@@ -63,7 +63,7 @@ struct SimLib : PadLib {
 private:
     enum State { NUL, FET, EXE, DEF, WCT, CAD, BRK };
 
-    bool dfldsw, dfreg, eareg, ifldsw, ifreg, ionreg, lnreg, mprtsw, stepsw;
+    bool dfldsw, dfreg, eareg, idelay, ifldsw, ifreg, ionreg, lnreg, mprtsw, stepsw;
     State state;
     uint16_t acreg, irtop, mareg, mbreg, pcreg, swreg;
     uint16_t memarray[8192];
@@ -80,6 +80,13 @@ private:
 
     pthread_t runtid;           // - set and cleared only by main thread
 
+    bool kbflag, prflag, prfull, ttinten, ttintrq;
+    int kbreadfd, prwritefd, usperch;
+    uint8_t kbchar, prchar;
+    uint64_t kbnextus, prnextus;
+
+    static void *openttyprpipe (void *zhis);
+
     void spreadreg (uint16_t reg, uint16_t *pads, int npins, uint8_t const *pins);
     void spreadpin (bool val, uint16_t *pads, uint8_t pin);
     uint16_t gatherreg (uint16_t const *pads, int npins, uint8_t const *pins);
@@ -94,6 +101,7 @@ private:
     void domemref ();
     void dooperate ();
     void doioinst ();
+    void polltty ();
     char const *ststr ();
 };
 
