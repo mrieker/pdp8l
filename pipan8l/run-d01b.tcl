@@ -2,6 +2,7 @@ puts ""
 puts "d01b: instruction test 1"
 
 ;# open tty, load program
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-8i-d01b-pb.bin
 

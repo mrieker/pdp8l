@@ -5,4 +5,10 @@
 dd=`dirname $0`
 $dd/loadmod.sh
 export pipan8lini=$dd/z8lpanini.tcl
-exec ./pipan8l -z8l "$@"
+dbg=
+if [ "$1" == "-gdb" ]
+then
+    dbg='-gdb'
+    shift
+fi
+exec ./pipan8l $dbg -z8l "$@"

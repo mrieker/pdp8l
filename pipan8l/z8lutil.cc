@@ -104,7 +104,8 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
                     if (fcntl (zynqfd, F_SETLK, &flockit) < 0) {
                         if (((errno == EACCES) || (errno == EAGAIN)) && (fcntl (zynqfd, F_GETLK, &flockit) >= 0)) {
                             if (flockit.l_type == F_UNLCK) goto trylk;
-                            fprintf (stderr, "Z8LPage::findev: locked by pid %d\n", (int) flockit.l_pid);
+                            fprintf (stderr, "Z8LPage::findev: %c%c locked by pid %d\n",
+                                *dev >> 24, *dev >> 16, (int) flockit.l_pid);
                         } else {
                             fprintf (stderr, "Z8LPage::findev: error locking: %m\n");
                         }

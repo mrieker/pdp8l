@@ -1,6 +1,7 @@
 puts ""
 puts "d07b: random isz test"
 
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-08-d07b-pb.bin
 setsw sr 00037

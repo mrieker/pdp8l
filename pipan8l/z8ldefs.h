@@ -205,6 +205,17 @@
 #define CM_DATA0 (1U << 16)
 #define CM_ENAB  (1U << 31)
 
+// pdp8ltty.v registers
+#define Z_TTYVER 0
+#define Z_TTYKB 1
+#define Z_TTYPR 2
+#define Z_TTYPN 3
+
+#define KB_FLAG 0x80000000
+#define KB_ENAB 0x40000000
+#define PR_FLAG 0x80000000
+#define PR_FULL 0x40000000
+
 // pdp8lxmem.v registers
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)

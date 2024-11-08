@@ -1,6 +1,7 @@
 puts ""
 puts "d1gb: extended memory control"
 
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-08-d1gb-pb.bin
 setsw sr 0200

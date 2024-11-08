@@ -1,6 +1,7 @@
 puts ""
 puts "d04b: random jmp test"
 
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-08-d04b-pb.bin
 setsw sr 00200

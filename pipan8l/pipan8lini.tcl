@@ -16,6 +16,7 @@ proc helpini {} {
     puts "  startat <addr>          - load pc and start at given address"
     puts "  stepit                  - step one cycle then dump"
     puts "  steploop                - step one cycle, dump, then loop on enter key"
+    puts "  stopandreset            - stop and reset cpu"
     puts "  wait                    - wait for CTRLC or STOP"
     puts "  wrmem <addr> <data>     - write memory at the given address"
     puts "  zeromem <start> <stop>  - zero the given address range"
@@ -482,6 +483,29 @@ proc steploop {} {
         set line [gets stdin]
         if {$line != ""} break
     }
+}
+
+# stop and reset cpu
+proc stopandreset {} {
+    setsw step 1
+    flicksw stop
+    for {set i 0} {[getreg run]} {incr i} {
+        if {$i > 1000} {
+            puts "stopandreset: cpu did not stop"
+            exit 1
+        }
+    }
+    set oldmem0 [rdmem 0]
+    assem 0 HLT
+    startat 0
+    for {set i 0} {[getreg run]} {incr i} {
+        if {$i > 1000} {
+            puts "stopandreset: cpu did not halt"
+            exit 1
+        }
+    }
+    wrmem 0 $oldmem0
+    setsw step 0
 }
 
 # write memory location

@@ -1,5 +1,6 @@
 puts ""
 puts "d02b: instruction test 2"
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-8i-d02b-pb.bin
 setsw sr 07777

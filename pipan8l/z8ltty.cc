@@ -36,17 +36,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "z8ldefs.h"
 #include "z8lutil.h"
-
-#define Z_TTYVER 0
-#define Z_TTYKB 1
-#define Z_TTYPR 2
-#define Z_TTYPN 3
-
-#define KB_FLAG 0x80000000
-#define KB_ENAB 0x40000000
-#define PR_FLAG 0x80000000
-#define PR_FULL 0x40000000
 
 static bool findtt (void *param, uint32_t volatile *ttyat)
 {
@@ -102,6 +93,7 @@ int main (int argc, char **argv)
 
     ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
 
+    bool stdoutty = isatty (STDOUT_FILENO) > 0;
     uint64_t readnextkbat   = 0;
     uint64_t setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
     while (true) {
@@ -120,9 +112,9 @@ int main (int argc, char **argv)
             uint32_t prreg = ttyat[Z_TTYPR];
             if (prreg & PR_FULL) {
                 uint8_t prchar = prreg & 0177;
-                if ((prchar == 7) && stdintty) {
+                if ((prchar == 7) && stdoutty) {
                     int rc = write (STDOUT_FILENO, "<BEL>", 5);
-                    if (rc <= 0) ABORT ();
+                    if (rc < 5) ABORT ();
                 } else {
                     int rc = write (STDOUT_FILENO, &prchar, 1);
                     if (rc <= 0) ABORT ();

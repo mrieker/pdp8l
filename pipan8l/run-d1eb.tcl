@@ -1,6 +1,7 @@
 puts ""
 puts "d1eb: extended memory checkerboard"
 
+stopandreset
 openttypipes
 loadbin ../alltapes/maindec-08-d1eb-pb.bin
 setsw sr 0200
