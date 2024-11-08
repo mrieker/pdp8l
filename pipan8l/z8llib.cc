@@ -24,6 +24,8 @@
 //  $ z8lpan.sh testmem.tcl
 //  pipan8l> looptest testrands
 
+// Use regular pipan8l's i2clib.cc running on RasPI for real PDP-8/L
+
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -119,28 +121,25 @@ static uint32_t ztop[] = {
      0, 0, 0
 };
 
-static uint32_t const forceons[Z_N] = { 0, ZZ_RA, 0, 0, ZZ_RD, e_simit | e_nanocontin | e_nanotrigger };
+// e_simit = use pdp8lsim.v instead of real pdp-8/l so we can operate switches & lights
+// e_nanocontin = pdp8lsim.v clocks continuously from fpga clock
+static uint32_t const forceons[Z_N] = { 0, ZZ_RA, 0, 0, ZZ_RD, e_simit | e_nanocontin };
 static char const *const msnames[] = { MS_NAMES };
 
 
 
 Z8LLib::Z8LLib ()
 {
-    z8p    = NULL;
-    extmem = NULL;
-    pdpat  = NULL;
-    xmemat = NULL;
-    tracefile = NULL;
+    z8p   = NULL;
+    pdpat = NULL;
 }
 
 Z8LLib::~Z8LLib ()
 {
     if (z8p != NULL) {
         delete z8p;
-        z8p    = NULL;
-        extmem = NULL;
-        pdpat  = NULL;
-        xmemat = NULL;
+        z8p   = NULL;
+        pdpat = NULL;
     }
 }
 
@@ -157,45 +156,21 @@ void Z8LLib::openpads ()
     }
     fprintf (stderr, "Z8LLib::openpads: 8L version %08X\n", pdpat[0]);
 
-    // find pdp8lxmem.v registers
-    xmemat = z8p->findev ("XM", NULL, NULL, true);
+    // load initial registers
+    for (int i = 0; i < Z_N; i ++) {
+        pdpat[i] = forceons[i];
+    }
+
+    // enable extended memory io instruction processing
+    // locate lower 4K memory in extmem block memory so it can be accessed via extmem
+    uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
     if (pdpat == NULL) {
         fprintf (stderr, "Z8LLib::openpads: XM not found\n");
         ABORT ();
     }
     fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
-
-    // mmap 32K word extmem chip (extmemmap.v)
-    // one 12-bit word in low end of our 32-bit word
-    extmem = z8p->extmem ();
-
-    // load initial registers
-    ////pdpat[Z_RE] = e_softreset | forceons[Z_RE];
-    for (int i = 0; i < Z_N; i ++) {
-        ////pdpat[i] = ((i == Z_RE) ? e_softreset : 0) | forceons[i];
-        pdpat[i] = forceons[i];
-    }
-    ////pdpat[Z_RE] = forceons[Z_RE];
-
-    // enable extended memory io instruction processing
-    // locate lower 4K memory in extmem block memory so it can be accessed via extmem
-    xmemat[1] = XM_ENABLE | XM_ENLO4K;
-
-    // tracing puts manual clocking in separate thread
-    char const *trenv = getenv ("z8llib_trace");
-    if ((trenv != NULL) && (trenv[0] != 0)) {
-        tracefile = (trenv[0] == '|') ? popen (trenv + 1, "w") : fopen (trenv, "w");
-        if (tracefile == NULL) {
-            fprintf (stderr, "Z8LLib::openpads: error creating %s: %m\n", trenv);
-            ABORT ();
-        }
-        fprintf (stderr, "Z8LLib::openpads: tracing to %s\n", trenv);
-        pdpat[Z_RE] &= ~ (e_nanocontin | e_nanotrigger);
-        pthread_t tracetid;
-        int rc = pthread_create (&tracetid, NULL, trthreadwrap, this);
-        if (rc != 0) ABORT ();
-        pthread_detach (tracetid);
-    }
+    char const *envar = getenv ("z8llib_enlo4k");
+    xmemat[1] = XM_ENABLE | (((envar != NULL) && (envar[0] & 1)) ? XM_ENLO4K : 0);
 }
 
 // read switches and lightbulbs from zynq pdp8l.v
@@ -224,7 +199,7 @@ void Z8LLib::readpads (uint16_t *pads)
 // write switches to zynq pdp8l.v
 void Z8LLib::writepads (uint16_t const *pads)
 {
-    uint32_t zrb = 0;   // all switches in Z_RB
+    uint32_t zrb = 0;   // all switches are in Z_RB
     for (int i = 0; ztop[i*3] == Z_RB; i ++) {
         uint32_t pb = ztop[i*3+2];
         uint32_t pi = pb >> 4;
@@ -234,58 +209,4 @@ void Z8LLib::writepads (uint16_t const *pads)
         }
     }
     pdpat[Z_RB] = zrb;
-}
-
-void *Z8LLib::trthreadwrap (void *zhis)
-{
-    ((Z8LLib *) zhis)->tracethread ();
-    return NULL;
-}
-
-void Z8LLib::tracethread ()
-{
-    setlinebuf (tracefile);
-
-    while (true) {
-
-        // clock until it is in TS1, ie, where it is reading memory
-        while (! (pdpat[Z_RF] & f_oBTS_1)) {
-            pdpat[Z_RE] = e_simit | e_nanotrigger;
-        }
-
-        // clock until it just leaves TS1, ie, has finished reading memory
-        while (pdpat[Z_RF] & f_oBTS_1) {
-            pdpat[Z_RE] = e_simit | e_nanotrigger;
-        }
-
-        // capture what it read and where and why
-        uint16_t ac = (pdpat[Z_RH] & h_oBAC) / h_oBAC0;
-        uint16_t mr = (pdpat[Z_RH] & h_oBMB) / h_oBMB0;
-        uint16_t ma = (pdpat[Z_RI] & i_oMA)  / i_oMA0;
-        uint16_t ms = (pdpat[Z_RK] & k_majstate) / k_majstate0;
-        uint16_t mf = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
-
-        // clock to beginning of TS3 where it starts writing memory
-        while (! (pdpat[Z_RF] & f_oBTS_3)) {
-            pdpat[Z_RE] = e_simit | e_nanotrigger;
-        }
-
-        // capture what it is writing back
-        uint16_t mw = (pdpat[Z_RH] & h_oBMB) / h_oBMB0;
-
-        bool interruptrequest = (pdpat[Z_RA] & a_i_INT_RQST) == 0;
-        bool interruptsenabled = (pdpat[Z_RG] & g_lbION) != 0;          // enabled just after starting fetch of next instruction
-        bool intsinhibduntiljmp = (pdpat[Z_RA] & a_i_INT_INHIBIT) == 0; // cleared at TS1 started
-
-        // write trace record
-        fprintf (tracefile, "%-5s  AC=%04o  MA=%o.%04o  IRQ=%o ION=%o IIUJ=%o  MB=%04o", msnames[ms], ac, mf, ma,
-                interruptrequest, interruptsenabled, intsinhibduntiljmp, mr);
-        if (mw != mr) {
-            fprintf (tracefile, "->%04o", mw);
-        }
-        if (ms == MS_FETCH) {
-            fprintf (tracefile, "  %s", disassemble (mr, ma).c_str ());
-        }
-        fputc ('\n', tracefile);
-    }
 }
