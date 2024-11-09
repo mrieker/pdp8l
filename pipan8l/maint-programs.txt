@@ -28,5 +28,5 @@ To run on a PC or such:
 
 To run on Zynq Z8L Sim (with pdp8lsim.v code loaded):
 
-    ./z8lpan.sh run-d01b.tcl
+    ./z8lsim run-d01b.tcl
 

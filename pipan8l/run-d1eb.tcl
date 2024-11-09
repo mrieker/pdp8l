@@ -25,6 +25,12 @@ set nmin 3
 puts "d1eb: letting it run for $nmin minutes"
 set error 0
 for {set started [clock seconds]} {[clock seconds] - $started < $nmin * 60} {} {
+    if {[ctrlcflag]} return
+    if {! [getreg run]} {
+        puts "d1eb: processor halted"
+        puts [dumpit]
+        return
+    }
     if {![getreg run]} {
         puts "d1eb: processor halted - failed"
         exit 1

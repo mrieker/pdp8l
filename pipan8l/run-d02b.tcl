@@ -10,6 +10,12 @@ startat 0201
 puts "d02b: waiting for 3 bells, should be about 15 seconds"
 set nbells 0
 for {set started [clock seconds]} {[clock seconds] - $started < 30} {} {
+    if {[ctrlcflag]} return
+    if {! [getreg run]} {
+        puts "d02b: processor halted"
+        puts [dumpit]
+        return
+    }
     set ch [readttychartimed 100]
     if {$ch == ""} continue
     if {$ch == "\177"} continue

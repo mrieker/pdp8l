@@ -26,6 +26,7 @@
 
 struct PadLib {
     virtual ~PadLib () { }
+    virtual char const *libname () = 0;
     virtual void openpads () = 0;
     virtual void readpads (uint16_t *pads) = 0;
     virtual void writepads (uint16_t const *pads) = 0;
@@ -37,6 +38,7 @@ struct PadLib {
 struct I2CLib : PadLib {
     I2CLib ();
     virtual ~I2CLib ();
+    virtual char const *libname () { return "i2c"; }
     virtual void openpads ();
     virtual void readpads (uint16_t *pads);
     virtual void writepads (uint16_t const *pads);
@@ -54,8 +56,10 @@ private:
 };
 
 // use C++ PDP-8/L simulator
+#define MEMSIZE 32768
 struct SimLib : PadLib {
     SimLib ();
+    virtual char const *libname () { return "sim"; }
     virtual void openpads ();
     virtual void readpads (uint16_t *pads);
     virtual void writepads (uint16_t const *pads);
@@ -63,10 +67,10 @@ struct SimLib : PadLib {
 private:
     enum State { NUL, FET, EXE, DEF, WCT, CAD, BRK };
 
-    bool dfldsw, dfreg, eareg, idelay, ifldsw, ifreg, ionreg, lnreg, mprtsw, stepsw;
+    bool dfldsw, idelay, ifldsw, ionreg, lnreg, mprtsw, stepsw, traceon;
     State state;
     uint16_t acreg, irtop, mareg, mbreg, pcreg, swreg;
-    uint16_t memarray[8192];
+    uint16_t memarray[MEMSIZE];
     uint16_t wrpads[P_NU16S];
 
     bool volatile runreg;       // false: thread is not running or just about to exit
@@ -85,6 +89,9 @@ private:
     uint8_t kbchar, prchar;
     uint64_t kbnextus, prnextus;
 
+    bool intinhibiteduntiljump;
+    uint16_t dfld, eareg, ifld, ifldafterjump, memfields, saveddfld, savedifld;
+
     static void *openttyprpipe (void *zhis);
 
     void spreadreg (uint16_t reg, uint16_t *pads, int npins, uint8_t const *pins);
@@ -99,6 +106,8 @@ private:
     void singlestep ();
     void dofetch ();
     void domemref ();
+    uint16_t readmem (uint16_t field, uint16_t addr);
+    void writemem (uint16_t field, uint16_t addr, uint16_t data);
     void dooperate ();
     void doioinst ();
     void polltty ();
@@ -110,6 +119,7 @@ private:
 struct Z8LLib : PadLib {
     Z8LLib ();
     virtual ~Z8LLib ();
+    virtual char const *libname () { return "z8l"; }
     virtual void openpads ();
     virtual void readpads (uint16_t *pads);
     virtual void writepads (uint16_t const *pads);

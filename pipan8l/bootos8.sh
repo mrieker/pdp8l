@@ -7,7 +7,7 @@ rkpid=$!
 sleep 3
 echo = = = = = = = =
 echo booting
-./z8lpan.sh bootos8.tcl
+./z8lsim bootos8.tcl
 echo = = = = = = = =
 echo opening tty
 ./z8ltty -cps 30

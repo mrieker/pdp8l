@@ -22,6 +22,8 @@
 #define _Z8LUTIL_H
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)

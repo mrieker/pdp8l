@@ -23,10 +23,13 @@
 // invoke with -sim option on pipan8l command line
 
 // it simulates a PDP-8/L with 8K memory and a teletype
-// support for the upper 4K is incomplete
 // to access the teletype:
 //  write keyboard characters to pipe pipan8l_ttykb
 //  read printer characters from pipe pipan8l_ttypr
+
+// envars:
+//  pipan8l_memfields = memory fields 1..8, default 2
+//  pipan8l_ttycps = teletype chars per sec 1..1000000, default 10
 
 #include <fcntl.h>
 #include <pthread.h>
@@ -63,10 +66,8 @@ static uint8_t const irpins[ 3] = { P_IR00, P_IR01, P_IR02 };
 SimLib::SimLib ()
 {
     dfldsw = false;
-    dfreg  = false;
     eareg  = false;
     ifldsw = false;
-    ifreg  = false;
     ionreg = false;
     lnreg  = false;
     mprtsw = false;
@@ -82,6 +83,7 @@ SimLib::SimLib ()
     runtid = 0;
     memset (memarray, 0, sizeof memarray);
     memset (wrpads, 0, sizeof wrpads);
+    traceon = false;
 
     kbflag    = false;
     prflag    = false;
@@ -94,10 +96,36 @@ SimLib::SimLib ()
     prchar    = 0;
     kbnextus  = 0;
     prnextus  = 0;
+
+    intinhibiteduntiljump = false;
+    dfld          = 0;
+    ifld          = 0;
+    ifldafterjump = 0;
+    saveddfld     = 0;
+    savedifld     = 0;
+    memfields     = 0;
 }
 
 void SimLib::openpads ()
 {
+    // set up number of memory fields
+    memfields = 2;
+    char const *mfenv = getenv ("pipan8l_memfields");
+    if ((mfenv != NULL) && (mfenv[0] != 0)) {
+        char *p;
+        memfields = strtoul (mfenv, &p, 0);
+        if ((*p != 0) || (memfields < 1) || (memfields > 8)) {
+            fprintf (stderr, "SimLib::openlads: num mem fields %s must be in range 1..8\n", mfenv);
+            ABORT ();
+        }
+    }
+    fprintf (stderr, "SimLib::openlads: memory size %uK words\n", memfields * 4);
+
+    // maybe turn tracing on
+    char const *trenv = getenv ("pipan8l_simtrace");
+    traceon = (trenv != NULL) && (trenv[0] & 1);
+
+    // create named pipes for tty's keyboard and printer
     unlink ("pipan8l_ttykb");
     unlink ("pipan8l_ttypr");
     if (mkfifo ("pipan8l_ttykb", 0666) < 0) {
@@ -108,7 +136,10 @@ void SimLib::openpads ()
         fprintf (stderr, "SimLib::openpads: error creating pipan8l_ttypr fifo: %m\n");
         ABORT ();
     }
-    kbreadfd  = open ("pipan8l_ttykb", O_RDONLY | O_NONBLOCK);
+
+    // open them in non-blocking mode on this end
+    // use non-blocking mode so we don't get stuck in the open() call
+    kbreadfd = open ("pipan8l_ttykb", O_RDONLY | O_NONBLOCK);
     if (kbreadfd < 0) {
         fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttykb fifo: %m\n");
         ABORT ();
@@ -116,6 +147,7 @@ void SimLib::openpads ()
     pthread_t tid;
     if (pthread_create (&tid, NULL, openttyprpipe, this) < 0) ABORT ();
 
+    // set up simulated tty speed
     char const *env = getenv ("pipan8l_ttycps");
     if ((env != NULL) && (env[0] != 0)) {
         int cps = atoi (env);
@@ -127,11 +159,13 @@ void SimLib::openpads ()
     }
 }
 
+// O_NONBLOCK doesn't seem to work with O_WRONLY so do in blocking style then modify
 void *SimLib::openttyprpipe (void *zhis)
 {
     pthread_detach (pthread_self ());
 
-    // O_NONBLOCK doesn't seem to work with O_WRONLY so do in blocking style then modify
+    // O_NONBLOCK gets non-existing device error
+    // so wait here until reader connects
     int fd = open ("pipan8l_ttypr", O_WRONLY);
     if (fd < 0) {
         fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttypr fifo: %m\n");
@@ -200,32 +234,24 @@ void SimLib::writepads (uint16_t const *pads)
 
         // deposit switch
         if (gatherpin (wrpads, P_DEP) && ! gatherpin (pads, P_DEP)) {
-            mareg = pcreg;
-            eareg = dfreg;  // dep uses DFLD - ref MC8/L install Mar70 p 6 checkout procedure diagnostic tests
-            uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
-            memarray[addr] = mbreg = swreg;
-            pcreg = (mareg + 1) & 07777;
+            writemem (dfld, pcreg, swreg);  // dep uses DFLD - ref MC8/L install Mar70 p 6 checkout procedure diagnostic tests
+            pcreg = (pcreg + 1) & 07777;
             state = NUL;
         }
 
         // examine switch
         if (gatherpin (wrpads, P_EXAM) && ! gatherpin (pads, P_EXAM)) {
-            mareg = pcreg;
-            eareg = dfreg;  // exam uses DFLD - ref MC8/L install Mar70 p 6 checkout procedure diagnostic tests
-            uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
-            mbreg = memarray[addr];
+            mbreg = readmem (dfld, pcreg);  // exam uses DFLD - ref MC8/L install Mar70 p 6 checkout procedure diagnostic tests
             pcreg = (mareg + 1) & 07777;
             state = NUL;
         }
 
         // loadaddress switch
         if (gatherpin (wrpads, P_LDAD) && ! gatherpin (pads, P_LDAD)) {
-            dfreg = dfldsw;
-            ifreg = ifldsw;
-            eareg = ifldsw;
-            mareg = pcreg = swreg;
-            uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
-            mbreg = memarray[addr];
+            dfld  = dfldsw;
+            ifld  = ifldafterjump = ifldsw;
+            pcreg = swreg;
+            mbreg = readmem (ifld, pcreg);
             state = NUL;
         }
 
@@ -359,18 +385,6 @@ void SimLib::runthread ()
 // step through to end of next state
 void SimLib::singlestep ()
 {
-    polltty ();
-    if (ionreg && ttintrq) {
-        idelay = false;
-        ionreg = false;
-        state  = EXE;
-        mareg  = 0;
-        memarray[0] = mbreg = pcreg;
-        pcreg  = 1;
-        return;
-    }
-    ionreg = idelay;
-
     ////printf ("singlestep*: beg PC=%04o IR=%o ST=%s\n", pcreg, irtop, ststr ());
 
     switch (state) {
@@ -402,20 +416,20 @@ void SimLib::singlestep ()
             // and if it's a JMP, do the jump at end of defer cycle
             if (mbreg & 00400) {
                 state = DEF;
-                ASSERT (eareg == ifreg);
-                uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
-                mbreg = memarray[addr];
-                if ((addr & 07770) == 00010) {
-                    memarray[addr] = mbreg = (mbreg + 1) & 07777;
+                mbreg = readmem (ifld, mareg);
+                if ((mareg & 07770) == 00010) {
+                    writemem (ifld, mareg, (mbreg + 1) & 07777);
                 }
                 if (irtop == 5) {
+                    intinhibiteduntiljump = false;
+                    ifld  = ifldafterjump;
                     pcreg = mbreg;
                 }
                 break;
             }
 
             // direct memory reference, do the exec cycle
-            ASSERT (eareg == ifreg);
+            eareg = ifld;
             domemref ();
             break;
         }
@@ -430,8 +444,8 @@ void SimLib::singlestep ()
             }
 
             // not a JMP, execute the instruction
+            eareg = dfld;   // gets overridden to ifld for JMS
             mareg = mbreg;
-            eareg = (irtop < 4) ? dfreg : ifreg;
             domemref ();
             break;
         }
@@ -450,16 +464,38 @@ void SimLib::singlestep ()
 // get us to the end of FET state for next instruction
 void SimLib::dofetch ()
 {
+    polltty ();
+    if (ionreg && ttintrq && ! intinhibiteduntiljump) {
+        if (traceon) printf ("SimLib::dofetch:  PC=%o.%04o  L.AC=%o.%04o  IF=%o  DF=%o  interrupt\n",
+                ifld, pcreg, lnreg, acreg, ifld, dfld);
+
+        saveddfld = dfld;
+        savedifld = ifld;
+        eareg  = dfld = ifld = ifldafterjump = 0;
+        idelay = false;
+        ionreg = false;
+        state  = EXE;
+        mareg  = 0;
+        writemem (0, 0, pcreg);
+        pcreg  = 1;
+        return;
+    }
+    ionreg = idelay;
+
     state = FET;
-    mareg = pcreg;
-    eareg = ifreg;
-    uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
-    mbreg = memarray[addr];
+    mbreg = readmem (ifld, pcreg);
     irtop = mbreg >> 9;
     pcreg = (pcreg + 1) & 07777;
 
+    if ((irtop & 6) == 4) intinhibiteduntiljump = false;
+
+    if (traceon) printf ("SimLib::dofetch:  PC=%o.%04o  L.AC=%o.%04o  IF=%o  DF=%o  IR=%04o  %s\n",
+            eareg, mareg, lnreg, acreg, ifld, dfld, mbreg, disassemble (mbreg, mareg).c_str ());
+
     // we can do direct JMP, IOT and OPR as part of the fetch
     if ((mbreg & 07400) == 05000) {
+        intinhibiteduntiljump = false;
+        ifld  = ifldafterjump;
         pcreg = ((mbreg & 00200) ? (mareg & 07600) : 0) | (mbreg & 00177);
     } else if (irtop == 6) {
         doioinst ();
@@ -474,35 +510,63 @@ void SimLib::dofetch ()
 void SimLib::domemref ()
 {
     state = EXE;
-    uint16_t addr = (((uint16_t) eareg) << 12) | mareg;
     switch (irtop) {
         case 0: {
-            acreg &= mbreg = memarray[addr];
+            acreg &= readmem (eareg, mareg);
             break;
         }
         case 1: {
-            acreg += mbreg = memarray[addr];
+            acreg += readmem (eareg, mareg);
             lnreg ^= acreg >> 12;
             acreg &= 07777;
             break;
         }
         case 2: {
-            mbreg = (memarray[addr] + 1) & 07777;
-            memarray[addr] = mbreg;
+            mbreg = (readmem (eareg, mareg) + 1) & 07777;
+            writemem (eareg, mareg, mbreg);
             if (mbreg == 0) pcreg = (pcreg + 1) & 07777;
             break;
         }
         case 3: {
-            memarray[addr] = mbreg = acreg;
+            writemem (eareg, mareg, acreg);
             acreg = 0;
             break;
         }
         case 4: {
-            memarray[addr] = mbreg = pcreg;
+            intinhibiteduntiljump = false;
+            ifld  = ifldafterjump;
+            writemem (ifld, mareg, pcreg);
             pcreg = (mareg + 1) & 07777;
             break;
         }
         default: ABORT ();
+    }
+}
+
+// read memory location
+// set eareg, mareg, mbreg
+uint16_t SimLib::readmem (uint16_t field, uint16_t addr)
+{
+    eareg = field;
+    mareg = addr;
+    mbreg = 0;
+    if (field < memfields) {
+        uint16_t xaddr = (eareg << 12) | mareg;
+        mbreg = memarray[xaddr];
+    }
+    return mbreg;
+}
+
+// write memory location
+// set eareg, mareg, mbreg
+void SimLib::writemem (uint16_t field, uint16_t addr, uint16_t data)
+{
+    eareg = field;
+    mareg = addr;
+    mbreg = data;
+    if (field < memfields) {
+        uint16_t xaddr = (eareg << 12) | mareg;
+        memarray[xaddr] = mbreg;
     }
 }
 
@@ -575,9 +639,12 @@ void SimLib::dooperate ()
 void SimLib::doioinst ()
 {
     switch (mbreg) {
-        case 06001: ionreg = true; break;
+
+        // interrupt enable/disable
+        case 06001: idelay = true; break;
         case 06002: idelay = false; ionreg = false; break;
 
+        // tty access
         case 06031: if (kbflag) pcreg = (pcreg + 1) & 07777; break;
         case 06032: acreg = 0; kbflag = 0; break;
         case 06034: acreg |= kbchar; break;
@@ -588,9 +655,45 @@ void SimLib::doioinst ()
         case 06044: prchar = acreg; prfull = 1; break;
         case 06045: if (ttintrq) pcreg = (pcreg + 1) & 07777; break;
         case 06046: prchar = acreg; prflag = 0; prfull = 1; break;
+
+        // extended memory
+        case 06201: case 06202: case 06203:
+        case 06211: case 06212: case 06213:
+        case 06221: case 06222: case 06223:
+        case 06231: case 06232: case 06233:
+        case 06241: case 06242: case 06243:
+        case 06251: case 06252: case 06253:
+        case 06261: case 06262: case 06263:
+        case 06271: case 06272: case 06273: {
+            uint16_t f = (mbreg >> 3) & 7;
+            if (mbreg & 1) dfld = f;
+            if (mbreg & 2) {
+                ifldafterjump = f;
+                intinhibiteduntiljump = true;
+            }
+            break;
+        }
+        case 06214:
+            acreg |= dfld << 3;
+            break;
+
+        case 06224:
+            acreg |= ifld << 3;
+            break;
+
+        case 06234:
+            acreg |= saveddfld << 0;
+            acreg |= savedifld << 3;
+            break;
+
+        case 06244:
+            dfld          = saveddfld;
+            ifldafterjump = savedifld;
+            break;
     }
 }
 
+// update tty state
 void SimLib::polltty ()
 {
     struct timeval nowtv;

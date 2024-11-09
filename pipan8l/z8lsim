@@ -4,7 +4,7 @@
 #
 dd=`dirname $0`
 $dd/loadmod.sh
-export pipan8lini=$dd/z8lpanini.tcl
+export pipan8lini=$dd/z8lsimini.tcl
 dbg=
 if [ "$1" == "-gdb" ]
 then

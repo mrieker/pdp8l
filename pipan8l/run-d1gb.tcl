@@ -11,7 +11,13 @@ flicksw start
 
 puts "d1gb: waiting for 3 bells, should be about 150 seconds"
 set nbells 0
-for {set started [clock seconds]} {[clock seconds] - $started < 300} {} {
+for {set started [clock seconds]} {[clock seconds] - $started < 100 * ($nbells + 1)} {} {
+    if {[ctrlcflag]} return
+    if {! [getreg run]} {
+        puts "d1gb: processor halted"
+        puts [dumpit]
+        return
+    }
     set ch [readttychartimed 100]
     if {$ch == ""} continue
     if {$ch == "\r"} continue
@@ -28,6 +34,6 @@ for {set started [clock seconds]} {[clock seconds] - $started < 300} {} {
         exit 0
     }
 }
-puts "d1gb: took too long for 3 bells"
-dumpit
+puts "d1gb: took too long for [expr {$nbells + 1}] bell(s)"
+puts [dumpit]
 exit 1

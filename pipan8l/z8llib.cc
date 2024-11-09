@@ -20,8 +20,8 @@
 
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 // We get signals that look a lot like the B,C,D 34,35,36 connectors and the front panel
-// Start PIPan8L via z8lpan.sh script, eg,
-//  $ z8lpan.sh testmem.tcl
+// Start PIPan8L via z8lsim script, eg,
+//  $ z8lsim testmem.tcl
 //  pipan8l> looptest testrands
 
 // Use regular pipan8l's i2clib.cc running on RasPI for real PDP-8/L

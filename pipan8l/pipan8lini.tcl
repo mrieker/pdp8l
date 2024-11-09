@@ -471,7 +471,7 @@ proc octal {val} {
 ;# function to open tty port available as pipes
 ;# - using pipan8l with real PDP-8/L: softlink pipan8l_ttykb and _ttypr to real tty port
 ;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes pipan8l_ttykb and _ttypr
-;# - using pipan8l on zynq with pdp8ltty.v (started via z8lpan.sh): overridden by z8lpanini.tcl
+;# - using pipan8l on zynq with pdp8ltty.v (started via z8lsim): overridden by z8lsimini.tcl
 proc openttypipes {} {
     global wrkbpipe rdprpipe
     set rdprpipe [open "pipan8l_ttypr" "r"]
@@ -653,7 +653,7 @@ proc zeromem {start stop} {
 }
 
 # milliseconds to hold a momentary switch on
-set bncyms [getenv bncyms 120]
+set bncyms [getenv bncyms [expr {([libname] == "sim") ? 1 : 120}]]
 
 # make sure processor is stopped
 # and turn off all the other switches

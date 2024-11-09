@@ -71,6 +71,7 @@ static Tcl_ObjCmdProc cmd_getpin;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
 static Tcl_ObjCmdProc cmd_help;
+static Tcl_ObjCmdProc cmd_libname;
 static Tcl_ObjCmdProc cmd_readchar;
 static Tcl_ObjCmdProc cmd_setpin;
 static Tcl_ObjCmdProc cmd_setsw;
@@ -84,6 +85,7 @@ static FunDef const fundefs[] = {
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
     { cmd_help,       "help",       "print this help" },
+    { cmd_libname,    "libname",    "get library name i2c,sim,z8l" },
     { cmd_readchar,   "readchar",   "read character with timeout" },
     { cmd_setpin,     "setpin",     "set gpio pin" },
     { cmd_setsw,      "setsw",      "set switch value" },
@@ -729,6 +731,13 @@ static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Ob
         puts (inihelp);
     }
     puts ("");
+    return TCL_OK;
+}
+
+// get library name
+static int cmd_libname (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    Tcl_SetResult (interp, (char *) padlib->libname (), TCL_STATIC);
     return TCL_OK;
 }
 
