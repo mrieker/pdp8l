@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C404C;
+    localparam VERSION = 32'h384C404D;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -811,7 +811,7 @@ module Zynq (
     pdp8lsim siminst (
         .CLOCK         (CLOCK),
         .CSTEP         (nanocstep),
-        .RESET         (pwronreset),
+        .RESET         (pwronreset | ~ simit),
         .iBEMA         (sim_iBEMA),
         .iCA_INCREMENT (sim_iCA_INCREMENT),
         .iDATA_IN      (sim_iDATA_IN),
