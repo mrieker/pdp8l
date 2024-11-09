@@ -1,14 +1,32 @@
 
+Test Listed in Maint Vol 1             z8l sim      time on real 8/L
+Instruction Test 1      8I-D01B         works           20 min
+Instruction Test 2      8I-D02B         works           16 min
+Instruction Test 2B     08-D02A not found
+Random JMP Test         08-D04B         works           3 min
+Random JMP-JMS Test     08-D05B         works           4 min
+Random ISZ Test         08-D07B         works           4 min
+Memory Checkerboard     08-D1J0 not found
+Memory Address Test     08-D1B0 not found
 
-Instruction Test 1      8I-D01B     works
-Instruction Test 2      8I-D02B     works
-Instruction Test 2B     08-D02A     not found
-Random JMP Test         08-D04B     works
-Random JMP-JMS Test     08-D05B     works
-Random ISZ Test         08-D07B     works
-Memory Checkerboard     08-D1J0     
-Memory Address Test     08-D1B0     
+Extended Mem Checkbd    08-D1EB         works
+Extended Mem Control    08-D1GB         works
 
-Extended Mem Checkbd    08-D1EB     works
-Extended Mem Control    08-D1GB     works
+
+To run on real PDP-8/L (with pipan8l board plugged
+into console and real tty wired to /dev/ttyACM0):
+
+    stty 110 < /dev/ttyACM0
+    rm -f pipan8l_ttykb pipan8l_ttypr
+    ln -s /dev/ttyACM0 pipan8l_ttykb
+    ln -s /dev/ttyACM0 pipan8l_ttypr
+    ./pipan8l run-d01b.tcl
+
+To run on a PC or such:
+
+    ./pipan8l -sim run-d01b.tcl
+
+To run on Zynq Z8L Sim (with pdp8lsim.v code loaded):
+
+    ./z8lpan.sh run-d01b.tcl
 

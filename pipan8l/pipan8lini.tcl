@@ -34,6 +34,13 @@ proc assem {addr opcd args} {
     wrmem $addr [assemop $addr $opcd $args]
 }
 
+# convert character to integer
+proc chartoint {cc} {
+    if {$cc == ""} {return -1}
+    scan $cc "%c" ii
+    return [expr {$ii & 0377}]
+}
+
 # close the tty pipes (see openttypipes)
 proc closettypipes {} {
     global wrkbpipe rdprpipe
@@ -124,11 +131,11 @@ proc dumppins {} {
 ;# convert given character to escaped form if necessary
 proc escapechr {ch} {
     if {$ch == ""} {return "\\d"}
-    scan $ch "%c" ii
+    set ii [chartoint $ch]
     if {$ii == 10} {return "\\n"}
     if {$ii == 13} {return "\\r"}
     if {($ii <= 31) || ($ii >= 127)} {return [format "\\%03o" $ii]}
-    return $ch
+    return [string range $ch 0 0]
 }
 
 # flick momentary switch on then off
@@ -149,6 +156,12 @@ proc flicksw {swname} {
 # get environment variable, return default value if not defined
 proc getenv {varname {defvalu ""}} {
     return [expr {[info exists ::env($varname)] ? $::env($varname) : $defvalu}]
+}
+
+# convert integer to character
+proc inttochar {ii} {
+    if {$ii < 0} {return ""}
+    return [format "%c" [expr {$ii & 0377}]]
 }
 
 # load bin format tape file, return start address
@@ -190,7 +203,7 @@ proc loadbin {fname} {
             puts ""
             return "eof reading loadfile at $offset"
         }
-        scan $ch "%c" ch
+        set ch [chartoint $ch]
 
         # ignore anything between pairs of rubouts
         if {$ch == 0377} {
@@ -351,7 +364,7 @@ proc loadrim {fname} {
         incr offset
         set ch [read $fp 1]
         if {[eof $fp]} break
-        scan $ch "%c" ch
+        set ch [chartoint $ch]
 
         # ignore rubouts
         if {$ch == 0377} continue
@@ -368,7 +381,7 @@ proc loadrim {fname} {
             puts ""
             return "eof reading loadfile at $offset"
         }
-        scan $ch "%c" ch
+        set ch [chartoint $ch]
         set addr [expr {$addr | ($ch & 077)}]
 
         incr offset
@@ -378,7 +391,7 @@ proc loadrim {fname} {
             puts ""
             return "eof reading loadfile at $offset"
         }
-        scan $ch "%c" ch
+        set ch [chartoint $ch]
         set data [expr {($ch & 077) << 6}]
 
         incr offset
@@ -388,7 +401,7 @@ proc loadrim {fname} {
             puts ""
             return "eof reading loadfile at $offset"
         }
-        scan $ch "%c" ch
+        set ch [chartoint $ch]
         set data [expr {$data | ($ch & 077)}]
 
         dict set verify $addr $data
@@ -466,6 +479,7 @@ proc openttypipes {} {
     chan configure $rdprpipe -translation binary
     chan configure $wrkbpipe -translation binary
     chan configure $rdprpipe -blocking 0
+    while {[readttychartimed 500] != ""} { }
 }
 
 # increment a variable but return its previous value
@@ -481,12 +495,12 @@ proc postinc name {
 ;# read character from tty with timeout (see openttypipes)
 proc readttychartimed {msec} {
     global rdprpipe
-    for {set i 0} {$i < $msec} {incr i} {
-        set ch [chan read $rdprpipe 1]
-        if {$ch != ""} {return $ch}
-        after 1
+    while true {
+        set ii [readchar $rdprpipe $msec]
+        if {$ii == ""} return ""
+        set ii [expr {$ii & 0177}]
+        if {$ii != 0} {return [inttochar $ii]}
     }
-    return ""
 }
 
 # read memory location
@@ -507,7 +521,9 @@ proc sendtottykb {str} {
     for {set i 0} {$i < $len} {incr i} {
         after 1500
         set ex [string index $str $i]
-        puts -nonewline $wrkbpipe $ex
+        set ix [chartoint $ex]
+        set ch [inttochar [expr {$ix | 0200}]]
+        puts -nonewline $wrkbpipe $ch
         chan flush $wrkbpipe
         while true {
             set ch [readttychartimed 1000]

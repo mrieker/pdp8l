@@ -23,6 +23,7 @@
 
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -70,6 +71,7 @@ static Tcl_ObjCmdProc cmd_getpin;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
 static Tcl_ObjCmdProc cmd_help;
+static Tcl_ObjCmdProc cmd_readchar;
 static Tcl_ObjCmdProc cmd_setpin;
 static Tcl_ObjCmdProc cmd_setsw;
 
@@ -82,6 +84,7 @@ static FunDef const fundefs[] = {
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
     { cmd_help,       "help",       "print this help" },
+    { cmd_readchar,   "readchar",   "read character with timeout" },
     { cmd_setpin,     "setpin",     "set gpio pin" },
     { cmd_setsw,      "setsw",      "set switch value" },
     { NULL, NULL, NULL }
@@ -727,6 +730,38 @@ static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Ob
     }
     puts ("");
     return TCL_OK;
+}
+
+// read character with timeout as an integer
+// returns null string if timeout, else decimal integer
+//  readchar file timeoutms
+static int cmd_readchar (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    if (objc == 3) {
+        char const *stri = Tcl_GetString (objv[1]);
+        if (memcmp (stri, "file", 4) != 0) {
+            Tcl_SetResultF (interp, "first argument not a file");
+            return TCL_ERROR;
+        }
+        int fd = atoi (stri + 4);
+        int tmoms;
+        int rc = Tcl_GetIntFromObj (interp, objv[2], &tmoms);
+        if (rc != TCL_OK) return rc;
+        struct pollfd fds = { fd, POLLIN, 0 };
+        rc = poll (&fds, 1, tmoms);
+        uint8_t buff;
+        if (rc > 0) rc = read (fd, &buff, 1);
+        if (rc < 0) {
+            if (errno == EINTR) return TCL_OK;
+            Tcl_SetResultF (interp, "%m");
+            return TCL_ERROR;
+        }
+        if (rc > 0) Tcl_SetResultF (interp, "%u", (uint32_t) buff);
+        return TCL_OK;
+    }
+
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
 }
 
 // set gpio pin

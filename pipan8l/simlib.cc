@@ -598,8 +598,7 @@ void SimLib::polltty ()
     uint64_t nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
 
     if (prfull && (nowus >= prnextus) && (prwritefd >= 0)) {
-        prchar &= 0177;
-        int rc  = write (prwritefd, &prchar, 1);
+        int rc = write (prwritefd, &prchar, 1);
         if (rc > 0) {
             prflag   = 1;
             prfull   = 0;
@@ -614,7 +613,6 @@ void SimLib::polltty ()
     if (nowus >= kbnextus) {
         int rc = read (kbreadfd, &kbchar, 1);
         if (rc > 0) {
-            kbchar  |= 0200;
             kbflag   = 1;
             kbnextus = nowus + usperch;
         } else if ((rc < 0) && (errno != EAGAIN) && (errno != EWOULDBLOCK)) {

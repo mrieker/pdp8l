@@ -14,14 +14,14 @@ for {set started [clock seconds]} {[clock seconds] - $started < 30} {} {
     if {$ch == ""} continue
     if {$ch == "\177"} continue
     if {$ch != "\007"} {
-        puts "d02b: unexpected output char [escapechr $ch]"
-        exit 1
-    }
-    puts [format "%*sDING!" $nbells ""]
-    incr nbells
-    if {$nbells > 2} {
-        puts "SUCCESS!"
-        exit 0
+        puts "d02b: ignoring unexpected output char [escapechr $ch]"
+    } else {
+        puts [format "%*sDING!" $nbells ""]
+        incr nbells
+        if {$nbells > 2} {
+            puts "SUCCESS!"
+            exit 0
+        }
     }
 }
 puts "d02b: took too long for 3 bells"

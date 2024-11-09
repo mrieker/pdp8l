@@ -60,6 +60,19 @@ proc testtt {} {
     startat 0220
 }
 
+;# continuously print incrementing characters
+proc testttinc {} {
+    flicksw stop
+    assem 0260 iot 06046    ;# clear flag, start printing
+    assem 0261 iot 06041    ;# TSF - skip if printer ready
+    assem 0262 jmp 0261
+    assem 0263 iac          ;# increment to next character
+    assem 0264 jmp 0260
+    startat 0260
+}
+
 puts ""
 puts "  testtt - continuously print char in sr"
 puts "  testkb - continuously read char from kb into ac"
+puts "  testecho - continuously read from kb and echo to tt"
+puts "             ...and increment top ac bits"
