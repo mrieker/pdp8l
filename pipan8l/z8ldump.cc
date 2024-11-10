@@ -50,6 +50,7 @@
 #define EOP ESC_EREOP
 
 #define FIELD(index,mask) ((z8ls[index] & mask) / (mask & - mask))
+#define BUS12(index,topbit) ((z8ls[index] / (topbit / 2048)) & 4095)
 
 static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
@@ -63,8 +64,16 @@ static void siginthand (int signum)
 
 int main (int argc, char **argv)
 {
+    bool stepmode = false;
+    if ((argc == 2) && (strcasecmp (argv[1], "-step") == 0)) {
+        stepmode = true;
+    } else if (argc > 1) {
+        fprintf (stderr, "unknown argument %s\n", argv[1]);
+        return 1;
+    }
+
     Z8LPage z8p;
-    uint32_t const volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
+    uint32_t volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
     uint32_t ver = zynqpage[Z_VER];
     fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
     if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
@@ -72,7 +81,11 @@ int main (int argc, char **argv)
         ABORT ();
     }
 
-    signal (SIGINT, siginthand);
+    if (stepmode) {
+        zynqpage[Z_RE] &= ~ (e_nanocontin | e_nanotrigger);
+    } else {
+        signal (SIGINT, siginthand);
+    }
 
     while (! exitflag) {
         usleep (1000);
@@ -177,7 +190,20 @@ int main (int argc, char **argv)
         printf ("  timedelay=%02u", FIELD (Z_RK, k_timedelay));
         printf ("  timestate=%-7s", timestatenames[FIELD(Z_RK,k_timestate)]);
         printf ("  cyclectr=%04u", FIELD (Z_RK, k_cyclectr));
-        printf ("  memcycctr=%010u" EOL, z8ls[Z_RN]);
+        printf ("  memcycctr=%010u", z8ls[Z_RN]);
+
+        printf ("  bDMABUS=%04o", BUS12 (Z_RO, o_bDMABUSA));
+        printf ("  x_DMAADDR=%o", FIELD (Z_RO, o_x_DMAADDR));
+        printf ("  x_DMADATA=%o", FIELD (Z_RO, o_x_DMADATA));
+        printf ("  bMEMBUS=%04o", BUS12 (Z_RP, p_bMEMBUSA));
+        printf ("  r_MA=%o", FIELD (Z_RO, o_r_MA));
+        printf ("  x_MEM=%o", FIELD (Z_RO, o_x_MEM));
+        printf ("  bPIOBUS=%04o", BUS12 (Z_RP, p_bPIOBUSA));
+        printf ("  r_BAC=%o", FIELD (Z_RO, o_r_BAC));
+        printf ("  r_BMB=%o", FIELD (Z_RO, o_r_BMB));
+        printf ("  x_INPUTBUS=%o", FIELD (Z_RO, o_x_INPUTBUS));
+
+        fputs (EOL, stdout);
 
         for (int i = 0; i < 1024;) {
             uint32_t idver = z8ls[i];
@@ -198,6 +224,14 @@ int main (int argc, char **argv)
         }
 
         printf (EOP);
+
+        if (stepmode) {
+            char temp[8];
+            printf ("\n > ");
+            fflush (stdout);
+            if (fgets (temp, sizeof temp, stdin) == NULL) break;
+            zynqpage[Z_RE] |= e_nanotrigger;
+        }
     }
     printf ("\n");
     return 0;
