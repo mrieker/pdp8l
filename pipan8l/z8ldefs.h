@@ -38,7 +38,10 @@
 #define Z_RL 12
 #define Z_RM 13     // 0000 xbrwdat 0000 xbrrdat
 #define Z_RN 14     // memcycctr
-#define Z_N 13      // total number of registers
+#define Z_RO 15
+#define Z_RP 16
+
+#define Z_N 17      // total number of register
 
 #define ZZ_RA (a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE)
 #define ZZ_RD (d_i_DMAADDR | d_i_DMADATA)
@@ -154,6 +157,51 @@
 #define k_timedelay0 (k_timedelay & - k_timedelay)
 #define k_timestate0 (k_timestate & - k_timestate)
 #define l_breakdata0 (l_breakdata & - l_breakdata)
+
+#define o_bDMABUSA (1U << 31)
+#define o_bDMABUSB (1U << 30)
+#define o_bDMABUSC (1U << 29)
+#define o_bDMABUSD (1U << 28)
+#define o_bDMABUSE (1U << 27)
+#define o_bDMABUSF (1U << 26)
+#define o_bDMABUSH (1U << 25)
+#define o_bDMABUSJ (1U << 24)
+#define o_bDMABUSK (1U << 23)
+#define o_bDMABUSL (1U << 22)
+#define o_bDMABUSM (1U << 21)
+#define o_bDMABUSN (1U << 20)
+#define o_r_BAC      (1U << 6)
+#define o_r_BMB      (1U << 5)
+#define o_r_MA       (1U << 4)
+#define o_x_DMAADDR  (1U << 3)
+#define o_x_DMADATA  (1U << 2)
+#define o_x_INPUTBUS (1U << 1)
+#define o_x_MEM      (1U << 0)
+
+#define p_bMEMBUSA (1U << 31)
+#define p_bMEMBUSB (1U << 30)
+#define p_bMEMBUSC (1U << 29)
+#define p_bMEMBUSD (1U << 28)
+#define p_bMEMBUSE (1U << 27)
+#define p_bMEMBUSF (1U << 26)
+#define p_bMEMBUSH (1U << 25)
+#define p_bMEMBUSJ (1U << 24)
+#define p_bMEMBUSK (1U << 23)
+#define p_bMEMBUSL (1U << 22)
+#define p_bMEMBUSM (1U << 21)
+#define p_bMEMBUSN (1U << 20)
+#define p_bPIOBUSA (1U << 19)
+#define p_bPIOBUSB (1U << 18)
+#define p_bPIOBUSC (1U << 17)
+#define p_bPIOBUSD (1U << 16)
+#define p_bPIOBUSE (1U << 15)
+#define p_bPIOBUSF (1U << 14)
+#define p_bPIOBUSH (1U << 13)
+#define p_bPIOBUSJ (1U << 12)
+#define p_bPIOBUSK (1U << 11)
+#define p_bPIOBUSL (1U << 10)
+#define p_bPIOBUSM (1U <<  9)
+#define p_bPIOBUSN (1U <<  8)
 
 #define MS_HALT   0     // figure out what to do next (also for exam & ldad switches)
 #define MS_FETCH  1     // memory cycle is fetching instruction

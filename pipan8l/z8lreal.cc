@@ -61,7 +61,7 @@ int main (int argc, char **argv)
     xmemat[1] = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0);
 
     // select real PDP-8/L and reset io devices
-    pdpat[Z_RE] = e_softreset;  // no e_simit
+    pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_softreset;   // no e_simit
     usleep (10);
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
@@ -74,7 +74,7 @@ int main (int argc, char **argv)
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
     usleep (10);
-    pdpat[Z_RE] = 0;            // release reset
+    pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
 
     return 0;
 }
