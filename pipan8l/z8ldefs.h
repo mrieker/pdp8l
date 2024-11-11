@@ -158,6 +158,7 @@
 #define k_timestate0 (k_timestate & - k_timestate)
 #define l_breakdata0 (l_breakdata & - l_breakdata)
 
+#define o_bDMABUS (07777 << 20)
 #define o_bDMABUSA (1U << 31)
 #define o_bDMABUSB (1U << 30)
 #define o_bDMABUSC (1U << 29)
@@ -178,6 +179,7 @@
 #define o_x_INPUTBUS (1U << 1)
 #define o_x_MEM      (1U << 0)
 
+#define p_bMEMBUS (07777 << 20)
 #define p_bMEMBUSA (1U << 31)
 #define p_bMEMBUSB (1U << 30)
 #define p_bMEMBUSC (1U << 29)
@@ -190,6 +192,7 @@
 #define p_bMEMBUSL (1U << 22)
 #define p_bMEMBUSM (1U << 21)
 #define p_bMEMBUSN (1U << 20)
+#define p_bPIOBUS (07777 <<  8)
 #define p_bPIOBUSA (1U << 19)
 #define p_bPIOBUSB (1U << 18)
 #define p_bPIOBUSC (1U << 17)
