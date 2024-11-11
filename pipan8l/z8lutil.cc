@@ -85,7 +85,7 @@ Z8LPage::~Z8LPage ()
 //  output:
 //   returns NULL: dev not found
 //           else: pointer to dev
-uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lock)
+uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lockit, bool killit)
 {
     for (int idx = 0; idx < 1024;) {
         uint32_t volatile *dev = &zynqpage[idx];
@@ -93,7 +93,7 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         if (idx + len > 1024) break;
         if ((id == NULL) || (((*dev >> 24) == (uint8_t) id[0]) && (((*dev >> 16) & 255) == (uint8_t) id[1]))) {
             if ((entry == NULL) || entry (param, dev)) {
-                if (lock) {
+                if (lockit) {
                     struct flock flockit;
                 trylk:;
                     memset (&flockit, 0, sizeof flockit);
@@ -106,6 +106,13 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
                             if (flockit.l_type == F_UNLCK) goto trylk;
                             fprintf (stderr, "Z8LPage::findev: %c%c locked by pid %d\n",
                                 *dev >> 24, *dev >> 16, (int) flockit.l_pid);
+                            if (killit) {
+                                fprintf (stderr, "Z8LPage::findev: killing pid %d\n", (int) flockit.l_pid);
+                                kill ((int) flockit.l_pid, SIGTERM);
+                                usleep (1000);
+                                killit = false;
+                                goto trylk;
+                            }
                         } else {
                             fprintf (stderr, "Z8LPage::findev: error locking: %m\n");
                         }

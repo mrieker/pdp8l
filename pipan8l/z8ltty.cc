@@ -47,6 +47,7 @@ static bool findtt (void *param, uint32_t volatile *ttyat)
 
 int main (int argc, char **argv)
 {
+    bool killit = false;
     uint32_t port = 3;
     uint32_t cps = 10;
     char *p;
@@ -63,6 +64,10 @@ int main (int argc, char **argv)
             }
             continue;
         }
+        if (strcasecmp (argv[i], "-killit") == 0) {
+            killit = true;
+            continue;
+        }
         if (argv[i][0] == '-') {
             fprintf (stderr, "unknown option %s\n", argv[i]);
             return 1;
@@ -75,7 +80,7 @@ int main (int argc, char **argv)
     }
 
     Z8LPage z8p;
-    uint32_t volatile *ttyat = z8p.findev ("TT", findtt, &port, true);
+    uint32_t volatile *ttyat = z8p.findev ("TT", findtt, &port, true, killit);
     if (ttyat == NULL) {
         fprintf (stderr, "tty port %02o not found\n", port);
         return 1;
