@@ -3,10 +3,18 @@
 proc helpini {} {
     puts ""
     puts "  assem <addr> <opcd> ... - assemble and write to memory"
+    puts "  chartoint               - convert character to integer"
+    puts "  checkttymatch           - check for matching tty printer characters"
+    puts "  checkttyprompt          - check tty for prompt and send reply string"
+    puts "  closettypipes           - close pipes opened by openttypipes"
     puts "  disas <start> <stop>    - disassemble given range"
     puts "  dumpit                  - dump registers and switches"
     puts "  dumpmem <start> <stop>  - dump memory in octal"
+    puts "  escapechr               - convert character to escape"
     puts "  flicksw <switch>        - flick momentary switch on then off"
+    puts "  getenv                  - get environment variable"
+    puts "  getrestofttyline        - read rest of line from tty"
+    puts "  inttochar               - convert integer to character"
     puts "  loadbin <filename>      - load bin file, verify, return start address"
     puts "  loadrim <filename>      - load rim file, verify"
     puts "  octal <val>             - convert value to 4-digit octal string"
@@ -14,11 +22,13 @@ proc helpini {} {
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
+    puts "  sendtottykb             - send string to tty keyboard"
     puts "  startat <addr>          - load pc and start at given address"
     puts "  stepit                  - step one cycle then dump"
     puts "  steploop                - step one cycle, dump, then loop on enter key"
     puts "  stopandreset            - stop and reset cpu"
     puts "  wait                    - wait for CTRLC or STOP"
+    puts "  waitforttypr            - wait for prompt string on tty"
     puts "  wrmem <addr> <data>     - write memory at the given address"
     puts "  zeromem <start> <stop>  - zero the given address range"
     puts ""
@@ -39,6 +49,96 @@ proc chartoint {cc} {
     if {$cc == ""} {return -1}
     scan $cc "%c" ii
     return [expr {$ii & 0377}]
+}
+
+# check tty output for match
+# - call openttypipes first
+# - ignores control characters and whitespace
+# - skips up to nskip printables at the beginning
+# - returns string skipped over
+proc checkttymatch {nskip line {tmsec 30000}} {
+
+    set len [string length $line]
+    set nowtsp ""
+    for {set i 0} {$i < $len} {incr i} {
+        set ch [string index $line $i]
+        if {$ch > " "} {append nowtsp $ch}
+    }
+
+    set len [string length $nowtsp]
+    set nmatched 0
+    set skipped ""
+    while {$nmatched < $len} {
+        set ch [readttychartimed $tmsec]
+        if {$ch == ""} {
+            puts ""
+            puts "checkttymatch: timed out waiting for '$line'"
+            exit 1
+        }
+        puts -nonewline $ch
+        flush stdout
+        if {$ch <= " "} continue
+        if {$ch == [string index $nowtsp $nmatched]} {
+            incr nmatched
+            continue
+        }
+        append skipped [string range $nowtsp 0 [expr {$nmatched - 1}]]
+        append skipped $ch
+        if {[string length $skipped] > $nskip} {
+            while true {
+                set ch [readttychartimed $tmsec]
+                if {$ch == ""} break
+                puts -nonewline $ch
+                flush stdout
+                if {$ch == "\n"} break
+            }
+            puts ""
+            puts "checkttymatch: failed to match '$line'"
+            exit 1
+        }
+    }
+    return $skipped
+}
+
+# check tty prompt string for match then send given reply followed by <CR>
+# - call openttypipes first
+# - always ignore control and whitespace characters in prompt string
+proc checkttyprompt {prompt reply} {
+    # check prompt string
+    checkttymatch 0 $prompt
+    # there may be a CR/LF following the prompt (like 'READY' in BASIC)
+    # so wait for a brief time with no characters printed
+    while {true} {
+        set rb [readttychartimed 1234]
+        if {$rb == ""} break
+        puts -nonewline $rb
+        flush stdout
+        if {$rb > " "} {
+            puts checkttyprompt: extra char [escapechr $rb] after prompt"
+        }
+    }
+    # send reply string to keyboard incl spaces
+    # check for each of each one
+    global wrkbpipe
+    set len [string length $reply]
+    for {set i 0} {$i < $len} {incr i} {
+        after 456
+        set ch [string index $reply $i]
+        puts -nonewline $wrkbpipe $ch
+        chan flush $wrkbpipe
+        set rb [readttychartimed 1234]
+        puts -nonewline $rb
+        flush stdout
+        if {$rb != $ch} {
+            puts ""
+            puts "checkttyprompt: char [escapechr $ch] echoed as [escapechr $rb]"
+            exit 1
+        }
+    }
+    # send CR at the end, don't bother checking echo in case it echoes something different
+    after 456
+    puts -nonewline $wrkbpipe "\r"
+    chan flush $wrkbpipe
 }
 
 # close the tty pipes (see openttypipes)
@@ -156,6 +256,26 @@ proc flicksw {swname} {
 # get environment variable, return default value if not defined
 proc getenv {varname {defvalu ""}} {
     return [expr {[info exists ::env($varname)] ? $::env($varname) : $defvalu}]
+}
+
+# read rest of line from tty printer, terminated by <CR> or <LF>
+# - call openttypipes first
+proc getrestofttyline {{tmsec 30000}} {
+    set skipped ""
+    while true {
+        set ch [readttychartimed $tmsec]
+        if {$ch == ""} {
+            puts ""
+            puts "getrestofttyline: timed out reading to end of line"
+            exit 1
+        }
+        puts -nonewline $ch
+        flush stdout
+        if {$ch == "\r"} break
+        if {$ch == "\n"} break
+        append skipped $ch
+    }
+    return $skipped
 }
 
 # convert integer to character
@@ -469,7 +589,7 @@ proc octal {val} {
 }
 
 ;# function to open tty port available as pipes
-;# - using pipan8l with real PDP-8/L: softlink pipan8l_ttykb and _ttypr to real tty port
+;# - using pipan8l with real PDP-8/L: softlink pipan8l_ttykb and _ttypr to real tty port eg /dev/ttyACM0
 ;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes pipan8l_ttykb and _ttypr
 ;# - using pipan8l on zynq with pdp8ltty.v (started via z8lsim): overridden by z8lsimini.tcl
 proc openttypipes {} {
