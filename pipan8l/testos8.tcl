@@ -124,7 +124,6 @@ checkttymatch 0 "LOSE. YOU NOW HAVE \$ 400 "
 checkttyprompt "DO YOU WISH TO PLAY AGAIN??" "N"
 checkttymatch 0 "TOO BAD! YOU LOST 100 DOLLARS AT THE EDUSYSTEM CASINO."
 checkttymatch 0 "HOPE YOU ENJOYED YOURSELF.  THANKS FOR PLAYING."
-checkttymatch 0 "READY"
-checkttymatch 0 "BYE"
+checkttyprompt "READY" "BYE"
 checkttymatch 0 "."
 exit
