@@ -1,0 +1,48 @@
+
+Z8L programs run on Zynq with PDP-8/L code loaded (contains device code and 8/L simulator)
+
+test programs:
+
+    ./z8lcmemtest.armv7l        test 8L sim (holds simit on, varies brwhenhltd, varies manualclock),
+                                    CM (reads & writes), XM (varies enlo4k)
+
+    ./z8lsimtest                test 8L sim (hold simit on, pulse softreset, pulse nanotrigger),
+                                    CM (always clears enable, set dma field), XM (always sets enable, enlo4k; all IOs tested)
+
+    ./z8lxmemtest.armv7l        always sets enlo4k, reads & writes extmem block
+
+    ./testos8.sh
+    ./z8lsim run-d01b.tcl ...
+        z8llib                  always sets e_simit (simulator), e_nanocontin (fpga continuous clocking)
+
+
+other programs:
+
+    z8lreal:                    turns off sim mode and puts in power-on state, connect xmem controller to iobus, set/clear xmem enlo4k
+        pulse e_softreset       and always sets e_nanocontin (so devices are continuously clocked)
+        clear e_simit
+
+    z8lrk8je:                   sets RK8s enable to connect to iobus
+        process RK8JE io instructions
+
+    z8ltty:                     sets TTYs enable to connect to iobus
+        process TTY io instructions
+
+
+softreset - halts simulator, disconnects io devices from iobus, puts all in power-on reset state:
+    regctle[01]
+    pwronreset
+        pdp8lsim RESET
+        pdp8ltty RESET
+        pdp8lrk8je RESET
+        pdp8lxmem RESET
+        pdp8lcmem RESET
+        pxp8lextar RESET
+        iobusreset
+            pdp8ltty BINIT
+            pdp8lrk8je BINIT
+            pdp8lxmem BINIT
+            pdp8lcmem BINIT
+            pxp8lextar BINIT
+
+

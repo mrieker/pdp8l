@@ -1,7 +1,0 @@
-
-./testos8.sh
-./z8lsim run-d01b.tcl ...
-./z8lcmemtest.armv7l
-./z8lsimtest
-./z8lxmemtest.armv7l
-

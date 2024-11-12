@@ -40,10 +40,10 @@ int main ()
 
     uint32_t volatile *pdpat = z8lpage.findev ("8L", NULL, NULL, true);
     if (pdpat == NULL) ABORT ();
-    pdpat[Z_RA] = a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE;
+    pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = 0;
-    pdpat[Z_RD] = d_i_DMAADDR | d_i_DMADATA;
+    pdpat[Z_RD] = ZZ_RD;
     pdpat[Z_RE] = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
