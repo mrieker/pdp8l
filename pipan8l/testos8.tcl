@@ -113,16 +113,18 @@ checkttymatch 0 "DON'T START PLAYING WITH LESS THAN \$100.. HAVE FUN!"
 checkttyprompt "HOW MANY DOLLARS ARE YOU STARTING WITH?" "500"
 checkttyprompt "WHAT IS YOUR WAGER THIS TIME?" "100"
 checkttymatch 0 "YOUR FIRST CARD IS "
-checkttymatch 5 "YOUR SECOND CARD IS "
-checkttymatch 5 "DEALER SHOWS A "
-checkttymatch 5 "YOU HAVE"
-checkttymatch 5 "SHOWING."
+set firstcard [string trim [checkttymatch 5 "YOUR SECOND CARD IS "]]
+set secondcard [string trim [checkttymatch 5 "DEALER SHOWS A "]]
+set dealershows [string trim [checkttymatch 5 "YOU HAVE"]]
+set mytotal [string trim [checkttymatch 5 "SHOWING."]]
 checkttyprompt "DO YOU WANT A HIT??" "N"
 checkttymatch 0 "DEALER HAS  "
-##checkttymatch 0 "YOU LOSE. YOU NOW HAVE \$ 400 "
-##checkttymatch 0 "DO YOU WISH TO PLAY AGAIN??N"
-##checkttymatch 0 "TOO BAD! YOU LOST 100 DOLLARS AT THE EDUSYSTEM CASINO."
-##checkttymatch 0 "HOPE YOU ENJOYED YOURSELF.  THANKS FOR PLAYING."
-##checkttymatch 0 "READY"
-##checkttymatch 0 "BYE"
-##checkttymatch 0 "."
+set dealerhas [string trim [checkttymatch 5 "YOU"]]
+checkttymatch 0 "LOSE. YOU NOW HAVE \$ 400 "
+checkttyprompt "DO YOU WISH TO PLAY AGAIN??" "N"
+checkttymatch 0 "TOO BAD! YOU LOST 100 DOLLARS AT THE EDUSYSTEM CASINO."
+checkttymatch 0 "HOPE YOU ENJOYED YOURSELF.  THANKS FOR PLAYING."
+checkttymatch 0 "READY"
+checkttymatch 0 "BYE"
+checkttymatch 0 "."
+exit
