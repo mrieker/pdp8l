@@ -162,23 +162,28 @@ uint16_t Z8LPage::dmaread (uint16_t xaddr)
     ASSERT (xaddr <= 077777);
     if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
     if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
-    if ((xaddr > 07777) && ! (xmemat[1] & XM_ENLO4K)) {
-        cmlock ();
-        CMWAIT (! (cmemat[1] & CM_BUSY));
-        cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
-        uint32_t ca;
-        CMWAIT ((ca = cmemat[1]) & CM_RRDY);
-        cmunlk ();
-        return (ca & CM_DATA) / CM_DATA0;
+
+    // if data located in extmem 32K block memory, use direct access to read it
+    if ((xaddr > 07777) || (xmemat[1] & XM_ENLO4K)) {
+        if (extmemat == NULL) extmemat = extmem ();
+        return extmemat[xaddr];
     }
-    if (extmemat == NULL) extmemat = extmem ();
-    return extmemat[xaddr];
+
+    // data located in either sim localcore array or real PDP-8/L core stack
+    // use dma cycle to read it
+    cmlock ();
+    CMWAIT (! (cmemat[1] & CM_BUSY));
+    cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
+    uint32_t ca;
+    CMWAIT ((ca = cmemat[1]) & CM_RRDY);
+    cmunlk ();
+    return (ca & CM_DATA) / CM_DATA0;
 }
 
 // write to processor memory
-// always use cmem to write memory, writes to extmem might be ignored:
-//  processor does TS1 read of location 00031 (such as fetch jmp 0031 in boot code)
-//  this code does extmem write to 00031
+// always use cmem (dma cycle) to write memory, direct writes to extmem might be ignored:
+//  processor does TS1 read of location 00031 (such as fetch jmp 0031 in os8 boot code)
+//  this code does direct extmem write to 00031
 //  processor does TS3 writeback to 00031, throwing extmem write away
 void Z8LPage::dmawrite (uint16_t xaddr, uint16_t data)
 {
