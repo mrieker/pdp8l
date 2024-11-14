@@ -24,8 +24,8 @@
 // Can also access upper 28K (of the 32K block memory) via dma for testing
 
 // PDP-8/L Users Handbook Chap 5 p38/39 discuss the DMA cycle
-//  address, datain, threecycle, breakrequest accepted all at same time, but we delay breakrequest 20nS
-//  read data available at time of strobe
+//  address, datain, threecycle, breakrequest accepted all at same time, but we delay breakrequest 30nS
+//  read data available at time of strobe (end of TS1)
 //  write data must be available before TS3 begins
 //  addr_accept asserted at TP4 time and lasts 350..450nS
 
@@ -36,7 +36,7 @@
 //    (ro) rddone = read data is available (sets while busy still set)
 //    (ro) busy = busy performing memory cycle (do not modify register)
 //    (rw) data = write: data to be written to memory via dma cycle
-//                 read: data read from memory (write=0) or written to memory (write=1)
+//                 read: data read from memory
 //    (rw) write = write given data to memory
 //    (rw) addr = address of memory word to access
 //  [3] = 32-bit test-and-set cell

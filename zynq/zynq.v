@@ -116,13 +116,13 @@ module Zynq (
     input  oJMP_JMS,
     input  oLINE_LOW,
     input  oMEMSTART,
-    output reg r_BAC,
-    output reg r_BMB,
-    output reg r_MA,
-    output reg x_DMAADDR,
-    output reg x_DMADATA,
-    output reg x_INPUTBUS,
-    output reg x_MEM,
+    output r_BAC,
+    output r_BMB,
+    output r_MA,
+    output x_DMAADDR,
+    output x_DMADATA,
+    output x_INPUTBUS,
+    output x_MEM,
 
     output[14:00] xbraddr,
     output[11:00] xbrwdat,
@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4050;
+    localparam VERSION = 32'h384C4054;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -286,7 +286,7 @@ module Zynq (
     reg[11:00] oBMB;                     // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
     reg[11:00] oMA;                      // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
 
-    reg simit, lastts1, lastts3;
+    reg bareit, simit, lastts1, lastts3;
     reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
     wire iopstart, iopstop;
     wire firstiop1, firstiop2, firstiop4;
@@ -355,6 +355,10 @@ module Zynq (
     reg[11:00] arm_i_DMAADDR;
     reg[11:00] arm_i_DMADATA;
     reg[11:00] arm_swSR;
+    reg arm_x_MEM, arm_x_INPUTBUS, arm_x_DMADATA, arm_x_DMAADDR;
+    reg arm_r_MA, arm_r_BMB, arm_r_BAC;
+    reg dev_x_MEM, dev_x_INPUTBUS, dev_x_DMADATA, dev_x_DMAADDR;
+    reg dev_r_MA, dev_r_BMB, dev_r_BAC;
 
     // tty interface wires
     wire[31:00] ttardata;
@@ -449,6 +453,15 @@ module Zynq (
             softreset   <= 0;
             nanocontin  <= 0;
             brkwhenhltd <= 0;
+            bareit      <= 0;
+
+            arm_x_MEM      <= 1;
+            arm_x_INPUTBUS <= 1;
+            arm_x_DMADATA  <= 1;
+            arm_x_DMAADDR  <= 1;
+            arm_r_MA       <= 1;
+            arm_r_BMB      <= 1;
+            arm_r_BAC      <= 1;
         end else begin
 
             /////////////////////
@@ -521,18 +534,29 @@ module Zynq (
                         softreset         <= saxi_WDATA[01];
                         nanocontin        <= saxi_WDATA[02];
                         brkwhenhltd       <= saxi_WDATA[05];
+                        bareit            <= saxi_WDATA[06];
+                    end
+
+                    10'b0000001111: begin
+                        arm_x_MEM         <= saxi_WDATA[00];
+                        arm_x_INPUTBUS    <= saxi_WDATA[01];
+                        arm_x_DMADATA     <= saxi_WDATA[02];
+                        arm_x_DMAADDR     <= saxi_WDATA[03];
+                        arm_r_MA          <= saxi_WDATA[04];
+                        arm_r_BMB         <= saxi_WDATA[05];
+                        arm_r_BAC         <= saxi_WDATA[06];
                     end
                 endcase
-                saxi_AWREADY <= 1;                           // we are ready to accept an address again
-                saxi_WREADY  <= 0;                           // we are no longer accepting write data
-                saxi_BVALID  <= 1;                           // we have accepted the data
+                saxi_AWREADY <= 1;                          // we are ready to accept an address again
+                saxi_WREADY  <= 0;                          // we are no longer accepting write data
+                saxi_BVALID  <= 1;                          // we have accepted the data
 
             end else begin
                 // check for PS sending us a write address
                 if (saxi_AWREADY & saxi_AWVALID) begin
                     writeaddr <= saxi_AWADDR[11:02];        // save address bits we care about
-                    saxi_AWREADY <= 0;                       // we are no longer accepting a write address
-                    saxi_WREADY  <= 1;                       // we are ready to accept write data
+                    saxi_AWREADY <= 0;                      // we are no longer accepting a write address
+                    saxi_WREADY  <= 1;                      // we are ready to accept write data
                 end
 
                 // check for PS acknowledging write acceptance
@@ -784,28 +808,28 @@ module Zynq (
         end
     end
 
-    ///////////////////////////////////////////////////
-    //  multiplex data going out over DMABUS to PDP  //
-    ///////////////////////////////////////////////////
+    ////////////////////////
+    //  multiplex DMABUS  //
+    ////////////////////////
 
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
             lastts1 <= 0;
             lastts3 <= 0;
-            x_DMAADDR <= 1;
-            x_DMADATA <= 1;
+            dev_x_DMAADDR <= 1;
+            dev_x_DMADATA <= 1;
         end else if (nanocstep) begin
 
             // on falling edge of TS1, start sending write data to PDP
             if (lastts1 & ~ dev_oBTS_1) begin
-                x_DMAADDR <= 1;
-                x_DMADATA <= 0;
+                dev_x_DMAADDR <= 1;
+                dev_x_DMADATA <= 0;
             end
 
             // on falling edge of TS3, start sending address to PDP for next cycle
             else if (lastts3 & ~ dev_oBTS_3) begin
-                x_DMAADDR <= 0;
-                x_DMADATA <= 1;
+                dev_x_DMAADDR <= 0;
+                dev_x_DMADATA <= 1;
             end
 
             // save for transition detection
@@ -813,6 +837,9 @@ module Zynq (
             lastts3 <= dev_oBTS_3;
         end
     end
+
+    assign x_DMAADDR = bareit ? arm_x_DMAADDR : dev_x_DMAADDR;
+    assign x_DMADATA = bareit ? arm_x_DMADATA : dev_x_DMADATA;
 
     assign bDMABUSA = (~ x_DMAADDR & i_DMAADDR[11-09]) | (~ x_DMADATA & i_DMADATA[11-00]);
     assign bDMABUSB = (~ x_DMAADDR & i_DMAADDR[11-00]) | (~ x_DMADATA & i_DMADATA[11-02]);
@@ -835,8 +862,10 @@ module Zynq (
 
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
-            ts1count <= 0;
-            ts3count <= 0;
+            ts1count  <= 0;
+            ts3count  <= 0;
+            dev_r_MA  <= 1;
+            dev_x_MEM <= 1;
         end else if (nanocstep) begin
 
             // count how far we are into TS1
@@ -852,11 +881,11 @@ module Zynq (
             end
 
             // enable/disable multiplexing based on those counters
-            if (ts1count == 1) r_MA  <= 1;      // 10nS into TS1: stop receiving MA
-            if (ts1count == 4) x_MEM <= 0;      // 40nS into TS1: start sending MEM
+            if (ts1count == 1) dev_r_MA  <= 1;      // 10nS into TS1: stop receiving MA
+            if (ts1count == 4) dev_x_MEM <= 0;      // 40nS into TS1: start sending MEM
 
-            if (ts3count == 1) x_MEM <= 1;      // 10nS into TS3: stop sending MEM
-            if (ts3count == 4) r_MA  <= 0;      // 40nS into TS3: start receiving MA
+            if (ts3count == 1) dev_x_MEM <= 1;      // 10nS into TS3: stop sending MEM
+            if (ts3count == 4) dev_r_MA  <= 0;      // 40nS into TS3: start receiving MA
 
             // latch in memory address when it is enabled to be received from PDP
             // it is captured from beginning of TS3 to beginning of TS1
@@ -878,6 +907,9 @@ module Zynq (
         end
     end
 
+    assign r_MA  = bareit ? arm_r_MA  : dev_r_MA;
+    assign x_MEM = bareit ? arm_x_MEM : dev_x_MEM;
+
     // gate memory read data to PDP in case it is reading from extended memory
     // data is gated from middle of TS1 to beginning of TS3
     assign bMEMBUSH = x_MEM ? 1'bZ : iMEM[11-00];
@@ -892,6 +924,97 @@ module Zynq (
     assign bMEMBUSC = x_MEM ? 1'bZ : iMEM[11-09];
     assign bMEMBUSL = x_MEM ? 1'bZ : iMEM[11-10];
     assign bMEMBUSD = x_MEM ? 1'bZ : iMEM[11-11];
+
+    ////////////////////////
+    //  multiplex PIOBUS  //
+    ////////////////////////
+
+    // PIOBUS control
+    //   outside io pulses, PIOBUS is gating MB contents into us
+    //   during first half of io pulse, PIOBUS is gating AC contents into us
+    //   during second half of io pulse and for 40nS after, PIOBUS is gating INPUTBUS out to PDP-8/L
+
+    // receive AC contents from PIOBUS, but it is valid only during first half of io pulse (ie, when r_BAC is asserted), garbage otherwise
+    assign oBAC = { bPIOBUSF, bPIOBUSN, bPIOBUSL,  bPIOBUSM, bPIOBUSE, bPIOBUSD,
+                    bPIOBUSK, bPIOBUSC, bPIOBUSJ,  bPIOBUSB, bPIOBUSH, bPIOBUSA };
+
+    // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
+    assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
+    assign bPIOBUSH = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-01];
+    assign bPIOBUSB = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-02];
+    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-03];
+    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-04];
+    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-05];
+    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-06];
+    assign bPIOBUSF = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-07];
+    assign bPIOBUSN = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-08];
+    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-09];
+    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-10];
+    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-11];
+
+    // latch MB contents from piobus when not in io pulse
+    // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
+    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory)
+    always @(posedge CLOCK) begin
+        if (pwronreset) begin
+            dev_r_BAC <= 1;
+            dev_r_BMB <= 1;
+            dev_x_INPUTBUS <= 1;
+        end else if (nanocstep) begin
+            if ((iopsetcount == 0) & (iopclrcount == 7)) begin
+                // not doing any io, continuously clock in MB contents
+                dev_r_BAC <= 1;
+                dev_r_BMB <= 0;
+                dev_x_INPUTBUS <= 1;
+                oBMB  <= { bPIOBUSF, bPIOBUSN, bPIOBUSM ,  bPIOBUSE, bPIOBUSC, bPIOBUSJ,
+                           bPIOBUSD, bPIOBUSL, bPIOBUSK ,  bPIOBUSB, bPIOBUSA, bPIOBUSH };
+            end else if (iopsetcount ==  1 & iopclrcount == 0) begin
+                // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
+                // ...and leave oBMB contents as they were (contains io opcode)
+                dev_r_BMB <= 1;
+            end else if (iopsetcount ==  2 & iopclrcount == 0) begin
+                // ... then turn on receiving AC from PIOBUS
+                dev_r_BAC <= 0;
+            end else if (iopsetcount == 14 & iopclrcount == 0) begin
+                // ... then turn off receiving AC from PIOBUS
+                dev_r_BAC <= 1;
+            end else if (iopsetcount == 15 & iopclrcount == 0) begin
+                // ... then turn on sending io results to PIOBUS
+                dev_x_INPUTBUS <= 0;
+            end else if (iopsetcount ==  0 & iopclrcount == 4) begin
+                // ... then turn off sending io results to PIOBUS
+                dev_x_INPUTBUS <= 1;
+            end
+        end
+    end
+
+    assign r_BAC      = bareit ? arm_r_BAC      : dev_r_BAC;
+    assign r_BMB      = bareit ? arm_r_BMB      : dev_r_BMB;
+    assign x_INPUTBUS = bareit ? arm_x_INPUTBUS : dev_x_INPUTBUS;
+
+    wire[11:00] bare12 = { 12 { bareit } };
+
+    // internal pio busses - wire-ored(active high)/-anded(active low) from device to processor
+    // block device outputs if bareit so pins can be directly controlled by arm
+    assign dev_iBEMA         =      arm_iBEMA;
+    assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
+    assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
+    assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | xmibus | eaibus);
+    assign dev_iMEMINCR      =      arm_iMEMINCR;
+    assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
+    assign dev_iMEM_P        =      arm_iMEM_P;
+    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
+    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR    | ~ bareit & (ttacclr | tt40acclr | rkacclr | eaacclr));
+    assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST    | ~ bareit & cmbrkrqst);
+    assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR     | ~ bare12 & cmbrkaddr);
+    assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA     | ~ bare12 & cmbrkwdat);
+    assign dev_i_EA          = ~ (~ arm_i_EA          | ~ bareit & ~ xm_ea);
+    assign dev_i_EMA         =      arm_i_EMA;
+    assign dev_i_INT_INHIBIT = ~ (~ arm_i_INT_INHIBIT | ~ bareit & ~ xm_intinh);
+    assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST    | ~ bareit & (ttintrq | tt40intrq | rkintrq));
+    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP     | ~ bareit & (ttioskp | tt40ioskp | rkioskp | eaioskp));
+    assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
+    assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
 
     ///////////////////////////////////
     //  simulated PDP-8/L processor  //
@@ -1066,87 +1189,6 @@ module Zynq (
 
     assign iopstart = iopsetcount == 13 & ~ armwrite;       // IOP started 130nS ago, process the opcode in dev_oBMB, start driving busses
     assign iopstop  = iopclrcount ==  7;                    // IOP finished 70nS ago, stop driving io busses
-
-    // PIOBUS control
-    //   outside io pulses, PIOBUS is gating MB contents into us
-    //   during first half of io pulse, PIOBUS is gating AC contents into us
-    //   during second half of io pulse and for 40nS after, PIOBUS is gating INPUTBUS out to PDP-8/L
-
-    // receive AC contents from PIOBUS, but it is valid only during first half of io pulse (ie, when r_BAC is asserted), garbage otherwise
-    assign oBAC = { bPIOBUSF, bPIOBUSN, bPIOBUSL,  bPIOBUSM, bPIOBUSE, bPIOBUSD,
-                    bPIOBUSK, bPIOBUSC, bPIOBUSJ,  bPIOBUSB, bPIOBUSH, bPIOBUSA };
-
-    // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
-    assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
-    assign bPIOBUSH = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-01];
-    assign bPIOBUSB = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-02];
-    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-03];
-    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-04];
-    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-05];
-    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-06];
-    assign bPIOBUSF = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-07];
-    assign bPIOBUSN = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-08];
-    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-09];
-    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-10];
-    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-11];
-
-    // latch MB contents from piobus when not in io pulse
-    // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
-    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory)
-    always @(posedge CLOCK) begin
-        if (pwronreset) begin
-            r_BAC <= 1;
-            r_BMB <= 1;
-            x_INPUTBUS <= 1;
-        end else if (nanocstep) begin
-            if ((iopsetcount == 0) & (iopclrcount == 7)) begin
-                // not doing any io, continuously clock in MB contents
-                r_BAC <= 1;
-                r_BMB <= 0;
-                x_INPUTBUS <= 1;
-                oBMB  <= { bPIOBUSF, bPIOBUSN, bPIOBUSM ,  bPIOBUSE, bPIOBUSC, bPIOBUSJ,
-                           bPIOBUSD, bPIOBUSL, bPIOBUSK ,  bPIOBUSB, bPIOBUSA, bPIOBUSH };
-            end else if (iopsetcount ==  1 & iopclrcount == 0) begin
-                // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
-                // ...and leave oBMB contents as they were (contains io opcode)
-                r_BMB <= 1;
-            end else if (iopsetcount ==  2 & iopclrcount == 0) begin
-                // ... then turn on receiving AC from PIOBUS
-                r_BAC <= 0;
-            end else if (iopsetcount == 14 & iopclrcount == 0) begin
-                // ... then turn off receiving AC from PIOBUS
-                r_BAC <= 1;
-            end else if (iopsetcount == 15 & iopclrcount == 0) begin
-                // ... then turn on sending io results to PIOBUS
-                x_INPUTBUS <= 0;
-            end else if (iopsetcount ==  0 & iopclrcount == 4) begin
-                // ... then turn off sending io results to PIOBUS
-                x_INPUTBUS <= 1;
-            end
-        end
-    end
-
-    // internal pio busses - wire-ored(active high)/-anded(active low) from device to processor
-
-    assign dev_iBEMA         =      arm_iBEMA;
-    assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
-    assign dev_iDATA_IN      =      arm_iDATA_IN   | cmbrkwrite;
-    assign dev_iINPUTBUS     =      arm_iINPUTBUS  | ttibus  | tt40ibus  | rkibus | xmibus | eaibus;
-    assign dev_iMEMINCR      =      arm_iMEMINCR;
-    assign dev_iMEM          =      arm_iMEM       | xmmem;
-    assign dev_iMEM_P        =      arm_iMEM_P;
-    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
-    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR | ttacclr | tt40acclr | rkacclr | eaacclr);
-    assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST | cmbrkrqst);
-    assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR  | cmbrkaddr);
-    assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA  | cmbrkwdat);
-    assign dev_i_EA          =      arm_i_EA       & xm_ea;
-    assign dev_i_EMA         =      arm_i_EMA;
-    assign dev_i_INT_INHIBIT =      arm_i_INT_INHIBIT & xm_intinh;
-    assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST | ttintrq | tt40intrq | rkintrq);
-    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP  | ttioskp | tt40ioskp | rkioskp | eaioskp);
-    assign dev_i_MEMDONE     =      arm_i_MEMDONE     & xm_mwdone;
-    assign dev_i_STROBE      =      arm_i_STROBE      & xm_mrdone;
 
     // teletype interfaces
 
