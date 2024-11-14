@@ -246,9 +246,9 @@ int main (int argc, char **argv)
     if (rc != TCL_OK) {
         char const *err = Tcl_GetStringResult (interp);
         if ((err != NULL) && (err[0] != 0)) {
-            fprintf (stderr, "pipan8l: error %d initialing tcl: %s\n", rc, err);
+            fprintf (stderr, "z8lpin: error %d initialing tcl: %s\n", rc, err);
         } else {
-            fprintf (stderr, "pipan8l: error %d initialing tcl\n", rc);
+            fprintf (stderr, "z8lpin: error %d initialing tcl\n", rc);
         }
         ABORT ();
     }
@@ -325,12 +325,16 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
 {
     if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "help") == 0)) {
         puts ("");
-        puts ("  pin {get pin ...} | {set pin val ...} ...");
+        puts ("  pin {get pin ...} | {set pin val ...} | {test pin ...} ...");
+        puts ("    defaults to get");
+        puts ("    get returns integer value");
+        puts ("    test returns -1: undefined; 0: read-only; 1: read/write");
         puts ("");
         return TCL_OK;
     }
 
     bool setmode = false;
+    bool testmode = false;
     int ngotvals = 0;
     Tcl_Obj *gotvals[objc];
 
@@ -339,10 +343,17 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
 
         if (strcasecmp (name, "get") == 0) {
             setmode = false;
+            testmode = false;
             continue;
         }
         if (strcasecmp (name, "set") == 0) {
             setmode = true;
+            testmode = false;
+            continue;
+        }
+        if (strcasecmp (name, "test") == 0) {
+            setmode = false;
+            testmode = true;
             continue;
         }
 
@@ -355,8 +366,12 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             char *p;
             mask = strtoul (name + 3, &p, 0);
             if ((*p != 0) || (mask > 077777)) {
-                Tcl_SetResultF (interp, "extended memory address %s must be integer in range 000000..077777", name + 3);
-                return TCL_ERROR;
+                if (! testmode) {
+                    Tcl_SetResultF (interp, "extended memory address %s must be integer in range 000000..077777", name + 3);
+                    return TCL_ERROR;
+                }
+                gotvals[ngotvals++] = Tcl_NewIntObj (-1);
+                continue;
             }
             ptr = extmemptr + mask;
             mask = 07777;
@@ -367,14 +382,22 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             for (pte = pindefs; pte->name != NULL; pte ++) {
                 if (strcasecmp (pte->name, name) == 0) goto gotit;
             }
-            Tcl_SetResultF (interp, "bad pin name %s", name);
-            return TCL_ERROR;
+            if (! testmode) {
+                Tcl_SetResultF (interp, "bad pin name %s", name);
+                return TCL_ERROR;
+            }
+            gotvals[ngotvals++] = Tcl_NewIntObj (-1);
+            continue;
         gotit:;
             mask = pte->mask;
             width = 0;
             while (1U << ++ width <= mask / (mask & - mask)) { }
             ptr = devs[pte->dev] + pte->reg;
             writeable = pte->writ;
+        }
+        if (testmode) {
+            gotvals[ngotvals++] = Tcl_NewIntObj (writeable);
+            continue;
         }
 
         if (setmode) {
