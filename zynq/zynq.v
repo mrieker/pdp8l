@@ -150,7 +150,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4054;
+    localparam VERSION = 32'h384C4055;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -924,6 +924,7 @@ module Zynq (
     assign bMEMBUSC = x_MEM ? 1'bZ : iMEM[11-09];
     assign bMEMBUSL = x_MEM ? 1'bZ : iMEM[11-10];
     assign bMEMBUSD = x_MEM ? 1'bZ : iMEM[11-11];
+    assign iMEM_07  = iMEM[11-07];
 
     ////////////////////////
     //  multiplex PIOBUS  //
