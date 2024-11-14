@@ -18,8 +18,14 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// run via pipan8l shell script:
-//  ./pipan8l [-sim | -z8l] [<scriptfile.tcl>]
+// direct access to z8l signals
+
+//  'o' pins : simit=0 : read PDP-8/L pins
+//             simit=1 : read simulator pins
+
+//  'i' pins : simit=0 : drives PDP-8/L pin from device & arm register
+
+//  ./z8lpin [tclscriptfile]
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -110,6 +116,7 @@ static PinDef const pindefs[] = {
     { "nanotrigger",     DEV_8L, Z_RE, e_nanotrigger,   true  },
     { "nanocstep",       DEV_8L, Z_RE, e_nanocstep,     false },
     { "brkwhenhltd",     DEV_8L, Z_RE, e_brkwhenhltd,   true  },
+    { "bareit",          DEV_8L, Z_RE, e_bareit,        true  },
     { "oBIOP1",          DEV_8L, Z_RF, f_oBIOP1,        false },
     { "oBIOP2",          DEV_8L, Z_RF, f_oBIOP2,        false },
     { "oBIOP4",          DEV_8L, Z_RF, f_oBIOP4,        false },

@@ -85,6 +85,7 @@
 #define e_nanotrigger   (1U <<  3)  //rw 0=ignored; 1=trigger single step (sim only)
 #define e_nanocstep     (1U <<  4)  //ro 0=stopped; 1=stepping
 #define e_brkwhenhltd   (1U <<  5)  //rw 0=ignore brk when halted; 1=process brk when halted (sim only)
+#define e_bareit        (1U <<  6)  //rw 0=pass device data to PDP-8/L & sim 'i' pins; 1=pass arm reg data to PDP-8/L & sim 'i' pins
 
 #define f_oBIOP1        (1U <<  0)
 #define f_oBIOP2        (1U <<  1)

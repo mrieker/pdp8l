@@ -118,7 +118,7 @@ int main (int argc, char **argv)
         printf ("  oBTS_1=%o             lbCA=%o              simit=%o          ",  FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit));
         printf ("  iTHREECYCLE=%o        swDEP=%o             memcycctr=%08X" EOL,  FIELD(Z_RA,a_iTHREECYCLE),    FIELD(Z_RB,b_swDEP),      z8ls[Z_RN]);
 
-        printf ("  oBTS_3=%o             lbDEF=%o                              ",   FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF));
+        printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o         ",  FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit));
         printf ("  i_AC_CLEAR=%o         swDFLD=%o" EOL,                            FIELD(Z_RA,a_i_AC_CLEAR),     FIELD(Z_RB,b_swDFLD));
 
         printf ("  oBWC_OVERFLOW=%o      lbEA=%o                               ",   FIELD(Z_RF,f_oBWC_OVERFLOW),  FIELD(Z_RG,g_lbEA));
