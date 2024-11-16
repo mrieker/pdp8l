@@ -1,5 +1,6 @@
 *~
 *.class
+*.jar
 .Xil
 .nfs*
 pdp8l.cache
