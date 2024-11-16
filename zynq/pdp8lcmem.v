@@ -31,14 +31,15 @@
 
 // arm registers:
 //  [0] = ident='CM',sizecode=1,version
-//  [1] = <enable> 0 <rddone> <busy> <12-bit-data> <write> <15-bit-addr>
+//  [1] = <enable> <wcovf> <rddone> <busy> <12-bit-data> <write> <15-bit-addr>
 //    (rw) enable = perform memory cycle
+//    (ro) wcovf  = wordcount overflow for 3-cycle
 //    (ro) rddone = read data is available (sets while busy still set)
-//    (ro) busy = busy performing memory cycle (do not modify register)
-//    (rw) data = write: data to be written to memory via dma cycle
+//    (ro) busy   = busy performing memory cycle (do not modify register)
+//    (rw) data   = write: data to be written to memory via dma cycle
 //                 read: data read from memory
-//    (rw) write = write given data to memory
-//    (rw) addr = address of memory word to access
+//    (rw) write  = write given data to memory
+//    (rw) addr   = address of memory word to access
 //  [3] = 32-bit test-and-set cell
 //        always accepts writing anything when currently zero
 //        otherwise writing its current value back clears it to zero
@@ -53,6 +54,8 @@ module pdp8lcmem (
 
     output reg brkrqst,
     output brkwrite,
+    output reg brk3cycl,
+    output reg brkcainc,
     output[2:0] brkema,
     output[11:00] brkaddr,
     output[11:00] brkwdat,
@@ -60,20 +63,21 @@ module pdp8lcmem (
     input brkcycle,
     input brkts1,
     input brkts3,
+    input brkwcovf,
     input _brkdone
 );
 
-    reg ctlwrite, ctlrdone;
+    reg ctlwrite, ctldone;
     reg[14:00] ctladdr;
     reg[11:00] ctldata;
     reg[2:0] busyonarm;
     reg[31:00] armlock;
-    reg ctlenab;
+    reg ctlenab, ctlwcovf;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D100A :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, 1'b0, ctlrdone, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { 24'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
+    assign armrdata = (armraddr == 0) ? 32'h434D100B :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctlwcovf, ctldone, ctlbusy, ctldata, ctlwrite, ctladdr } :
+                      (armraddr == 2) ? { brk3cycl, brkcainc, 22'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
                       armlock;
 
     assign brkema   = ctladdr[14:12];
@@ -97,9 +101,17 @@ module pdp8lcmem (
                         ctladdr   <= armwdata[14:00];
                         ctlwrite  <= armwdata[15];
                         ctldata   <= armwdata[27:16];
-                        ctlrdone  <= 0;
+                        ctldone   <= 0;
+                        ctlwcovf  <= 0;
                         ctlenab   <= armwdata[31];
                         busyonarm <= { 2'b00, armwdata[31] };
+                    end
+                end
+
+                2: begin
+                    if (~ ctlbusy) begin
+                        brk3cycl <= armwdata[31];
+                        brkcainc <= armwdata[30];
                     end
                 end
 
@@ -118,56 +130,68 @@ module pdp8lcmem (
         end
 
         // maybe we have dma cycle to process
-        else if (CSTEP) case (busyonarm)
+        else if (CSTEP) begin
 
-            // delay asserting brkrqst for 30nS after outputting other control lines
-            1: begin
-                busyonarm <= 2;
-            end
+            // BWC_OVERFLOW is triggered by TP2, ie, near beginning of TS3
+            // it is cleared by MEM_DONE, ie, near end of TS3 (see vol 2, p9 D-5)
+            // it is set only during WC TS3 if count increments to zero
+            // also during BRK TS3 if MEMINCR and increments to zero
+            // we never use MEMINCR mode, so we just capture during any TS3
+            if (brkts3 & brkwcovf) ctlwcovf <= 1;
 
-            2: begin
-                busyonarm <= 3;
-            end
+            case (busyonarm)
 
-            3: begin
-                brkrqst   <= 1;
-                busyonarm <= 4;
-            end
-
-            // wait for TS1 with B_BREAK indicating this cycle is for us
-            4: begin
-                if (brkcycle & brkts1) begin
-                    busyonarm <= 5;
-                    brkrqst   <= 0;
+                // delay asserting brkrqst for 30nS after outputting other control lines
+                1: begin
+                    busyonarm <= 2;
                 end
-            end
 
-            // wait for TS3 to start
-            // if this is a read request, MB contains the data
-            // ...and tell the arm the data is ready
-            5: begin
-                if (brkts3) begin
-                    if (~ ctlwrite) begin
-                        ctldata  <= brkrdat;
-                        ctlrdone <= 1;
+                2: begin
+                    busyonarm <= 3;
+                end
+
+                3: begin
+                    brkrqst   <= 1;
+                    busyonarm <= 4;
+                end
+
+                // wait for TS1 with B_BREAK indicating this cycle is for us
+                // if this is a write request, flag it done because ctlwcovf is valid by now
+                4: begin
+                    if (brkcycle & brkts1) begin
+                        busyonarm <= 5;
+                        brkrqst   <= 0;
+                        ctldone   <= ctlwrite;
                     end
-                    busyonarm <= 6;
                 end
-            end
 
-            // wait for ADDR_ACCEPTED asserted (occurs at TP4)
-            6: begin
-                if (~ _brkdone) begin
-                    busyonarm <= 7;
+                // wait for TS3 to start
+                // if this is a read request, MB contains the data
+                // ...and tell the arm the data is ready
+                5: begin
+                    if (brkts3) begin
+                        if (~ ctlwrite) begin
+                            ctldata <= brkrdat;
+                            ctldone <= 1;
+                        end
+                        busyonarm <= 6;
+                    end
                 end
-            end
 
-            // wait for ADDR_ACCEPTED negated before accepting another request from arm
-            7: begin
-                if (_brkdone) begin
-                    busyonarm <= 0;
+                // wait for ADDR_ACCEPTED asserted (occurs at TP4)
+                6: begin
+                    if (~ _brkdone) begin
+                        busyonarm <= 7;
+                    end
                 end
-            end
-        endcase
+
+                // wait for ADDR_ACCEPTED negated before accepting another request from arm
+                7: begin
+                    if (_brkdone) begin
+                        busyonarm <= 0;
+                    end
+                end
+            endcase
+        end
     end
 endmodule

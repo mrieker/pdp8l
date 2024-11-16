@@ -456,6 +456,7 @@ module pdp8lsim (
                             MS_WC: begin
                                 mbuf <= mbuf + 1;
                                 // middle of wc with count just read, detect count overflow
+                                // PDP-8/L clocks it with TP2 (vol 2, p5 D-5)
                                 oBWC_OVERFLOW <= (mbuf == 12'o7777);
                             end
                             MS_CA: begin
@@ -555,6 +556,7 @@ module pdp8lsim (
                 end
 
                 TS_TP3BEG: begin
+                    oBWC_OVERFLOW <= 0;     // PDP-8/L clears BWC_OVERFLOW at end of TS3 (vol 2, p9 D-5)
                     if (timedelay != 2) timedelay <= timedelay + 1;
                     else timestate <= TS_TP3END;
                 end

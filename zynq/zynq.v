@@ -386,7 +386,7 @@ module Zynq (
 
     // core memory interface wires
     wire[31:00] cmardata;
-    wire cmbrkrqst, cmbrkwrite;
+    wire cmbrkrqst, cmbrkwrite, cmbrk3cycl, cmbrkcainc;
     wire[11:00] cmbrkaddr, cmbrkwdat;
     wire[2:0] cmbrkema;
 
@@ -1005,13 +1005,13 @@ module Zynq (
     // internal pio busses - wire-ored(active high)/-anded(active low) from device to processor
     // block device outputs if bareit so pins can be directly controlled by arm
     assign dev_iBEMA         =      arm_iBEMA;
-    assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT;
+    assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT | ~ bareit & cmbrkcainc;
     assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
     assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | xmibus | eaibus | tcibus);
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
-    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE;
+    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE   | ~ bareit & cmbrk3cycl;
     assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR    | ~ bareit & (ttacclr | tt40acclr | rkacclr | eaacclr | tcacclr));
     assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST    | ~ bareit & cmbrkrqst);
     assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR     | ~ bare12 & cmbrkaddr);
@@ -1345,6 +1345,8 @@ module Zynq (
 
         .brkrqst  (cmbrkrqst),                  //> dma cycle being requested
         .brkwrite (cmbrkwrite),                 //> dma cycle wants to write memory
+        .brk3cycl (cmbrk3cycl),                 //> dma 3-cycle
+        .brkcainc (cmbrkcainc),                 //> increment current address in 3-cycle
         .brkema   (cmbrkema),                   //> upper address bits
         .brkaddr  (cmbrkaddr),                  //> lower address bits
         .brkwdat  (cmbrkwdat),                  //> data to write to memory
@@ -1352,6 +1354,7 @@ module Zynq (
         .brkcycle (dev_oB_BREAK),               //< next mem cycle is for the break
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
+        .brkwcovf (dev_oBWC_OVERFLOW),          //< wordcount overflow for 3-cycle
         ._brkdone (dev_o_ADDR_ACCEPT)           //< cycle complete (TP4 in break cycle)
     );
 
