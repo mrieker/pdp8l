@@ -40,16 +40,11 @@
 #include "padlib.h"
 #include "pindefs.h"
 #include "readprompt.h"
+#include "tclmain.h"
 #include "udppkt.h"
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
-
-struct FunDef {
-    Tcl_ObjCmdProc *func;
-    char const *name;
-    char const *help;
-};
 
 struct PermSw {
     char const *name;
@@ -64,27 +59,23 @@ struct RegBit {
 
 // internal TCL commands
 static Tcl_ObjCmdProc cmd_assemop;
-static Tcl_ObjCmdProc cmd_ctrlcflag;
 static Tcl_ObjCmdProc cmd_disasop;
 static Tcl_ObjCmdProc cmd_flushit;
 static Tcl_ObjCmdProc cmd_getpin;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
-static Tcl_ObjCmdProc cmd_help;
 static Tcl_ObjCmdProc cmd_libname;
 static Tcl_ObjCmdProc cmd_readchar;
 static Tcl_ObjCmdProc cmd_setpin;
 static Tcl_ObjCmdProc cmd_setsw;
 
-static FunDef const fundefs[] = {
+static TclFunDef const fundefs[] = {
     { cmd_assemop,    "assemop",    "assemble instruction" },
-    { cmd_ctrlcflag,  "ctrlcflag",  "read and clear control-C flag" },
     { cmd_disasop,    "disasop",    "disassemble instruction" },
     { cmd_flushit,    "flushit",    "flush writes / invalidate reads" },
     { cmd_getpin,     "getpin",     "get gpio pin" },
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
-    { cmd_help,       "help",       "print this help" },
     { cmd_libname,    "libname",    "get library name i2c,sim,z8l" },
     { cmd_readchar,   "readchar",   "read character with timeout" },
     { cmd_setpin,     "setpin",     "set gpio pin" },
@@ -116,26 +107,13 @@ static PermSw const permsws[] = {
 
 static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
 
-static bool volatile ctrlcflag;
-static bool logflushed;
 static bool rdpadsvalid;
 static bool wrpadsdirty;
-static char *inihelp;
-static int logfd, pipefds[2], oldstdoutfd;
 static PadLib *padlib;
-static pthread_cond_t logflcond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t logflmutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t padmutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_t logtid;
-static sigset_t sigintmask;
 static uint16_t rdpads[P_NU16S];
 static uint16_t wrpads[P_NU16S];
 
-static void siginthand (int signum);
-static void *logthread (void *dummy);
-static void closelog ();
-static int writepipe (int fd, char const *buf, int len);
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);
 static uint16_t getreg (int const *pins);
 static void setpin (int pin, bool set);
 static bool getpin (int pin);
@@ -147,8 +125,6 @@ static void *udpthread (void *dummy);
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
-    sigemptyset (&sigintmask);
-    sigaddset (&sigintmask, SIGINT);
 
     bool simit = false;
     bool z8lit = false;
@@ -186,67 +162,6 @@ int main (int argc, char **argv)
     padlib->readpads (rdpads);
     for (int i = 0; i < P_NU16S; i ++) wrpads[i] = rdpads[i];
 
-    Tcl_FindExecutable (argv[0]);
-
-    Tcl_Interp *interp = Tcl_CreateInterp ();
-    if (interp == NULL) ABORT ();
-    int rc = Tcl_Init (interp);
-    if (rc != TCL_OK) {
-        char const *err = Tcl_GetStringResult (interp);
-        if ((err != NULL) && (err[0] != 0)) {
-            fprintf (stderr, "pipan8l: error %d initialing tcl: %s\n", rc, err);
-        } else {
-            fprintf (stderr, "pipan8l: error %d initialing tcl\n", rc);
-        }
-        ABORT ();
-    }
-
-    // https://www.tcl-lang.org/man/tcl/TclLib/CrtObjCmd.htm
-
-    for (int i = 0; fundefs[i].name != NULL; i ++) {
-        if (Tcl_CreateObjCommand (interp, fundefs[i].name, fundefs[i].func, NULL, NULL) == NULL) ABORT ();
-    }
-
-    // redirect stdout if -log given
-    if (logname != NULL) {
-        fflush (stdout);
-        fflush (stderr);
-
-        // open log file
-        logfd = open (logname, O_WRONLY | O_CREAT | O_APPEND, 0666);
-        if (logfd < 0) {
-            fprintf (stderr, "error creating %s: %m\n", logname);
-            return 1;
-        }
-
-        // save old stdout so we can fclose stdout then fclose it
-        oldstdoutfd = dup (STDOUT_FILENO);
-        if (oldstdoutfd < 0) ABORT ();
-
-        // create pipe that will be used for new stdout then open stdout on it
-        if (pipe (pipefds) < 0) ABORT ();
-        fclose (stdout);  // fclose() after pipe() so pipefds[0] doesn't get STDOUT_FILENO
-        if (dup2 (pipefds[1], STDOUT_FILENO) < 0) ABORT ();
-        close (pipefds[1]);
-        pipefds[1] = -1;
-        stdout = fdopen (STDOUT_FILENO, "w");
-        if (stdout == NULL) ABORT ();
-        setlinebuf (stdout);
-
-        // logfd = log file
-        // stdout = write end of pipe
-        // oldstdout = original stdout (probably a tty)
-        // pipefds[0] = read end of pipe
-
-        // create thread to copy from pipe to both old stdout and log file
-        if (pthread_create (&logtid, NULL, logthread, NULL) < 0) ABORT ();
-        pthread_detach (logtid);
-        atexit (closelog);
-
-        // \377 means only write to log file, not to old stdout
-        printf ("\377*S*T*A*R*T*U*P*\n");
-    }
-
     // create udp server thread
     {
         pthread_t udptid;
@@ -254,168 +169,8 @@ int main (int argc, char **argv)
         if (rc != 0) ABORT ();
     }
 
-    // set ctrlcflag on control-C, but exit if two in a row
-    signal (SIGINT, siginthand);
-
-    // maybe there is a script init file
-    char const *scriptini = getenv ("pipan8lini");
-    if (scriptini != NULL) {
-        rc = Tcl_EvalFile (interp, scriptini);
-        if (rc != TCL_OK) {
-            char const *err = Tcl_GetStringResult (interp);
-            if ((err == NULL) || (err[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating scriptini %s\n", rc, scriptini);
-                                  else fprintf (stderr, "pipan8l: error %d evaluating scriptini %s: %s\n", rc, scriptini, err);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-            return 1;
-        }
-        char const *res = Tcl_GetStringResult (interp);
-        if ((res != NULL) && (res[0] != 0)) inihelp = strdup (res);
-    }
-
-    // if given a filename, process that file as a whole
-    if (fn != NULL) {
-        rc = Tcl_EvalFile (interp, fn);
-        if (rc != TCL_OK) {
-            char const *res = Tcl_GetStringResult (interp);
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating script %s\n", rc, fn);
-                                  else fprintf (stderr, "pipan8l: error %d evaluating script %s: %s\n", rc, fn, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-            return 1;
-        }
-    }
-
-    // either way, prompt and process commands from stdin
-    // to have a script file with no stdin processing, end script file with 'exit'
-    puts ("\nTCL scripting, do 'help' for pipan8l-specific commands");
-    puts ("  do 'exit' to exit pipan8l");
-    for (char const *line;;) {
-        ctrlcflag = false;
-        line = readprompt ("pipan8l> ");
-        ctrlcflag = false;
-        if (line == NULL) break;
-        rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
-        char const *res = Tcl_GetStringResult (interp);
-        if (rc != TCL_OK) {
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "pipan8l: error %d evaluating command\n", rc);
-                                  else fprintf (stderr, "pipan8l: error %d evaluating command: %s\n", rc, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-        }
-        else if ((res != NULL) && (res[0] != 0)) puts (res);
-    }
-
-    Tcl_Finalize ();
-
-    return 0;
-}
-
-static void siginthand (int signum)
-{
-    if ((isatty (STDIN_FILENO) > 0) && (write (STDIN_FILENO, "\n", 1) > 0)) { }
-    if (logfd > 0) writepipe (STDOUT_FILENO, "\377^C\n", 4);
-    if (ctrlcflag) exit (1);
-    ctrlcflag = true;
-}
-
-// read from pipefds[0] and write to both logfd and oldstdoutfd
-// need this instead of 'tee' command cuz control-C aborts 'tee'
-static void *logthread (void *dummy)
-{
-    bool atbol = true;
-    bool echoit = true;
-    char buff[4096];
-    int rc;
-    while ((rc = read (pipefds[0], buff, sizeof buff)) > 0) {
-
-        int ofs = 0;
-        int len;
-        while ((len = rc - ofs) > 0) {
-
-            // \377 means write following line only to log file, don't echo to old stdout
-            char *p = (char *) memchr (buff + ofs, 0377, len);
-            if (p != NULL) len = p - buff - ofs;
-            if (len == 0) {
-                echoit = false;
-                ofs ++;
-                continue;
-            }
-
-            // but \377\000 means set logflushed flag
-            if (! echoit && (buff[ofs] == 0)) {
-                logflushed = true;
-                if (pthread_cond_broadcast (&logflcond) != 0) ABORT ();
-                echoit = true;
-                ofs ++;
-                continue;
-            }
-
-            // chop amount being written to one line so we can prefix next line with timestamp
-            char *q = (char *) memchr (buff + ofs, '\n', len);
-            if (q != NULL) len = ++ q - buff - ofs;
-
-            // maybe echo to old stdout
-            if (echoit && (writepipe (oldstdoutfd, buff + ofs, len) < 0)) {
-                fprintf (stderr, "logthread: error writing to stdout: %m\n");
-                ABORT ();
-            }
-
-            // always wtite to log file with timestamp
-            if (atbol) {
-                struct timeval nowtv;
-                if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
-                struct tm nowtm = *localtime (&nowtv.tv_sec);
-                dprintf (logfd, "%02d:%02d:%02d.%06d ", nowtm.tm_hour, nowtm.tm_min, nowtm.tm_sec, (int) nowtv.tv_usec);
-            }
-            if (writepipe (logfd, buff + ofs, len) < 0) {
-                fprintf (stderr, "logthread: error writing to logfile: %m\n");
-                ABORT ();
-            }
-
-            // if just reached eol, re-enable stdout echoing and remember to timestamp next line
-            ofs    += len;
-            atbol   = (buff[ofs-1] == '\n');
-            echoit |= atbol;
-        }
-    }
-    close (logfd);
-    return NULL;
-}
-
-// make sure all written by calling thread has been written to original stdout
-// ie, not sitting in logthread's pipe
-void logflush ()
-{
-    if (logfd > 0) {
-        if (pthread_mutex_lock (&logflmutex) != 0) ABORT ();
-        logflushed = false;
-        if (writepipe (STDOUT_FILENO, "\377", 2) < 0) ABORT ();
-        while (! logflushed) {
-            if (pthread_cond_wait (&logflcond, &logflmutex) != 0) ABORT ();
-        }
-        if (pthread_mutex_unlock (&logflmutex) != 0) ABORT ();
-    }
-}
-
-// make sure log file gets last bit written to stdout
-static void closelog ()
-{
-    fclose (stdout);
-    stdout = NULL;
-    pthread_join (logtid, NULL);
-    logtid = 0;
-}
-
-static int writepipe (int fd, char const *buf, int len)
-{
-    while (len > 0) {
-        int rc = write (fd, buf, len);
-        if (len <= 0) {
-            if (len == 0) errno = EPIPE;
-            return -1;
-        }
-        buf += rc;
-        len -= rc;
-    }
-    return 0;
+    // process tcl commands
+    return tclmain (fundefs, argv[0], "pipan8l", logname, getenv ("pipan8lini"), fn);
 }
 
 
@@ -459,40 +214,6 @@ static int cmd_assemop (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl
         return TCL_OK;
     }
 
-    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
-    return TCL_ERROR;
-}
-
-// read and clear the control-C flag
-static int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    bool oldctrlcflag = ctrlcflag;
-    switch (objc) {
-        case 2: {
-            char const *opstr = Tcl_GetString (objv[1]);
-            if (strcasecmp (opstr, "help") == 0) {
-                puts ("");
-                puts ("  ctrlcflag - read control-C flag");
-                puts ("  ctrlcflag <boolean> - read control-C flag and set to given value");
-                puts ("");
-                puts ("  in any case, control-C flag is cleared at command prompt");
-                puts ("");
-                return TCL_OK;
-            }
-            int temp;
-            int rc = Tcl_GetBooleanFromObj (interp, objv[1], &temp);
-            if (rc != TCL_OK) return rc;
-            if (sigprocmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
-            oldctrlcflag = ctrlcflag;
-            ctrlcflag = temp != 0;
-            if (sigprocmask (SIG_UNBLOCK, &sigintmask, NULL) != 0) ABORT ();
-            // fallthrough
-        }
-        case 1: {
-            Tcl_SetObjResult (interp, Tcl_NewIntObj (oldctrlcflag));
-            return TCL_OK;
-        }
-    }
     Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
     return TCL_ERROR;
 }
@@ -717,23 +438,6 @@ static int cmd_getsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
     return TCL_ERROR;
 }
 
-// print help messages
-static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    puts ("");
-    for (int i = 0; fundefs[i].help != NULL; i ++) {
-        printf ("  %10s - %s\n", fundefs[i].name, fundefs[i].help);
-    }
-    puts ("");
-    puts ("for help on specific command, do '<command> help'");
-    if (inihelp != NULL) {
-        puts ("");
-        puts (inihelp);
-    }
-    puts ("");
-    return TCL_OK;
-}
-
 // get library name
 static int cmd_libname (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
@@ -868,17 +572,6 @@ static int cmd_setsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
 /////////////////
 //  Utilities  //
 /////////////////
-
-// set result to formatted string
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...)
-{
-    char *buf = NULL;
-    va_list ap;
-    va_start (ap, fmt);
-    if (vasprintf (&buf, fmt, ap) < 0) ABORT ();
-    va_end (ap);
-    Tcl_SetResult (interp, buf, (void (*) (char *)) free);
-}
 
 // flush writes then read register
 // - call with mutex locked

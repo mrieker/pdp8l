@@ -160,6 +160,9 @@ int main (int argc, char **argv)
                     idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
                     FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
             } else {
+                if ((idver & 0xF000U) == 0x0000U) {
+                    printf (EOL "VERSION=%08X %c%c %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1]);
+                }
                 if ((idver & 0xF000U) == 0x1000U) {
                     printf (EOL "VERSION=%08X %c%c %08X %08X %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1], z8ls[i+2], z8ls[i+3]);
                 }

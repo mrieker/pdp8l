@@ -42,24 +42,15 @@
 #include <unistd.h>
 
 #include "readprompt.h"
+#include "tclmain.h"
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
 // internal TCL commands
-struct FunDef {
-    Tcl_ObjCmdProc *func;
-    char const *name;
-    char const *help;
-};
-
-static Tcl_ObjCmdProc cmd_ctrlcflag;
-static Tcl_ObjCmdProc cmd_help;
 static Tcl_ObjCmdProc cmd_pin;
 
-static FunDef const fundefs[] = {
-    { cmd_ctrlcflag,  "ctrlcflag",  "read and clear control-C flag" },
-    { cmd_help,       "help",       "print this help" },
-    { cmd_pin,        "pin",        "get/set pins" },
+static TclFunDef const fundefs[] = {
+    { cmd_pin, "pin", "get/set pins" },
     { NULL, NULL, NULL }
 };
 
@@ -201,21 +192,13 @@ static PinDef const pindefs[] = {
     { NULL, 0, 0, 0, false }
 };
 
-static bool volatile ctrlcflag;
-static char *inihelp;
-static sigset_t sigintmask;
 static uint32_t volatile *extmemptr;
-
-static void siginthand (int signum);
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);
 
 
 
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
-    sigemptyset (&sigintmask);
-    sigaddset (&sigintmask, SIGINT);
 
     char const *fn = NULL;
     for (int i = 0; ++ i < argc;) {
@@ -238,88 +221,9 @@ int main (int argc, char **argv)
     // upper 20 bits discarded on write, readback as zeroes
     extmemptr = z8p.extmem ();
 
-    Tcl_FindExecutable (argv[0]);
-
-    Tcl_Interp *interp = Tcl_CreateInterp ();
-    if (interp == NULL) ABORT ();
-    int rc = Tcl_Init (interp);
-    if (rc != TCL_OK) {
-        char const *err = Tcl_GetStringResult (interp);
-        if ((err != NULL) && (err[0] != 0)) {
-            fprintf (stderr, "z8lpin: error %d initialing tcl: %s\n", rc, err);
-        } else {
-            fprintf (stderr, "z8lpin: error %d initialing tcl\n", rc);
-        }
-        ABORT ();
-    }
-
-    for (int i = 0; fundefs[i].name != NULL; i ++) {
-        if (Tcl_CreateObjCommand (interp, fundefs[i].name, fundefs[i].func, NULL, NULL) == NULL) ABORT ();
-    }
-
-    // set ctrlcflag on control-C, but exit if two in a row
-    signal (SIGINT, siginthand);
-
-    // maybe there is a script init file
-    char const *scriptini = getenv ("z8lpinini");
-    if (scriptini != NULL) {
-        rc = Tcl_EvalFile (interp, scriptini);
-        if (rc != TCL_OK) {
-            char const *err = Tcl_GetStringResult (interp);
-            if ((err == NULL) || (err[0] == 0)) fprintf (stderr, "z8lpin: error %d evaluating scriptini %s\n", rc, scriptini);
-                                  else fprintf (stderr, "z8lpin: error %d evaluating scriptini %s: %s\n", rc, scriptini, err);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-            return 1;
-        }
-        char const *res = Tcl_GetStringResult (interp);
-        if ((res != NULL) && (res[0] != 0)) inihelp = strdup (res);
-    }
-
-    // if given a filename, process that file as a whole
-    if (fn != NULL) {
-        rc = Tcl_EvalFile (interp, fn);
-        if (rc != TCL_OK) {
-            char const *res = Tcl_GetStringResult (interp);
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "z8lpin: error %d evaluating script %s\n", rc, fn);
-                                  else fprintf (stderr, "z8lpin: error %d evaluating script %s: %s\n", rc, fn, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-            return 1;
-        }
-    }
-
-    // either way, prompt and process commands from stdin
-    // to have a script file with no stdin processing, end script file with 'exit'
-    puts ("\nTCL scripting, do 'help' for z8lpin-specific commands");
-    puts ("  do 'exit' to exit z8lpin");
-    for (char const *line;;) {
-        ctrlcflag = false;
-        line = readprompt ("z8lpin> ");
-        ctrlcflag = false;
-        if (line == NULL) break;
-        rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
-        char const *res = Tcl_GetStringResult (interp);
-        if (rc != TCL_OK) {
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "z8lpin: error %d evaluating command\n", rc);
-                                  else fprintf (stderr, "z8lpin: error %d evaluating command: %s\n", rc, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-        }
-        else if ((res != NULL) && (res[0] != 0)) puts (res);
-    }
-
-    Tcl_Finalize ();
-
-    return 0;
+    // execute script(s)
+    return tclmain (fundefs, argv[0], "z8lpin", NULL, getenv ("z8lpinini"), fn);
 }
-
-static void siginthand (int signum)
-{
-    if ((isatty (STDIN_FILENO) > 0) && (write (STDIN_FILENO, "\n", 1) > 0)) { }
-    if (ctrlcflag) exit (1);
-    ctrlcflag = true;
-}
-
-void logflush ()
-{ }
 
 static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
@@ -431,66 +335,4 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
         }
     }
     return TCL_OK;
-}
-
-// read and clear the control-C flag
-static int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    bool oldctrlcflag = ctrlcflag;
-    switch (objc) {
-        case 2: {
-            char const *opstr = Tcl_GetString (objv[1]);
-            if (strcasecmp (opstr, "help") == 0) {
-                puts ("");
-                puts ("  ctrlcflag - read control-C flag");
-                puts ("  ctrlcflag <boolean> - read control-C flag and set to given value");
-                puts ("");
-                puts ("  in any case, control-C flag is cleared at command prompt");
-                puts ("");
-                return TCL_OK;
-            }
-            int temp;
-            int rc = Tcl_GetBooleanFromObj (interp, objv[1], &temp);
-            if (rc != TCL_OK) return rc;
-            if (sigprocmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
-            oldctrlcflag = ctrlcflag;
-            ctrlcflag = temp != 0;
-            if (sigprocmask (SIG_UNBLOCK, &sigintmask, NULL) != 0) ABORT ();
-            // fallthrough
-        }
-        case 1: {
-            Tcl_SetObjResult (interp, Tcl_NewIntObj (oldctrlcflag));
-            return TCL_OK;
-        }
-    }
-    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
-    return TCL_ERROR;
-}
-
-// print help messages
-static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    puts ("");
-    for (int i = 0; fundefs[i].help != NULL; i ++) {
-        printf ("  %10s - %s\n", fundefs[i].name, fundefs[i].help);
-    }
-    puts ("");
-    puts ("for help on specific command, do '<command> help'");
-    if (inihelp != NULL) {
-        puts ("");
-        puts (inihelp);
-    }
-    puts ("");
-    return TCL_OK;
-}
-
-// set result to formatted string
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...)
-{
-    char *buf = NULL;
-    va_list ap;
-    va_start (ap, fmt);
-    if (vasprintf (&buf, fmt, ap) < 0) ABORT ();
-    va_end (ap);
-    Tcl_SetResult (interp, buf, (void (*) (char *)) free);
 }

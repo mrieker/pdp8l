@@ -35,7 +35,7 @@
 #include <tcl.h>
 #include <unistd.h>
 
-#include "readprompt.h"
+#include "tclmain.h"
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
@@ -76,53 +76,38 @@ static int fds[4];
 static uint32_t nsperus;
 
 // internal TCL commands
-static Tcl_ObjCmdProc cmd_ctrlcflag;
-static Tcl_ObjCmdProc cmd_help;
 static Tcl_ObjCmdProc cmd_rkloadro;
 static Tcl_ObjCmdProc cmd_rkloadrw;
 static Tcl_ObjCmdProc cmd_rkunload;
 
-struct FunDef {
-    Tcl_ObjCmdProc *func;
-    char const *name;
-    char const *help;
-};
-
-static FunDef const fundefs[] = {
-    { cmd_ctrlcflag,  "ctrlcflag",  "read and clear control-C flag" },
-    { cmd_help,       "help",       "print this help" },
-    { cmd_rkloadro,   "rkloadro",   "<disknumber> <filename> - load file read-only" },
-    { cmd_rkloadrw,   "rkloadrw",   "<disknumber> <filename> - load file read/write" },
-    { cmd_rkunload,   "rkunload",   "<disknumber> - unload disk" },
+static TclFunDef const fundefs[] = {
+    { cmd_rkloadro, "rkloadro", "<disknumber> <filename> - load file read-only" },
+    { cmd_rkloadrw, "rkloadrw", "<disknumber> <filename> - load file read/write" },
+    { cmd_rkunload, "rkunload", "<disknumber> - unload disk" },
     { NULL, NULL, NULL }
 };
 
 #define LOCKIT if (pthread_mutex_lock (&lock) != 0) ABORT ()
 #define UNLKIT if (pthread_mutex_unlock (&lock) != 0) ABORT ()
 
-static bool volatile ctrlcflag;
 static bool volatile exiting;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static sigset_t sigintmask;
 static uint32_t volatile *rkat;
 static Z8LPage *z8p;
 
-static void siginthand (int signum);
-static void processtcl (Tcl_Interp *interp);
 static int loaddisk (bool readwrite, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 static bool loadfile (Tcl_Interp *interp, bool readwrite, int diskno, char const *filenm);
 static void *thread (void *dummy);
 static char *lockfile (int fd, int how);
 static int relockfile (int fd, int how);
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);
 static bool writeformat (Tcl_Interp *interp, int fd);
 
 int main (int argc, char **argv)
 {
     memset (fds, -1, sizeof fds);
 
-    bool loaded = false;
+    bool loadit = false;
     char const *fn = NULL;
     for (int i = 0; ++ i < argc;) {
         if ((strcasecmp (argv[i], "-loadro") == 0) || (strcasecmp (argv[i], "-loadrw") == 0)) {
@@ -137,7 +122,7 @@ int main (int argc, char **argv)
                 return 1;
             }
             if (! loadfile (NULL, strcasecmp (argv[i], "-loadrw") == 0, diskno, argv[i+2])) return 1;
-            loaded = true;
+            loadit = true;
             i += 2;
             continue;
         }
@@ -164,156 +149,24 @@ int main (int argc, char **argv)
     nsperus = 1000;
     debug = 0;
 
+    // if -load option, just run io calls
+    if (loadit) {
+        thread (NULL);
+        return 0;
+    }
+
     // spawn thread to do io
     pthread_t threadid;
     int rc = pthread_create (&threadid, NULL, thread, NULL);
     if (rc != 0) ABORT ();
 
-    // set ctrlcflag on control-C, but exit if two in a row
-    sigemptyset (&sigintmask);
-    sigaddset (&sigintmask, SIGINT);
-    signal (SIGINT, siginthand);
-
-    // set up to process commands
-    Tcl_FindExecutable (argv[0]);
-
-    Tcl_Interp *interp = Tcl_CreateInterp ();
-    if (interp == NULL) ABORT ();
-    rc = Tcl_Init (interp);
-    if (rc != TCL_OK) {
-        char const *err = Tcl_GetStringResult (interp);
-        if ((err != NULL) && (err[0] != 0)) {
-            fprintf (stderr, "z8lrk8je: error %d initialing tcl: %s\n", rc, err);
-        } else {
-            fprintf (stderr, "z8lrk8je: error %d initialing tcl\n", rc);
-        }
-        ABORT ();
-    }
-
-    for (int i = 0; fundefs[i].name != NULL; i ++) {
-        if (Tcl_CreateObjCommand (interp, fundefs[i].name, fundefs[i].func, NULL, NULL) == NULL) ABORT ();
-    }
-
-    // if given a filename, process that file as a whole
-    if (fn != NULL) {
-        rc = Tcl_EvalFile (interp, fn);
-        if (rc != TCL_OK) {
-            char const *res = Tcl_GetStringResult (interp);
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "z8lrk8je: error %d evaluating script %s\n", rc, fn);
-                                  else fprintf (stderr, "z8lrk8je: error %d evaluating script %s: %s\n", rc, fn, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-            return 1;
-        }
-    }
-
-    // process tcl from stdin
-    if (isatty (STDIN_FILENO) > 0) {
-
-        if ((fn == NULL) && ! loaded) {
-            ctrlcflag = true;
-        } else {
-            puts ("z8lrk8je: press ctrl-C for command prompt");
-        }
-
-        bool firstctrlc = true;
-        while (true) {
-            if (ctrlcflag) {
-                if (firstctrlc) {
-                    puts ("\nTCL scripting, do 'help' for z8lrk8je-specific commands");
-                    puts ("  do 'exit' to exit z8lrk8je altogether");
-                    puts ("  do ctrl-D to close prompt but keep running");
-                    puts ("  do ctrl-C to re-open prompt");
-                    firstctrlc = false;
-                }
-                processtcl (interp);
-            }
-            usleep (1000000);
-        }
-    } else {
-        processtcl (interp);
-    }
+    // run scripting
+    rc = tclmain (fundefs, argv[0], "z8lrk8je", NULL, NULL, fn, true);
 
     exiting = true;
     pthread_join (threadid, NULL);
 
-    Tcl_Finalize ();
-
-    return 0;
-}
-
-static void siginthand (int signum)
-{
-    if ((isatty (STDIN_FILENO) > 0) && (write (STDIN_FILENO, "\n", 1) > 0)) { }
-    if (ctrlcflag) exit (1);
-    ctrlcflag = true;
-}
-
-static void processtcl (Tcl_Interp *interp)
-{
-    for (char const *line;;) {
-        ctrlcflag = false;
-        line = readprompt ("z8lrk8je> ");
-        ctrlcflag = false;
-        if (line == NULL) break;
-        int rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
-        char const *res = Tcl_GetStringResult (interp);
-        if (rc != TCL_OK) {
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "z8lrk8je: error %d evaluating command\n", rc);
-                                  else fprintf (stderr, "z8lrk8je: error %d evaluating command: %s\n", rc, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
-        }
-        else if ((res != NULL) && (res[0] != 0)) puts (res);
-    }
-}
-
-void logflush ()
-{ }
-
-// read and clear the control-C flag
-static int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    bool oldctrlcflag = ctrlcflag;
-    switch (objc) {
-        case 2: {
-            char const *opstr = Tcl_GetString (objv[1]);
-            if (strcasecmp (opstr, "help") == 0) {
-                puts ("");
-                puts ("  ctrlcflag - read control-C flag");
-                puts ("  ctrlcflag <boolean> - read control-C flag and set to given value");
-                puts ("");
-                puts ("  in any case, control-C flag is cleared at command prompt");
-                puts ("");
-                return TCL_OK;
-            }
-            int temp;
-            int rc = Tcl_GetBooleanFromObj (interp, objv[1], &temp);
-            if (rc != TCL_OK) return rc;
-            if (sigprocmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
-            oldctrlcflag = ctrlcflag;
-            ctrlcflag = temp != 0;
-            if (sigprocmask (SIG_UNBLOCK, &sigintmask, NULL) != 0) ABORT ();
-            // fallthrough
-        }
-        case 1: {
-            Tcl_SetObjResult (interp, Tcl_NewIntObj (oldctrlcflag));
-            return TCL_OK;
-        }
-    }
-    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
-    return TCL_ERROR;
-}
-
-// print help messages
-static int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
-{
-    puts ("");
-    for (int i = 0; fundefs[i].help != NULL; i ++) {
-        printf ("  %10s - %s\n", fundefs[i].name, fundefs[i].help);
-    }
-    puts ("");
-    puts ("for help on specific command, do '<command> help'");
-    puts ("");
-    return TCL_OK;
+    return rc;
 }
 
 // rkloadro <disknumber> <filename>
@@ -653,17 +506,6 @@ static int relockfile (int fd, int how)
     flockit.l_whence = SEEK_SET;
     flockit.l_len    = 4096;
     return fcntl (fd, F_SETLK, &flockit);
-}
-
-// set result to formatted string
-static void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...)
-{
-    char *buf = NULL;
-    va_list ap;
-    va_start (ap, fmt);
-    if (vasprintf (&buf, fmt, ap) < 0) ABORT ();
-    va_end (ap);
-    Tcl_SetResult (interp, buf, (void (*) (char *)) free);
 }
 
 // contents of a freshly zeroed decpack in OS/8
