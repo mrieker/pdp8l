@@ -80,6 +80,7 @@ int main (int argc, char **argv)
         return 1;
     }
     printf ("CM VERSION=%08X\n", cmemat[0]);
+    cmemat[2] = 0;
 
     extmem = z8p.extmem ();
 
@@ -199,7 +200,7 @@ int main (int argc, char **argv)
             }
             if (exitflag) goto done;
             cmemat[1] = CM_ENAB | i * CM_ADDR0;
-            for (int j = 0; ! (cmemat[1] & CM_RRDY); j ++) {
+            for (int j = 0; ! (cmemat[1] & CM_DONE); j ++) {
                 clockit (1);
                 printstate ();
                 if (j > 1000000) {

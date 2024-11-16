@@ -156,44 +156,29 @@ uint32_t volatile *Z8LPage::extmem ()
     }                                                                   \
 } while (false)
 
-// read from processor memory
-uint16_t Z8LPage::dmaread (uint16_t xaddr)
+// do a dma cycle
+//  input:
+//     cm<CM_ADDR>  = 15-bit address
+//     cm<CM_WRITE> = do a write access (else it's a read)
+//     cm<CM_DATA>  = write data
+//     cm<CM_ENAB>  = enable access
+//   cm2<CM2_CAINC> = increment address of a 3-cycle
+//   cm2<CM2_3CYCL> = do a 3-cycle
+//  output:
+//     cm<CM_DATA>  = read data
+//     cm<CM_WCOVF> = wordcount overflow in 3-cycle
+uint32_t Z8LPage::dmacycle (uint32_t cm, uint32_t cm2)
 {
-    ASSERT (xaddr <= 077777);
     if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
     if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
 
-    // if data located in extmem 32K block memory, use direct access to read it
-    if ((xaddr > 07777) || (xmemat[1] & XM_ENLO4K)) {
-        if (extmemat == NULL) extmemat = extmem ();
-        return extmemat[xaddr];
-    }
-
-    // data located in either sim localcore array or real PDP-8/L core stack
-    // use dma cycle to read it
     cmlock ();
     CMWAIT (! (cmemat[1] & CM_BUSY));
-    cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
-    uint32_t ca;
-    CMWAIT ((ca = cmemat[1]) & CM_RRDY);
+    cmemat[2] = cm2;
+    cmemat[1] = cm;
+    CMWAIT ((cm = cmemat[1]) & CM_DONE);
     cmunlk ();
-    return (ca & CM_DATA) / CM_DATA0;
-}
-
-// write to processor memory
-// always use cmem (dma cycle) to write memory, direct writes to extmem might be ignored:
-//  processor does TS1 read of location 00031 (such as fetch jmp 0031 in os8 boot code)
-//  this code does direct extmem write to 00031
-//  processor does TS3 writeback to 00031, throwing extmem write away
-void Z8LPage::dmawrite (uint16_t xaddr, uint16_t data)
-{
-    ASSERT (xaddr <= 077777);
-    if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
-    if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
-    cmlock ();
-    CMWAIT (! (cmemat[1] & CM_BUSY));
-    cmemat[1] = CM_ENAB | data * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
-    cmunlk ();
+    return cm;
 }
 
 // make sure last write has completed

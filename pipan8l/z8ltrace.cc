@@ -40,7 +40,9 @@ static char const *const timestatenames[] = { TS_NAMES };
 
 static uint32_t clockno;
 static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
+static uint32_t volatile *cmemat;
 static uint32_t volatile *pdpat;
+static uint32_t volatile *xmemat;
 
 static void clockit ();
 static void fatalerr (char const *fmt, ...);
@@ -58,6 +60,9 @@ int main (int argc, char **argv)
         ABORT ();
     }
     printf ("8L version %08X\n", pdpat[Z_VER]);
+
+    cmemat = z8p.findev ("CM", NULL, NULL, false);
+    xmemat = z8p.findev ("XM", NULL, NULL, false);
 
     // select simulator with manual clocking
     pdpat[Z_RA] = zrawrite = ZZ_RA;
@@ -87,7 +92,13 @@ int main (int argc, char **argv)
         if (! FIELD (Z_RF, f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
 
         // MA holds the address
+        // field is being output by the pdp8lxmem.v module
         uint16_t madr = FIELD (Z_RI, i_oMA);
+        uint16_t mfld = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
+        bool _bfenab = FIELD (Z_RF, f_o_BF_ENABLE);
+        bool _dfenab = FIELD (Z_RF, f_o_DF_ENABLE);
+        bool _zfenab = FIELD (Z_RF, f_o_SP_CYC_NEXT);
+        uint16_t dmafld = ((cmemat[1] & CM_ADDR) / CM_ADDR0) >> 12;
 
         // should now be fully transitioned to the major state
         uint8_t majstate = FIELD (Z_RK, k_majstate);
@@ -98,7 +109,7 @@ int main (int argc, char **argv)
             clockit ();
         }
 
-        // MB should now have the value we wrote to the memory location
+        // MB should now have the value that was read from memory
         uint16_t mbrd = FIELD (Z_RH, h_oBMB);
 
         // wait for it to enter TS3, meanwhile cpu (pdp8lsim.v) should possibly be modifying
@@ -118,10 +129,13 @@ int main (int argc, char **argv)
         }
 
         // print cycle
-        printf ("%10u  %-5s  L.AC=%o.%04o  MA=%04o  MB=%04o", ++ instrno, majstatenames[majstate], linc, acum, madr, mbrd);
-        if (mbwr != mbrd) printf ("->%04o", mbwr);
+        char linebuf[200];
+        char *lineptr = linebuf;
+        lineptr += sprintf (lineptr, "%10u  %-5s  L.AC=%o.%04o  _BDZ=%o%o%o BRKFLD=%o  MA=%o.%04o  MB=%04o",
+                ++ instrno, majstatenames[majstate], linc, acum, _bfenab, _dfenab, _zfenab, dmafld, mfld, madr, mbrd);
+        if (mbwr != mbrd) lineptr += sprintf (lineptr, "->%04o", mbwr);
         if (majstate == MS_FETCH) {
-            printf ("  %s", disassemble (mbrd, madr).c_str ());
+            lineptr += sprintf (lineptr, "  %s", disassemble (mbrd, madr).c_str ());
             if ((mbrd & 07000) == 06000) {
                 ASSERT ((f_oBIOP1 == 1) && (f_oBIOP2 == 2) && (f_oBIOP4 == 4));
                 for (uint16_t m = 1; m <= 4; m += m) {
@@ -133,7 +147,7 @@ int main (int argc, char **argv)
                         bool ioskp = ! FIELD (Z_RA, a_i_IO_SKIP);
                         bool acclr = ! FIELD (Z_RA, a_i_AC_CLEAR);
                         uint16_t ac = FIELD (Z_RH, h_oBAC);
-                        printf (" -> IOP%u -> %c%c%04o", m, (ioskp ? 'S' : ' '), (acclr ? 'C' : ' '), ac);
+                        lineptr += sprintf (lineptr, " -> IOP%u -> %c%c%04o", m, (ioskp ? 'S' : ' '), (acclr ? 'C' : ' '), ac);
                         for (int i = 0; FIELD (Z_RF, m); i ++) {
                             if (i > 1000) fatalerr ("timed out waiting fot IOP%u negated\n", m);
                             clockit ();
@@ -142,7 +156,8 @@ int main (int argc, char **argv)
                 }
             }
         }
-        putchar ('\n');
+        strcpy (lineptr, "\n");
+        fputs (linebuf, stdout);
     }
 }
 
@@ -151,6 +166,8 @@ static void clockit ()
 {
     pdpat[Z_RE] = zrewrite | e_nanotrigger;
     clockno ++;
+    ////printf ("clockit: %10u bts_3=%o bwc_overflow=%o => ctlwcovf=%o\n",
+    ////    clockno, FIELD (Z_RF, f_oBTS_3), FIELD (Z_RF, f_oBWC_OVERFLOW), (cmemat[1] / CM_WCOVF) & 1);
 }
 
 static void fatalerr (char const *fmt, ...)

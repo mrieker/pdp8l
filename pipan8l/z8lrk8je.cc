@@ -402,7 +402,8 @@ void *thread (void *dummy)
                         break;
                     }
                     for (icnt = 0; icnt < wcnt; icnt ++) {
-                        z8p->dmawrite ((xma & 070000) | ((xma + icnt) & 007777), temp[icnt] & 07777);
+                        uint16_t xaddr = (xma & 070000) | ((xma + icnt) & 007777);
+                        z8p->dmacycle (CM_ENAB | (temp[icnt] & 07777) * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0, 0);
                     }
                     memaddr = (memaddr + wcnt) & 07777;
                     z8p->dmaflush ();
@@ -429,7 +430,9 @@ void *thread (void *dummy)
                     }
                     ASSERT (wcnt * 2 <= sizeof temp);
                     for (icnt = 0; icnt < wcnt; icnt ++) {
-                        temp[icnt] = z8p->dmaread ((xma & 070000) | ((xma + icnt) & 007777));
+                        uint16_t xaddr = (xma & 070000) | ((xma + icnt) & 007777);
+                        uint32_t cm = z8p->dmacycle (CM_ENAB | xaddr * CM_ADDR0, 0);
+                        temp[icnt] = (cm & CM_DATA) / CM_DATA0;
                     }
                     if (wcnt < 256) memset (&temp[wcnt], 0, 512 - 2 * wcnt);
                     rc = pwrite (fd, temp, 512, blknum * 512);

@@ -252,10 +252,14 @@
 #define CM_WRITE (1U << 15)
 #define CM_DATA  (07777U << 16)
 #define CM_BUSY  (1U << 28)
-#define CM_RRDY  (1U << 29)
+#define CM_DONE  (1U << 29)
+#define CM_WCOVF (1U << 30)
+#define CM_ENAB  (1U << 31)
 #define CM_ADDR0 (1U <<  0)
 #define CM_DATA0 (1U << 16)
-#define CM_ENAB  (1U << 31)
+
+#define CM2_CAINC (1U << 30)
+#define CM2_3CYCL (1U << 31)
 
 // pdp8ltty.v registers
 #define Z_TTYVER 0

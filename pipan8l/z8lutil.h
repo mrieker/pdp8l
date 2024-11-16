@@ -34,8 +34,7 @@ struct Z8LPage {
     uint32_t volatile *findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lockit, bool killit = false);
     uint32_t volatile *extmem ();
 
-    uint16_t dmaread (uint16_t xaddr);
-    void dmawrite (uint16_t xaddr, uint16_t data);
+    uint32_t dmacycle (uint32_t cm, uint32_t cm2);
     void dmaflush ();
     void cmlock ();
     void cmunlk ();

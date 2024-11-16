@@ -375,7 +375,6 @@ static void *thread (void *dummy)
 
             DBGPR (2, "thread: start status_a=%04o status_b=%04o\n", status_a, status_b);
 
-            uint16_t oldidwc = z8p->dmaread (IDWC);
             uint16_t field = (status_b & 070) << 9;
 
             int driveno = (status_a >> 9) & 007;
@@ -433,32 +432,29 @@ static void *thread (void *dummy)
 
                 // SEARCH (2.5.1.4 p 27)
                 case 1: {
-                    uint16_t idwc, idca;
+                    uint32_t cm;
                     do {
+                        // update tape position for the search
                         if (delayblk ()) goto finished;
                         if (stepskip (drive)) goto endtape;
 
-                        idwc = z8p->dmaread (IDWC);
-                        idca = z8p->dmaread (IDCA);
-                        ASSERT (idwc <= 07777);
-                        ASSERT (idca <= 07777);
-                        DBGPR (2, "thread: skip idwc=%04o idca=%o.%04o\n", idwc, field >> 12, idca);
-
-                        idwc = (idwc + 1) & 07777;                              // update word count before writing out block number
-                        z8p->dmawrite (IDWC, idwc);                             // ...os8 driver has idca==IDWC
-                        z8p->dmawrite (field | idca, drive->tapepos / 4);       // write out mark we just hopped over
-                        DBGPR (2, "thread: search memarray[%04o] ; memfield[%04o] <= %04o\n", idwc, idca, drive->tapepos / 4);
-                    } while (CONTIN && (idwc != 0));
+                        // increment word count and write new tape position to memory
+                        uint32_t tp = drive->tapepos / 4;
+                        cm = z8p->dmacycle (CM_ENAB | tp * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL);
+                        DBGPR (2, "thread: skip cm=%08X tp=%04o\n", cm, tp);
+                    } while (CONTIN && ! (cm & CM_WCOVF));
                     goto success;
                 }
 
                 // READ DATA (2.5.1.5 p 27)
                 case 2: {
-                    uint16_t idca, idwc;
+                    uint32_t cm;
                     do {
+                        // update tape position for the read
                         if (delayblk ()) goto finished;
                         if (stepxfer (drive)) goto endtape;
 
+                        // read data from tape file
                         uint16_t buff[WORDSPERBLOCK];
                         int rc = pread (drive->dtfd, buff, BYTESPERBLOCK, drive->tapepos / 4 * BYTESPERBLOCK);
                         if (rc < 0) {
@@ -471,53 +467,41 @@ static void *thread (void *dummy)
                         }
                         if (debug >= 3) dumpbuf (drive, "read", buff, WORDSPERBLOCK);
 
-                        idca = z8p->dmaread (IDCA);
-                        idwc = z8p->dmaread (IDWC);
-                        ASSERT (idca <= 07777);
-                        ASSERT (idwc <= 07777);
-                        DBGPR (2, "thread: read idwc=%04o idca=%o.%04o block=%04o\n", idwc, field >> 12, idca, drive->tapepos / 4);
+                        DBGPR (2, "thread: read block=%04o\n", drive->tapepos / 4);
                         if (REVERS) {
                             for (int i = WORDSPERBLOCK; -- i >= 0;) {
-                                idca = (idca + 1) & 07777;
-                                uint16_t xaddr = field | idca;
                                 uint16_t ocdat = buff[i] & 07777;
                                 uint16_t data  = ocarray[ocdat];
-                                DBGPR (4, "thread:  rev memory[%05o] = %04o = ocarray[%04o]\n", xaddr, data, ocdat);
-                                ASSERT ((data != 0) || (ocdat == 07777));
-                                z8p->dmawrite (xaddr, data);
-                                idwc = (idwc + 1) & 07777;
-                                if (idwc == 0) break;
+                                DBGPR (4, "thread:  rev memory[] = %04o = ocarray[%04o]\n", data, ocdat);
+                                cm = z8p->dmacycle (CM_ENAB | data * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                if (cm & CM_WCOVF) break;
                             }
-                            z8p->dmawrite (IDCA, idca);
-                            z8p->dmawrite (IDWC, idwc);
                         } else {
                             // madness: TC08 OS/8 boot block changes from data field 0 to data field 1 mid-read
                             // so pass data s-l-o-w-l-y when booting
-                            if (dmareadoverwritesinstructions (field, idca, idwc)) {
-                                for (int i = 0; i < WORDSPERBLOCK; i ++) {
+                            uint16_t idwc = (z8p->dmacycle (CM_ENAB | IDWC * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                            uint16_t idca = (z8p->dmacycle (CM_ENAB | IDCA * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                            bool slow = dmareadoverwritesinstructions (field, idca, idwc);
+                            for (int i = 0; i < WORDSPERBLOCK; i ++) {
+                                if (slow) {
                                     cycles = pdpat[Z_RN];                   // wait for processor to run 100 cycles
-                                    delayloop (1000);                       // ... at least 20 instructions
-                                    z8p->dmawrite (IDWC, idwc = (z8p->dmaread (IDWC) + 1) & 07777);
-                                    z8p->dmawrite (IDCA, idca = (z8p->dmaread (IDCA) + 1) & 07777);
-                                    field = (status_b & 070) << 9;
-                                    z8p->dmawrite (field | idca, buff[i] & 07777); // transfer a word
-                                    if (idwc == 0) break;
+                                    delayloop (1000);                       // ... at least 33 instructions
+                                    status   = tcat[1];
+                                    status_b = (status & TC_STATB) / TC_STATB0;
+                                    field    = (status_b & 070) << 9;
                                 }
-                            } else {
-                                for (int i = 0; i < WORDSPERBLOCK; i ++) {
-                                    idwc = (idwc + 1) & 07777;
-                                    idca = (idca + 1) & 07777;
-                                    uint16_t xaddr = field | idca;
-                                    uint16_t data  = buff[i] & 07777;
-                                    DBGPR (4, "thread:  fwd memory[%05o] = %04o\n", xaddr, data);
-                                    z8p->dmawrite (xaddr, data);
-                                    if (idwc == 0) break;
+                                if (debug >= 4) {
+                                    idwc = (z8p->dmacycle (CM_ENAB | IDWC * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                                    idca = (z8p->dmacycle (CM_ENAB | IDCA * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
                                 }
-                                z8p->dmawrite (IDCA, idca);
-                                z8p->dmawrite (IDWC, idwc);
+                                uint16_t data = buff[i] & 07777;
+                                cm = z8p->dmacycle (CM_ENAB | data * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                DBGPR (4, "thread:  %s idwc=%04o idca=%04o memory[%o.%04o] = %04o => wcovf=%o\n",
+                                    (slow ? "slo" : "fwd"), idwc, idca, field >> 12, (idca + 1) & 07777, data, (cm / CM_WCOVF) & 1);
+                                if (cm & CM_WCOVF) break;
                             }
                         }
-                    } while (CONTIN && (idwc != 0));
+                    } while (CONTIN && ! (cm & CM_WCOVF));
                     goto success;
                 }
 
@@ -525,7 +509,7 @@ static void *thread (void *dummy)
                 // - runs MAINDEC D3RA test (forward and reverse)
                 //   let it run at least 2 passes over tape to get some read-all-reverses
                 case 3: {
-                    uint16_t idca, idwc;
+                    uint32_t cm;
                     do {
                         if (delayblk ()) goto finished;
                         if (stepxfer (drive)) goto endtape;
@@ -575,32 +559,33 @@ static void *thread (void *dummy)
                             buff[WORDSPERBLOCK+9] = 0;
                         }
 
-                        if (debug >= 3) dumpbuf (drive, "rall", buff, 5 + WORDSPERBLOCK + 1);
+                        if (debug >= 3) dumpbuf (drive, "rall", buff, WORDSPERBLOCK + 10);
 
                         // copy out to dma buffer
-                        idca = z8p->dmaread (IDCA);
-                        idwc = z8p->dmaread (IDWC);
-                        ASSERT (idca <= 07777);
-                        ASSERT (idwc <= 07777);
-                        DBGPR (2, "thread: rall idwc=%04o (%4u) idca=%o.%04o block=%04o\n", idwc, (010000 - idwc), field >> 12, idca, blknum);
+                        DBGPR (2, "thread: rall block=%04o\n", blknum);
                         if (REVERS) {
                             for (int i = 5 + WORDSPERBLOCK + 5; -- i >= 0;) {
-                                idca = (idca + 1) & 07777;
-                                z8p->dmawrite (field | idca, ocarray[buff[i]&07777]);
-                                idwc = (idwc + 1) & 07777;
-                                if (idwc == 0) break;
+                                uint16_t ocdat = buff[i] & 07777;
+                                uint16_t data  = ocarray[ocdat];
+                                DBGPR (4, "thread:  rev memory[] = %04o = ocarray[%04o]\n", data, ocdat);
+                                cm = z8p->dmacycle (CM_ENAB | data * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                if (cm & CM_WCOVF) break;
                             }
                         } else {
+                            uint16_t idwc = 0, idca = 0;
                             for (int i = 0; i < 5 + WORDSPERBLOCK + 5; i ++) {
-                                idwc = (idwc + 1) & 07777;
-                                idca = (idca + 1) & 07777;
-                                z8p->dmawrite (field | idca, buff[i] & 07777);
-                                if (idwc == 0) break;
+                                if (debug >= 4) {
+                                    idwc = (z8p->dmacycle (CM_ENAB | IDWC * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                                    idca = (z8p->dmacycle (CM_ENAB | IDCA * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                                }
+                                uint16_t data = buff[i] & 07777;
+                                cm = z8p->dmacycle (CM_ENAB | data * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                DBGPR (4, "thread:  fwd idwc=%04o idca=%04o memory[%o.%04o] = %04o => wcovf=%o\n",
+                                    idwc, idca, field >> 12, (idca + 1) & 07777, data, (cm / CM_WCOVF) & 1);
+                                if (cm & CM_WCOVF) break;
                             }
                         }
-                        z8p->dmawrite (IDCA, idca);
-                        z8p->dmawrite (IDWC, idwc);
-                    } while (CONTIN && (idwc != 0));
+                    } while (CONTIN && ! (cm & CM_WCOVF));
                     goto success;
                 }
 
@@ -612,40 +597,34 @@ static void *thread (void *dummy)
                         goto finerror;
                     }
 
-                    uint16_t idca, idwc;
+                    uint32_t cm;
                     do {
                         if (delayblk ()) goto finished;
                         if (stepxfer (drive)) goto endtape;
 
                         uint16_t buff[WORDSPERBLOCK];
-                        idca = z8p->dmaread (IDCA);
-                        idwc = z8p->dmaread (IDWC);
-                        ASSERT (idca <= 07777);
-                        ASSERT (idwc <= 07777);
-                        DBGPR (2, "thread: write idwc=%04o idca=%o.%04o block=%04o\n", idwc, field >> 12, idca, drive->tapepos / 4);
+                        DBGPR (2, "thread: write block=%04o\n", drive->tapepos / 4);
                         if (REVERS) {
                             for (int i = WORDSPERBLOCK; i > 0;) {
-                                idca = (idca + 1) & 07777;
-                                buff[--i] = ocarray[z8p->dmaread(field|idca)&07777];
-                                idwc = (idwc + 1) & 07777;
-                                if (idwc == 0) {
+                                cm = z8p->dmacycle (CM_ENAB | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                uint16_t data = (cm & CM_DATA) / CM_DATA0;
+                                buff[--i] = ocarray[data];
+                                if (cm & CM_WCOVF) {
                                     while (-- i >= 0) buff[i] = 07777;
                                     break;
                                 }
                             }
                         } else {
                             for (int i = 0; i < WORDSPERBLOCK;) {
-                                idca = (idca + 1) & 07777;
-                                buff[i++] = z8p->dmaread (field | idca) & 07777;
-                                idwc = (idwc + 1) & 07777;
-                                if (idwc == 0) {
+                                cm = z8p->dmacycle (CM_ENAB | (field | IDWC) * CM_ADDR0, CM2_3CYCL | CM2_CAINC);
+                                uint16_t data = (cm & CM_DATA) / CM_DATA0;
+                                buff[i++] = data;
+                                if (cm & CM_WCOVF) {
                                     memset (&buff[i], 0, (WORDSPERBLOCK - i) * 2);
                                     break;
                                 }
                             }
                         }
-                        z8p->dmawrite (IDCA, idca);
-                        z8p->dmawrite (IDWC, idwc);
 
                         if (debug >= 3) dumpbuf (drive, "write", buff, WORDSPERBLOCK);
                         int rc = pwrite (drive->dtfd, buff, BYTESPERBLOCK, drive->tapepos / 4 * BYTESPERBLOCK);
@@ -657,7 +636,7 @@ static void *thread (void *dummy)
                             fprintf (stderr, "thread: only wrote %d of %d bytes to tape %d file\n", rc, BYTESPERBLOCK, driveno);
                             ABORT ();
                         }
-                    } while (CONTIN && (idwc != 0));
+                    } while (CONTIN && ! (cm & CM_WCOVF));
                     goto success;
                 }
 
@@ -670,21 +649,19 @@ static void *thread (void *dummy)
             ABORT ();
         endtape:;
             DBGPR (2, "thread: - end of tape\n");
-            status_b |=  ENDTAP;   // set up end-of-tape status
+            status_b |=  ENDTAP;                // set up end-of-tape status
         finerror:;
-            status_a &= ~ GOBIT;   // any error shuts the GO bit off
+            tcat[1] &= ~ (GOBIT * TC_STATA0);   // any error shuts the GO bit off
             goto finished;
         success:;
-            DBGPR (2, "thread: - final idwc=%04o idca=%o.%04o\n", z8p->dmaread (IDWC), field >> 12, z8p->dmaread (IDCA));
-            status_b |=  DTFLAG;   // errors do not get DTFLAG
+            status_b |=  DTFLAG;                // errors do not get DTFLAG
             // if normal mode with non-zero remaining IDWC,
             //  real dectapes will start the next transfer when the next bits come under the tape head in a few milliseconds
             //    failing with timing error if DTFLAG has not been cleared by the processor by then
             //  in our case, we process the next block when the processor clears DTFLAG because the tubes may take a while to clear DTFLAG
         finished:;
-            DBGPR (1, "thread: st_B=%04o idwc=%04o->%04o\n", status_b, oldidwc, z8p->dmaread (IDWC));
-
-            tcat[1] = TC_ENABLE | status_b * TC_STATB0 | status_a * TC_STATA0;
+            DBGPR (1, "thread: st_A=%04o st_B=%04o\n", status_a, status_b);
+            tcat[1] = (tcat[1] & ~ (07707 * TC_STATB0)) | ((status_b & 07707) * TC_STATB0);
 
             // if drive is running and we don't get another command in UNLOADNS, unload it
             if (status_a & GOBIT) {
