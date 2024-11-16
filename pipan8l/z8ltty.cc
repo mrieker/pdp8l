@@ -48,6 +48,7 @@ static bool findtt (void *param, uint32_t volatile *ttyat)
 int main (int argc, char **argv)
 {
     bool killit = false;
+    bool nokb = false;
     uint32_t port = 3;
     uint32_t cps = 10;
     char *p;
@@ -66,6 +67,10 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-nokb") == 0) {
+            nokb = true;
             continue;
         }
         if (argv[i][0] == '-') {
@@ -88,7 +93,7 @@ int main (int argc, char **argv)
 
     struct termios term_modified, term_original;
     bool stdintty = isatty (STDIN_FILENO) > 0;
-    if (stdintty) {
+    if (stdintty && ! nokb) {
         if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();
         term_modified = term_original;
         cfmakeraw (&term_modified);
@@ -99,7 +104,7 @@ int main (int argc, char **argv)
     ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
 
     bool stdoutty = isatty (STDOUT_FILENO) > 0;
-    uint64_t readnextkbat   = 0;
+    uint64_t readnextkbat   = nokb ? 0xFFFFFFFFFFFFFFFFULL : 0;
     uint64_t setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
     while (true) {
         usleep (1000);
@@ -144,7 +149,7 @@ int main (int argc, char **argv)
         }
     }
 
-    if (stdintty && (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0)) ABORT ();
+    if (stdintty && ! nokb && (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0)) ABORT ();
     fprintf (stderr, "\n");
 
     return 0;

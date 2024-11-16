@@ -11,8 +11,10 @@
 *.o
 *.obj
 *.oct
+*.rk05
 *.so
 *.tgz
+*.tu56
 *.x86_64
 *.zip
 .nfs*
