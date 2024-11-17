@@ -150,10 +150,6 @@ void Z8LLib::openpads ()
 
     // find processor registers
     pdpat = z8p->findev ("8L", NULL, NULL, true);
-    if (pdpat == NULL) {
-        fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
-        ABORT ();
-    }
     fprintf (stderr, "Z8LLib::openpads: 8L version %08X\n", pdpat[0]);
 
     // load initial registers
@@ -164,10 +160,6 @@ void Z8LLib::openpads ()
     // enable extended memory io instruction processing
     // locate lower 4K memory in extmem block memory so it can be accessed via extmem
     uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
-    if (pdpat == NULL) {
-        fprintf (stderr, "Z8LLib::openpads: XM not found\n");
-        ABORT ();
-    }
     fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
     char const *envar = getenv ("z8llib_enlo4k");
     xmemat[1] = XM_ENABLE | (((envar != NULL) && (envar[0] & 1)) ? XM_ENLO4K : 0);

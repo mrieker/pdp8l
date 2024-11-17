@@ -145,11 +145,6 @@ int main (int argc, char **argv)
 
     z8p  = new Z8LPage ();
     rkat = z8p->findev ("RK", NULL, NULL, true, killit);
-    if (rkat == NULL) {
-        fprintf (stderr, "rk8je controller not found\n");
-        return 1;
-    }
-
     rkat[RK_FLG] = F_ENABLE;    // enable board to process io instructions
 
     nsperus = 1000;

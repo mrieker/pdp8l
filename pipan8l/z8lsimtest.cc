@@ -103,24 +103,14 @@ int main (int argc, char **argv)
     // access the zynq io page
     // hopefully it has our pdp8l.v code indicated by magic number in first word
     Z8LPage z8p;
-    pdpat = z8p.findev ("8L", NULL, NULL, true);
-    if (pdpat == NULL) {
-        fprintf (stderr, "z8lsimtest: bad magic number\n");
-        ABORT ();
-    }
-    printf ("8L version %08X\n", pdpat[Z_VER]);
-    xmemat = z8p.findev ("XM", NULL, NULL, true);
-    if (xmemat == NULL) {
-        fprintf (stderr, "z8lsimtest: can't find xmem device\n");
-        ABORT ();
-    }
-    printf ("XM version %08X\n", xmemat[0]);
+    pdpat  = z8p.findev ("8L", NULL, NULL, true);
     cmemat = z8p.findev ("CM", NULL, NULL, true);
-    if (cmemat == NULL) {
-        fprintf (stderr, "z8lsimtest: can't find cmem device\n");
-        ABORT ();
-    }
+    xmemat = z8p.findev ("XM", NULL, NULL, true);
+
+    printf ("8L version %08X\n", pdpat[Z_VER]);
     printf ("CM version %08X\n", cmemat[0]);
+    printf ("XM version %08X\n", xmemat[0]);
+
     cmemat[1] = 0;  // disable outputs so it doesn't interfere with arm_i_DMAADDR, arm_i_DMADATA, arm_iDATA_IN
 
     // get pointer to the 32K-word ram

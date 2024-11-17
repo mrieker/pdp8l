@@ -39,7 +39,6 @@ int main ()
     Z8LPage z8lpage;
 
     uint32_t volatile *pdpat = z8lpage.findev ("8L", NULL, NULL, true);
-    if (pdpat == NULL) ABORT ();
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = 0;
@@ -53,7 +52,6 @@ int main ()
     pdpat[Z_RK] = 0;
 
     uint32_t volatile *xmemat = z8lpage.findev ("XM", NULL, NULL, true);
-    if (xmemat == NULL) ABORT ();
     xmemat[1] = XM_ENABLE | XM_ENLO4K;
 
     uint32_t volatile *extmemptr = z8lpage.extmem ();

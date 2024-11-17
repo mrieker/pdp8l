@@ -211,10 +211,6 @@ int main (int argc, char **argv)
     pdpat  = z8p->findev ("8L", NULL, NULL, false);
     tcat   = z8p->findev ("TC", NULL, NULL, true, killit);
     xmemat = z8p->findev ("XM", NULL, NULL, false);
-    if (tcat == NULL) {
-        fprintf (stderr, "tc08 controller not found\n");
-        return 1;
-    }
 
     tcat[1] = TC_ENABLE;    // enable board to process io instructions
 

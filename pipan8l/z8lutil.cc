@@ -83,8 +83,7 @@ Z8LPage::~Z8LPage ()
 //   lock = true: lock access to dev when found
 //         false: don't bother locking
 //  output:
-//   returns NULL: dev not found
-//           else: pointer to dev
+//   returns pointer to dev
 uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lockit, bool killit)
 {
     for (int idx = 0; idx < 1024;) {
@@ -114,7 +113,7 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
                                 goto trylk;
                             }
                         } else {
-                            fprintf (stderr, "Z8LPage::findev: error locking: %m\n");
+                            fprintf (stderr, "Z8LPage::findev: error locking %c%c: %m\n", *dev >> 24, *dev >> 16);
                         }
                         ABORT ();
                     }
@@ -124,6 +123,11 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         }
         idx += len;
     }
+    if (entry == NULL) {
+        fprintf (stderr, "Z8LPage::findev: cannot find %s\n", id);
+        ABORT ();
+    }
+    entry (param, NULL);
     return NULL;
 }
 
@@ -170,7 +174,6 @@ uint32_t volatile *Z8LPage::extmem ()
 uint32_t Z8LPage::dmacycle (uint32_t cm, uint32_t cm2)
 {
     if (cmemat == NULL) cmemat = findev ("CM", NULL, NULL, false);
-    if (xmemat == NULL) xmemat = findev ("XM", NULL, NULL, false);
 
     cmlock ();
     CMWAIT (! (cmemat[1] & CM_BUSY));

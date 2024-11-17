@@ -42,6 +42,10 @@
 static bool findtt (void *param, uint32_t volatile *ttyat)
 {
     uint32_t port = *(uint32_t *) param;
+    if (ttyat == NULL) {
+        fprintf (stderr, "findtt: cannot find TT port %02o\n", port);
+        ABORT ();
+    }
     return (ttyat[Z_TTYPN] & 077) == port;
 }
 
@@ -86,10 +90,6 @@ int main (int argc, char **argv)
 
     Z8LPage z8p;
     uint32_t volatile *ttyat = z8p.findev ("TT", findtt, &port, true, killit);
-    if (ttyat == NULL) {
-        fprintf (stderr, "tty port %02o not found\n", port);
-        return 1;
-    }
 
     struct termios term_modified, term_original;
     bool stdintty = isatty (STDIN_FILENO) > 0;

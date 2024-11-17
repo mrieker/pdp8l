@@ -54,15 +54,11 @@ int main (int argc, char **argv)
     // access the zynq io page
     // hopefully it has our pdp8l.v code indicated by magic number in first word
     Z8LPage z8p;
-    pdpat = z8p.findev ("8L", NULL, NULL, false);
-    if (pdpat == NULL) {
-        fprintf (stderr, "z8lsimtest: bad magic number\n");
-        ABORT ();
-    }
-    printf ("8L version %08X\n", pdpat[Z_VER]);
-
+    pdpat  = z8p.findev ("8L", NULL, NULL, false);
     cmemat = z8p.findev ("CM", NULL, NULL, false);
     xmemat = z8p.findev ("XM", NULL, NULL, false);
+
+    printf ("8L version %08X\n", pdpat[Z_VER]);
 
     // select simulator with manual clocking
     pdpat[Z_RA] = zrawrite = ZZ_RA;

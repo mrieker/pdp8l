@@ -76,16 +76,12 @@ int main (int argc, char **argv)
     }
 
     Z8LPage z8p;
-    uint32_t volatile *zynqpage = z8p.findev (NULL, NULL, NULL, false);
-    uint32_t ver = zynqpage[Z_VER];
-    fprintf (stderr, "Z8LLib::openpads: zynq version %08X\n", ver);
-    if ((ver & 0xFFFF0000U) != (('8' << 24) | ('L' << 16))) {
-        fprintf (stderr, "Z8LLib::openpads: bad magic number\n");
-        ABORT ();
-    }
+    uint32_t volatile *pdpat = z8p.findev ("8L", NULL, NULL, false);
+    uint32_t ver = pdpat[Z_VER];
+    fprintf (stderr, "z8ldump: 8L version %08X\n", ver);
 
     if (stepmode) {
-        zynqpage[Z_RE] &= ~ (e_nanocontin | e_nanotrigger);
+        pdpat[Z_RE] &= ~ (e_nanocontin | e_nanotrigger);
     } else {
         signal (SIGINT, siginthand);
     }
@@ -95,7 +91,7 @@ int main (int argc, char **argv)
 
         uint32_t z8ls[1024];
         for (int i = 0; i < 1024; i ++) {
-            z8ls[i] = zynqpage[i];
+            z8ls[i] = pdpat[i];
         }
 
         printf (ESC_HOMEC "VERSION=%08X 8L" EOL, z8ls[0]);
@@ -183,7 +179,7 @@ int main (int argc, char **argv)
             printf ("\n > ");
             fflush (stdout);
             if (fgets (temp, sizeof temp, stdin) == NULL) break;
-            zynqpage[Z_RE] |= e_nanotrigger;
+            pdpat[Z_RE] |= e_nanotrigger;
         }
     }
     printf ("\n");

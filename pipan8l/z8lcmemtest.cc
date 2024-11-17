@@ -60,26 +60,14 @@ int main (int argc, char **argv)
     setlinebuf (stdout);
 
     Z8LPage z8p;
-    pdpat = z8p.findev ("8L", NULL, NULL, true);
-    if (pdpat == NULL) {
-        fprintf (stderr, "pdp-8/l not found\n");
-        return 1;
-    }
-    printf ("8L VERSION=%08X\n", pdpat[0]);
-
+    pdpat  = z8p.findev ("8L", NULL, NULL, true);
+    cmemat = z8p.findev ("CM", NULL, NULL, true);
     xmemat = z8p.findev ("XM", NULL, NULL, true);
-    if (xmemat == NULL) {
-        fprintf (stderr, "xmem not found\n");
-        return 1;
-    }
+
+    printf ("8L VERSION=%08X\n", pdpat[0]);
+    printf ("CM VERSION=%08X\n", cmemat[0]);
     printf ("XM VERSION=%08X\n", xmemat[0]);
 
-    cmemat = z8p.findev ("CM", NULL, NULL, true);
-    if (cmemat == NULL) {
-        fprintf (stderr, "cmem not found\n");
-        return 1;
-    }
-    printf ("CM VERSION=%08X\n", cmemat[0]);
     cmemat[2] = 0;
 
     extmem = z8p.extmem ();
