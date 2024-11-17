@@ -1,4 +1,14 @@
-flicksw stop
+#
+#  Boot OS/8 from DECtape
+#    ./z8lsim bootos8dtape.tcl
+#
+stopandreset
+
+set home [getenv HOME /tmp]
+exec cp dta0.tu56 $home/dta0.tu56
+exec chmod o+w $home/dta0.tu56
+set tc08pid [exec ./z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &]
+after 1000
 
 ;# from OS8 Handbook p41
 
@@ -15,4 +25,8 @@ wrmem 07754 07577   ;# 7754
 wrmem 07755 07577   ;# 7755
 
 startat 07613
+
+puts "bootos8dtape: starting"
+exec -ignorestderr ./z8ltty -cps 960 -killit < /dev/tty > /dev/tty
+exec kill $tc08pid
 exit

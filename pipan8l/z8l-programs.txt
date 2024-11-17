@@ -37,6 +37,8 @@ other programs:
     z8ltty:                     sets TTYs enable to connect to iobus
         process TTY io instructions
 
+    ./z8lsim bootos8dpack.tcl   boot OS/8 from decpack with interactive session
+    ./z8lsim bootos8dtape.tcl   boot OS/8 from dectape with interactive session
 
 softreset - halts simulator, disconnects io devices from iobus, puts all in power-on reset state:
     regctle[01]
