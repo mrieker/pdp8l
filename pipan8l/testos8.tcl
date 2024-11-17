@@ -66,4 +66,5 @@ checkttymatch 0 "HOPE YOU ENJOYED YOURSELF.  THANKS FOR PLAYING."
 checkttyprompt "READY" "BYE"
 checkttymatch 0 "."
 puts ""
+puts "SUCCESS!"
 exit

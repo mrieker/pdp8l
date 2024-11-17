@@ -65,7 +65,6 @@
 #define BLOCKSPERTAPE 1474  // 02702
 #define WORDSPERBLOCK 129
 #define BYTESPERBLOCK (WORDSPERBLOCK*2)
-#define UNLOADNS 5000000000ULL
 
 #define CONTIN (status_a & 00100)
 #define NORMAL (! CONTIN)
@@ -89,7 +88,6 @@
 #define IDCA 07755      // memory word containing dma address minus one
 
 struct Drive {
-    uint64_t unldat;    // time tape is to be unloaded
     int dtfd;           // fd of file with tape contents
     uint16_t tapepos;   // current tape position
     bool rdonly;        // read-only
@@ -133,9 +131,7 @@ static void dumpbuf (Drive *drive, char const *label, uint16_t const *buff, int 
 static bool dmareadoverwritesinstructions (uint16_t field, uint16_t idca, uint16_t idwc);
 static bool delayblk ();
 static bool delayloop (int usec);
-static void unloadrive (int driveno);
 static void dbgpr (int level, char const *fmt, ...);
-static uint64_t getnowns ();
 static bool writeformat (Tcl_Interp *interp, int fd);
 
 
@@ -143,7 +139,6 @@ static bool writeformat (Tcl_Interp *interp, int fd);
 int main (int argc, char **argv)
 {
     for (int i = 0; i < 8; i ++) {
-        drives[i].unldat = 0xFFFFFFFFFFFFFFFFULL;
         drives[i].dtfd = -1;
     }
 
@@ -358,13 +353,6 @@ static void *thread (void *dummy)
     while (! exiting) {
         usleep (1000);
 
-        // unload drives that were left running for UNLOADNS
-        uint64_t nowns = getnowns ();
-        for (int i = 0; i < 8; i ++) {
-            Drive *drive = &drives[i];
-            if (nowns > drive->unldat) unloadrive (i);
-        }
-
         // check for an I/O request pending
         uint32_t status = tcat[1];
         if (status & TC_IOPEND) {
@@ -379,9 +367,8 @@ static void *thread (void *dummy)
 
             int driveno = (status_a >> 9) & 007;
             Drive *drive = &drives[driveno];
-            drive->unldat = 0xFFFFFFFFFFFFFFFFULL;
 
-            // prevent file from being unloaded while in here
+            // prevent file from being unloaded while in here so fd doesn't get munged
             LOCKIT;
 
             // select error if no tape loaded
@@ -662,14 +649,6 @@ static void *thread (void *dummy)
         finished:;
             DBGPR (1, "thread: st_A=%04o st_B=%04o\n", status_a, status_b);
             tcat[1] = (tcat[1] & ~ (07707 * TC_STATB0)) | ((status_b & 07707) * TC_STATB0);
-
-            // if drive is running and we don't get another command in UNLOADNS, unload it
-            if (status_a & GOBIT) {
-                drive->unldat = getnowns () + UNLOADNS;
-            } else {
-                drive->unldat = 0xFFFFFFFFFFFFFFFFULL;
-            }
-
         unlock:;
             UNLKIT;
         }
@@ -825,16 +804,6 @@ static bool delayloop (int usec)
     return true;
 }
 
-// unload the drive
-static void unloadrive (int driveno)
-{
-    Drive *drive = &drives[driveno];
-    close (drive->dtfd);
-    drive->dtfd = -1;
-    drive->unldat = 0xFFFFFFFFFFFFFFFFULL;
-    fprintf (stderr, "unloadrive: drive %d unloaded\n", driveno);
-}
-
 // print message if debug is at or above the given level
 static void dbgpr (int level, char const *fmt, ...)
 {
@@ -844,14 +813,6 @@ static void dbgpr (int level, char const *fmt, ...)
         vfprintf (stderr, fmt, ap);
         va_end (ap);
     }
-}
-
-// get time that pthread_cond_timedwait() is based on
-static uint64_t getnowns ()
-{
-    struct timespec nowts;
-    if (clock_gettime (CLOCK_REALTIME, &nowts) < 0) ABORT ();
-    return ((uint64_t) nowts.tv_sec) * 1000000000 + nowts.tv_nsec;
 }
 
 // contents of a freshly zeroed dectape in OS/8

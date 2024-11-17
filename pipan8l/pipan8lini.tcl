@@ -22,7 +22,8 @@ proc helpini {} {
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
-    puts "  sendtottykb             - send string to tty keyboard"
+    puts "  sendchartottykb         - send char to tty kb, don't check for echo"
+    puts "  sendtottykb             - send string to tty keyboard and check echo"
     puts "  startat <addr>          - load pc and start at given address"
     puts "  stepit                  - step one cycle then dump"
     puts "  steploop                - step one cycle, dump, then loop on enter key"
@@ -631,6 +632,14 @@ proc rdmem {addr} {
     setsw sr [expr {$addr & 07777}]
     flicksw ldad
     return [getreg mb]
+}
+
+# send character to tty keyboard pipe (see openttypipes)
+# does not wait for echo
+proc sendchartottykb {ch} {
+    global wrkbpipe
+    puts -nonewline $wrkbpipe $ch
+    chan flush $wrkbpipe
 }
 
 ;# function to send the given string to the tty (see openttypipes)
