@@ -20,7 +20,7 @@
 
 // Performs RK8JE disk I/O for the PDP-8/L Zynq I/O board
 
-//  ./z8lrk8je [<tclscriptfile>]
+//  ./z8lrk8je [-killit] [-loadro/-loadrw <driveno> <file>]... [<tclscriptfile>]
 
 #include <errno.h>
 #include <fcntl.h>
@@ -107,9 +107,14 @@ int main (int argc, char **argv)
 {
     memset (fds, -1, sizeof fds);
 
+    bool killit = false;
     bool loadit = false;
     char const *fn = NULL;
     for (int i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-killit") == 0) {
+            killit = true;
+            continue;
+        }
         if ((strcasecmp (argv[i], "-loadro") == 0) || (strcasecmp (argv[i], "-loadrw") == 0)) {
             if ((i + 2 >= argc) || (argv[i+1][0] == '-') || (argv[i+2][0] == '-')) {
                 fprintf (stderr, "missing disknumber and/or filename for -loadro/rw\n");
@@ -121,7 +126,8 @@ int main (int argc, char **argv)
                 fprintf (stderr, "disknumber %s must be integer in range 0..3\n", argv[i+1]);
                 return 1;
             }
-            if (! loadfile (NULL, strcasecmp (argv[i], "-loadrw") == 0, diskno, argv[i+2])) return 1;
+            fds[diskno] = i;
+            ros[diskno] = strcasecmp (argv[i], "-loadro") == 0;
             loadit = true;
             i += 2;
             continue;
@@ -138,7 +144,7 @@ int main (int argc, char **argv)
     }
 
     z8p  = new Z8LPage ();
-    rkat = z8p->findev ("RK", NULL, NULL, true);
+    rkat = z8p->findev ("RK", NULL, NULL, true, killit);
     if (rkat == NULL) {
         fprintf (stderr, "rk8je controller not found\n");
         return 1;
@@ -149,8 +155,15 @@ int main (int argc, char **argv)
     nsperus = 1000;
     debug = 0;
 
-    // if -load option, just run io calls
+    // if -load option, load files then just run io calls
     if (loadit) {
+        for (int diskno = 0; diskno <= 3; diskno ++) {
+            int i = fds[diskno];
+            if (i >= 0) {
+                fds[diskno] = -1;
+                if (! loadfile (NULL, ! ros[diskno], diskno, argv[i+2])) return 1;
+            }
+        }
         thread (NULL);
         return 0;
     }

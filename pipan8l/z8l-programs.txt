@@ -11,7 +11,9 @@ automated test programs:
 
     ./z8lxmemtest.armv7l        always sets enlo4k, reads & writes extmem block
 
-    ./testos8.sh                test RK8JE controller and DMA
+    ./z8lsim testos8dpack.tcl   test RK8JE controller and DMA
+    ./z8lsim testos8dtape.tcl   test TC08 controller and 3-cycle DMA
+
     ./z8lsim run-d01b.tcl ...
         z8llib                  always sets e_simit (simulator), e_nanocontin (fpga continuous clocking)
 

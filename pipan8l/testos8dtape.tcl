@@ -1,7 +1,18 @@
+#
+#  Test OS/8 booting from DECtape
+#    ./z8lsim testos8dtape.tcl
+#
 puts ""
 puts "testos8dtape: test running OS/8"
 
 stopandreset
+
+set home [getenv HOME /tmp]
+exec cp dta0.tu56 $home/dta0.tu56
+exec chmod o+w $home/dta0.tu56
+exec ./z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &
+after 1000
+
 openttypipes
 
 flicksw stop

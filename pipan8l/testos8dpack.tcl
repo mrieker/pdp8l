@@ -1,12 +1,23 @@
+#
+#  Test OS/8 booting from RK05
+#    ./z8lsim testos8dpack.tcl
+#
 puts ""
-puts "testos8: test running OS/8"
+puts "testos8dpack: test running OS/8"
 
 stopandreset
+
+set home [getenv HOME /tmp]
+exec cp rkab0.rk05 $home/rkab0.rk05
+exec chmod o+w $home/rkab0.rk05
+exec ./z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &
+after 1000
+
 openttypipes
 
 startat [loadbin rk8jeboot.bin]
 
-puts "testos8: starting"
+puts "testos8dpack: starting"
 
 checkttymatch 0 "PiDP-8/I trunk:id\[76133aacd0\] - OS/8 V3D Combined Kit - KBM V3T - CCL V3A"
 checkttymatch 0 "Built from source by tangent@pidp8i on 2021.02.14 at 15:37:06 MST"

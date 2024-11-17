@@ -20,7 +20,7 @@
 
 // Performs TC08 tape I/O for the PDP-8/L Zynq I/O board
 
-//  ./z8ltc08 [<tclscriptfile>]
+//  ./z8ltc08 [-killit] [-loadro/-loadrw <driveno> <file>]... [<tclscriptfile>]
 //  ./z8ltc08 -status [<ipaddress>]
 
 #include <arpa/inet.h>
@@ -186,11 +186,12 @@ int main (int argc, char **argv)
             }
             char *p;
             int driveno = strtol (argv[i+1], &p, 0);
-            if ((*p != 0) || (driveno < 0) || (driveno > 3)) {
-                fprintf (stderr, "drivenumber %s must be integer in range 0..3\n", argv[i+1]);
+            if ((*p != 0) || (driveno < 0) || (driveno >= MAXDRIVES)) {
+                fprintf (stderr, "drivenumber %s must be integer in range 0..%d\n", argv[i+1], MAXDRIVES - 1);
                 return 1;
             }
-            if (! loadfile (NULL, strcasecmp (argv[i], "-loadrw") == 0, driveno, argv[i+2])) return 1;
+            drives[driveno].dtfd = i;
+            drives[driveno].rdonly = strcasecmp (argv[i], "-loadro") == 0;
             loadit = true;
             i += 2;
             continue;
@@ -238,6 +239,13 @@ int main (int argc, char **argv)
 
     // if -load option, just run io calls
     if (loadit) {
+        for (int driveno = 0; driveno < MAXDRIVES; driveno ++) {
+            int i = drives[driveno].dtfd;
+            if (i >= 0) {
+                drives[driveno].dtfd = -1;
+                if (! loadfile (NULL, ! drives[driveno].rdonly, driveno, argv[i+2])) return 1;
+            }
+        }
         thread (NULL);
         return 0;
     }
