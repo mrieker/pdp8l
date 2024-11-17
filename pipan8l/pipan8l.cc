@@ -20,8 +20,13 @@
 
 // run via pipan8l shell script:
 //  ./pipan8l [-sim | -z8l] [<scriptfile.tcl>]
+//  ./pipan8l -status [<ip-address-of-pipan8l>]
 
+#include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <net/if.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
@@ -41,7 +46,6 @@
 #include "pindefs.h"
 #include "readprompt.h"
 #include "tclmain.h"
-#include "udppkt.h"
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 #define ASSERT(cond) do { if (__builtin_constant_p (cond)) { if (!(cond)) asm volatile ("assert failure line %c0" :: "i"(__LINE__)); } else { if (!(cond)) ABORT (); } } while (0)
@@ -118,12 +122,17 @@ static uint16_t getreg (int const *pins);
 static void setpin (int pin, bool set);
 static bool getpin (int pin);
 static void flushit ();
+static int showstatus (int argc, char **argv);
 static void *udpthread (void *dummy);
 
 
 
 int main (int argc, char **argv)
 {
+    if ((argc >= 2) && (strcasecmp (argv[1], "-status") == 0)) {
+        return showstatus (argc - 1, argv + 1);
+    }
+
     setlinebuf (stdout);
 
     bool simit = false;
@@ -621,6 +630,206 @@ static void flushit ()
         padlib->writepads (wrpads);
         wrpadsdirty = false;
         rdpadsvalid = false;
+    }
+}
+
+
+
+// continuously display what would be on the PDP-8/L front panel
+// reads panel lights and switches from pipan8l via udp
+
+// with -z8l, reads lights & switches from pdp8lsim.v simulator running in zynq
+
+#define ESC_NORMV "\033[m"             /* go back to normal video */
+#define ESC_REVER "\033[7m"            /* turn reverse video on */
+#define ESC_UNDER "\033[4m"            /* turn underlining on */
+#define ESC_BLINK "\033[5m"            /* turn blink on */
+#define ESC_BOLDV "\033[1m"            /* turn bold on */
+#define ESC_REDBG "\033[41m"           /* red background */
+#define ESC_GRNBG "\033[42m"           /* green background */
+#define ESC_YELBG "\033[44m"           /* yellow background */
+#define ESC_BLKFG "\033[30m"           /* black foreground */
+#define ESC_REDFG "\033[91m"           /* red foreground */
+#define ESC_EREOL "\033[K"             /* erase to end of line */
+#define ESC_EREOP "\033[J"             /* erase to end of page */
+#define ESC_HOME  "\033[H"             /* home cursor */
+
+#define ESC_ON ESC_BOLDV ESC_GRNBG ESC_BLKFG
+
+#define RBITL(r,n) BOOL ((r >> (11 - n)) & 1)
+#define REG12L(r) RBITL (r, 0), RBITL (r, 1), RBITL (r, 2), RBITL (r, 3), RBITL (r, 4), RBITL (r, 5), RBITL (r, 6), RBITL (r, 7), RBITL (r, 8), RBITL (r, 9), RBITL (r, 10), RBITL (r, 11)
+#define STL(b,on,off) (b ? (ESC_ON on ESC_NORMV) : off)
+#define BOOL(b) STL (b, "*", "-")
+
+#define TOP ESC_HOME
+#define EOL ESC_EREOL "\n"
+#define EOP ESC_EREOP
+
+#define UDPPORT 23456
+
+struct UDPPkt {
+    uint64_t seq;
+    uint16_t ma;
+    uint16_t ir;
+    uint16_t mb;
+    uint16_t ac;
+    uint16_t sr;
+    bool ea;
+    bool stf;
+    bool ste;
+    bool std;
+    bool stwc;
+    bool stca;
+    bool stb;
+    bool link;
+    bool ion;
+    bool per;
+    bool prot;
+    bool run;
+    bool mprt;
+    bool dfld;
+    bool ifld;
+    bool ldad;
+    bool start;
+    bool cont;
+    bool stop;
+    bool step;
+    bool exam;
+    bool dep;
+};
+
+static char const *const mnes[] = { "AND", "TAD", "ISZ", "DCA", "JMS", "JMP", "IOT", "OPR" };
+
+static char outbuf[4000];
+
+static int showstatus (int argc, char **argv)
+{
+    char const *ipaddr = NULL;
+    for (int i = 0; ++ i < argc;) {
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "unknown option %s\n", argv[i]);
+            return 1;
+        }
+        if (ipaddr != NULL) {
+            fprintf (stderr, "unknown argument %s\n", argv[i]);
+            return 1;
+        }
+        ipaddr = argv[i];
+    }
+
+    // running on some system to read panel state form pipan8l.cc via udp
+    if (ipaddr == NULL) ipaddr = "127.0.0.1";
+
+    struct sockaddr_in server;
+    memset (&server, 0, sizeof server);
+    server.sin_family = AF_INET;
+    server.sin_port   = htons (UDPPORT);
+    if (! inet_aton (ipaddr, &server.sin_addr)) {
+        struct hostent *he = gethostbyname (ipaddr);
+        if (he == NULL) {
+            fprintf (stderr, "bad server ip address %s\n", ipaddr);
+            return 1;
+        }
+        if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
+            fprintf (stderr, "bad server ip address %s type\n", ipaddr);
+            return 1;
+        }
+        server.sin_addr = *(struct in_addr *)he->h_addr;
+    }
+
+    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+    if (udpfd < 0) ABORT ();
+
+    struct sockaddr_in client;
+    memset (&client, 0, sizeof client);
+    client.sin_family = AF_INET;
+    if (bind (udpfd, (sockaddr *) &client, sizeof client) < 0) {
+        fprintf (stderr, "error binding: %m\n");
+        return 1;
+    }
+
+    struct timeval timeout;
+    memset (&timeout, 0, sizeof timeout);
+    timeout.tv_usec = 100000;
+    if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
+
+    UDPPkt udppkt;
+    memset (&udppkt, 0, sizeof udppkt);
+
+    uint32_t fps = 0;
+    time_t lasttime = 0;
+    uint64_t lastseq = 0;
+    uint64_t seq = 0;
+
+    setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
+
+    while (true) {
+        struct timeval tvnow;
+        if (gettimeofday (&tvnow, NULL) < 0) ABORT ();
+        usleep (1000 - tvnow.tv_usec % 1000);
+
+        // ping the server so it sends something out
+    ping:;
+        udppkt.seq = ++ seq;
+        int rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &server, sizeof server);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "error sending udp packet: %m\n");
+            } else {
+                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+            return 1;
+        }
+
+        // read state from server
+        do {
+            rc = read (udpfd, &udppkt, sizeof udppkt);
+            if (rc != sizeof udppkt) {
+                if (rc < 0) {
+                    if (errno == EAGAIN) goto ping;
+                    fprintf (stderr, "error receiving udp packet: %m\n");
+                } else {
+                    fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                }
+                return 1;
+            }
+        } while (udppkt.seq < seq);
+        if (udppkt.seq > seq) {
+            fprintf (stderr, "bad seq rcvd %llu, sent %llu\n", (long long unsigned) udppkt.seq, (long long unsigned) seq);
+            return 1;
+        }
+
+        // measure updates per second
+        time_t thistime = time (NULL);
+        if (lasttime < thistime) {
+            if (lasttime > 0) {
+                fps = (seq - lastseq) / (thistime - lasttime);
+            }
+            lastseq = seq;
+            lasttime = thistime;
+        }
+
+        // display it
+        printf (TOP EOL);
+        printf ("  PDP-8/L       %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  MA   IR [ %s %s %s  " ESC_ON "%s" ESC_NORMV " ]     %10u fps" EOL,
+            BOOL (udppkt.ea), REG12L (udppkt.ma), udppkt.ea, udppkt.ma,
+            RBITL (udppkt.ir, 0), RBITL (udppkt.ir, 1), RBITL (udppkt.ir, 2), mnes[(udppkt.ir>>9)&7], fps);
+        printf (EOL);
+        printf ("                    %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  MB   ST [ %s %s %s %s %s %s ]" EOL,
+            REG12L (udppkt.mb), udppkt.mb, STL (udppkt.stf, "F", "f"), STL (udppkt.ste, "E", "e"), STL (udppkt.std, "D", "d"),
+            STL (udppkt.stwc, "WC", "wc"), STL (udppkt.stca, "CA", "ca"), STL (udppkt.stb, "B", "b"));
+        printf (EOL);
+        printf ("                %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  AC   %s %s %s %s" EOL,
+            BOOL (udppkt.link), REG12L (udppkt.ac), udppkt.link, udppkt.ac,
+            STL (udppkt.ion, "ION", "ion"), STL (udppkt.per, "PER", "per"), STL (udppkt.prot, "PRT", "prt"), STL (udppkt.run, "RUN", "run"));
+        printf (EOL);
+        printf ("  %s  %s %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  SR   %s  %s %s %s %s %s  %s" EOL,
+            STL (udppkt.mprt, "MPRT", "mprt"), STL (udppkt.dfld, "DFLD", "dfld"), STL (udppkt.ifld, "IFLD", "ifld"), REG12L (udppkt.sr),
+            udppkt.sr, STL (udppkt.ldad, "LDAD", "ldad"), STL (udppkt.start, "START", "start"), STL (udppkt.cont, "CONT", "cont"),
+            STL (udppkt.stop, "STOP", "stop"), STL (udppkt.step, "STEP", "step"), STL (udppkt.exam, "EXAM", "exam"), STL (udppkt.dep, "DEP", "dep"));
+        printf (EOL);
+        printf (EOP);
+        fflush (stdout);
     }
 }
 

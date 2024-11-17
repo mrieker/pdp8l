@@ -16,7 +16,7 @@ endif
 
 LIBS = lib.$(MACH).a
 
-default: mcp23017.$(MACH) pipan8l.$(MACH) ttpan8l.$(MACH) z8lcmemtest.$(MACH) z8ldump.$(MACH) z8lpin.$(MACH) z8lreal.$(MACH) z8lrk8je.$(MACH) \
+default: mcp23017.$(MACH) pipan8l.$(MACH) z8lcmemtest.$(MACH) z8ldump.$(MACH) z8lpin.$(MACH) z8lreal.$(MACH) z8lrk8je.$(MACH) \
 	z8lsimtest.$(MACH) z8ltc08.$(MACH) z8ltrace.$(MACH) z8ltty.$(MACH) z8lxmemtest.$(MACH)
 
 lib.$(MACH).a: \
@@ -37,9 +37,6 @@ mcp23017.$(MACH): mcp23017.$(MACH).o $(LIBS)
 
 pipan8l.$(MACH): pipan8l.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
-
-ttpan8l.$(MACH): ttpan8l.$(MACH).o $(LIBS)
-	$(GPP) -o $@ $^ -lpthread
 
 z8lcmemtest.$(MACH): z8lcmemtest.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
