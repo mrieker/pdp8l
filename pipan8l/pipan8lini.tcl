@@ -104,9 +104,9 @@ proc checkttymatch {nskip line {tmsec 30000}} {
 # check tty prompt string for match then send given reply followed by <CR>
 # - call openttypipes first
 # - always ignore control and whitespace characters in prompt string
-proc checkttyprompt {prompt reply} {
+proc checkttyprompt {prompt reply {tmsec 30000}} {
     # check prompt string
-    checkttymatch 0 $prompt
+    checkttymatch 0 $prompt $tmsec
     # there may be a CR/LF following the prompt (like 'READY' in BASIC)
     # so wait for a brief time with no characters printed
     while {true} {

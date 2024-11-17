@@ -20,12 +20,15 @@ other programs:
 
     z8lpin:                     individual pin access via tcl scripting
 
-    z8lreal:                    turns off sim mode and puts in power-on state, connect xmem controller to iobus, set/clear xmem enlo4k
+    z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus, set/clear xmem enlo4k
         pulse e_softreset       and always sets e_nanocontin (so devices are continuously clocked)
         clear e_simit
 
     z8lrk8je:                   sets RK8s enable to connect to iobus
         process RK8JE io instructions
+
+    z8ltc08:                    sets TC08s enable to connect to iobus
+        process TC08 io instructions
 
     z8ltrace:                   sets e_simit, pulses e_nanotrigger, clears e_nanocontin
 

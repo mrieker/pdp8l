@@ -21,9 +21,14 @@
 // Performs TC08 tape I/O for the PDP-8/L Zynq I/O board
 
 //  ./z8ltc08 [<tclscriptfile>]
+//  ./z8ltc08 -status [<ipaddress>]
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -31,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <tcl.h>
 #include <unistd.h>
@@ -62,9 +68,12 @@
 
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 
+#define MAXDRIVES 8
 #define BLOCKSPERTAPE 1474  // 02702
 #define WORDSPERBLOCK 129
 #define BYTESPERBLOCK (WORDSPERBLOCK*2)
+
+#define UDPPORT 23457
 
 #define CONTIN (status_a & 00100)
 #define NORMAL (! CONTIN)
@@ -88,10 +97,19 @@
 #define IDCA 07755      // memory word containing dma address minus one
 
 struct Drive {
+    uint32_t filesize;  // size of file in bytes
     int dtfd;           // fd of file with tape contents
     uint16_t tapepos;   // current tape position
+    bool locked;        // drive busy doing io, don't unload
     bool rdonly;        // read-only
-    char fname[256];    // name of file
+    char fname[160];    // name of file
+};
+
+struct UDPPkt {
+    uint64_t seq;
+    uint16_t status_a;
+    uint16_t status_b;
+    Drive drives[MAXDRIVES];
 };
 
 // internal TCL commands
@@ -109,9 +127,11 @@ static TclFunDef const fundefs[] = {
 #define LOCKIT if (pthread_mutex_lock (&lock) != 0) ABORT ()
 #define UNLKIT if (pthread_mutex_unlock (&lock) != 0) ABORT ()
 
+static bool startdelay;
 static bool volatile exiting;
-static Drive drives[8];
+static Drive drives[MAXDRIVES];
 static int debug;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static uint16_t ocarray[4096];
 static uint16_t status_a, status_b;
@@ -133,14 +153,23 @@ static bool delayblk ();
 static bool delayloop (int usec);
 static void dbgpr (int level, char const *fmt, ...);
 static bool writeformat (Tcl_Interp *interp, int fd);
+static int showstatus (int argc, char **argv);
+static void *udpthread (void *dummy);
 
 
 
 int main (int argc, char **argv)
 {
-    for (int i = 0; i < 8; i ++) {
+    // if first arg is -status, show tape status
+    if ((argc >= 2) && (strcasecmp (argv[1], "-status") == 0)) {
+        return showstatus (argc - 1, argv + 1);
+    }
+
+    for (int i = 0; i < MAXDRIVES; i ++) {
         drives[i].dtfd = -1;
     }
+
+    setlinebuf (stdout);
 
     bool killit = false;
     bool loadit = false;
@@ -202,6 +231,11 @@ int main (int argc, char **argv)
         ocarray[i] = reverse;
     }
 
+    // spawn thread to send status over udp
+    pthread_t udptid;
+    int rc = pthread_create (&udptid, NULL, udpthread, NULL);
+    if (rc != 0) ABORT ();
+
     // if -load option, just run io calls
     if (loadit) {
         thread (NULL);
@@ -210,9 +244,10 @@ int main (int argc, char **argv)
 
     // spawn thread to do io
     pthread_t threadid;
-    int rc = pthread_create (&threadid, NULL, thread, NULL);
+    rc = pthread_create (&threadid, NULL, thread, NULL);
     if (rc != 0) ABORT ();
 
+    // process tcl commands
     rc = tclmain (fundefs, argv[0], "z8ltc08", NULL, NULL, fn, true);
 
     exiting = true;
@@ -289,9 +324,16 @@ static bool loadfile (Tcl_Interp *interp, bool readwrite, int driveno, char cons
     fprintf (stderr, "loadtape: drive %d loaded with read%s file %s\n", driveno, (readwrite ? "/write" : "-only"), filenm);
     Drive *drive = &drives[driveno];
     LOCKIT;
+    while (drive->locked) {
+        if (pthread_cond_wait (&cond, &lock) != 0) ABORT ();
+    }
     close (drive->dtfd);
-    drive->dtfd   = fd;
-    drive->rdonly = ! readwrite;
+    drive->filesize = lseek (fd, 0, SEEK_END);
+    drive->dtfd     = fd;
+    drive->rdonly   = ! readwrite;
+    drive->tapepos  = 0;
+    strncpy (drive->fname, filenm, sizeof drive->fname);
+    drive->fname[sizeof drive->fname-1] = 0;
     UNLKIT;
     return true;
 }
@@ -350,6 +392,8 @@ trylk:;
 
 static void *thread (void *dummy)
 {
+    bool oldgobit = false;
+
     while (! exiting) {
         usleep (1000);
 
@@ -363,6 +407,12 @@ static void *thread (void *dummy)
 
             DBGPR (2, "thread: start status_a=%04o status_b=%04o\n", status_a, status_b);
 
+            bool newgobit  = (status_a / GOBIT) & 1;
+            if (oldgobit  != newgobit) {
+                oldgobit   = newgobit;
+                startdelay = true;
+            }
+
             uint16_t field = (status_b & 070) << 9;
 
             int driveno = (status_a >> 9) & 007;
@@ -370,6 +420,8 @@ static void *thread (void *dummy)
 
             // prevent file from being unloaded while in here so fd doesn't get munged
             LOCKIT;
+            drive->locked = true;
+            UNLKIT;
 
             // select error if no tape loaded
             if (drive->dtfd < 0) {
@@ -379,7 +431,7 @@ static void *thread (void *dummy)
             }
 
             // if tape stopped, we can't do anything
-            if (! (status_a & GOBIT)) goto unlock;
+            if (! newgobit) goto unlock;
 
             // blocks are conceptually stored:
             //  fwdmark          revmark
@@ -649,7 +701,12 @@ static void *thread (void *dummy)
         finished:;
             DBGPR (1, "thread: st_A=%04o st_B=%04o\n", status_a, status_b);
             tcat[1] = (tcat[1] & ~ (07707 * TC_STATB0)) | ((status_b & 07707) * TC_STATB0);
+
+            // drive can now be unloaded
         unlock:;
+            LOCKIT;
+            drive->locked = false;
+            if (pthread_cond_broadcast (&cond) != 0) ABORT ();
             UNLKIT;
         }
     }
@@ -769,10 +826,10 @@ static bool delayblk ()
     int usec = 25000;
 
     // 375ms additional for startup delay
-    ////if (startdelay) {
-    ////    startdelay = false;
-    ////    usec += 375000;
-    ////}
+    if (startdelay) {
+        startdelay = false;
+        usec += 375000;
+    }
 
     return delayloop (usec);
 }
@@ -1028,4 +1085,238 @@ static bool writeformat (Tcl_Interp *interp, int fd)
         return false;
     }
     return true;
+}
+
+
+
+// display drive status
+
+#define ESC_HOMEC "\033[H"          // home cursor
+#define ESC_NORMV "\033[m"          // go back to normal video
+#define ESC_REVER "\033[7m"         // turn reverse video on
+#define ESC_UNDER "\033[4m"         // turn underlining on
+#define ESC_BLINK "\033[5m"         // turn blink on
+#define ESC_BOLDV "\033[1m"         // turn bold on
+#define ESC_REDBG "\033[41m"        // red background
+#define ESC_YELBG "\033[44m"        // yellow background
+#define ESC_EREOL "\033[K"          // erase to end of line
+#define ESC_EREOP "\033[J"          // erase to end of page
+
+static char const *const funcmnes[8] = { "MOVE", "SRCH", "RDAT", "RALL", "WDAT", "WALL", "WTIM", "ERR7" };
+
+static char outbuf[4000];
+
+static int showstatus (int argc, char **argv)
+{
+    char const *ipaddr = NULL;
+    for (int i = 0; ++ i < argc;) {
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "unknown option %s\n", argv[i]);
+            return 1;
+        }
+        if (ipaddr != NULL) {
+            fprintf (stderr, "unknown argument %s\n", argv[i]);
+            return 1;
+        }
+        ipaddr = argv[i];
+    }
+    if (ipaddr == NULL) ipaddr = "127.0.0.1";
+
+    struct sockaddr_in server;
+    memset (&server, 0, sizeof server);
+    server.sin_family = AF_INET;
+    server.sin_port   = htons (UDPPORT);
+    if (! inet_aton (ipaddr, &server.sin_addr)) {
+        struct hostent *he = gethostbyname (ipaddr);
+        if (he == NULL) {
+            fprintf (stderr, "bad server ip address %s\n", ipaddr);
+            return 1;
+        }
+        if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
+            fprintf (stderr, "bad server ip address %s type\n", ipaddr);
+            return 1;
+        }
+        server.sin_addr = *(struct in_addr *)he->h_addr;
+    }
+
+    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+    if (udpfd < 0) ABORT ();
+
+    struct sockaddr_in client;
+    memset (&client, 0, sizeof client);
+    client.sin_family = AF_INET;
+    if (bind (udpfd, (sockaddr *) &client, sizeof client) < 0) {
+        fprintf (stderr, "error binding: %m\n");
+        return 1;
+    }
+
+    struct timeval timeout;
+    memset (&timeout, 0, sizeof timeout);
+    timeout.tv_usec = 100000;
+    if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
+
+    UDPPkt udppkt;
+    memset (&udppkt, 0, sizeof udppkt);
+
+    uint64_t seq = 0;
+
+    setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
+
+    sigset_t sigintmask;
+    sigemptyset (&sigintmask);
+    sigaddset (&sigintmask, SIGINT);
+
+    char bargraphs[MAXDRIVES*66];
+    uint32_t filesizes[MAXDRIVES];
+    memset (bargraphs, 0, sizeof bargraphs);
+    memset (filesizes, -1, sizeof filesizes);
+    int twirly = 0;
+
+    while (true) {
+        struct timeval tvnow;
+        if (gettimeofday (&tvnow, NULL) < 0) ABORT ();
+        usleep (1000 - tvnow.tv_usec % 1000);
+
+        // ping the server so it sends something out
+    ping:;
+        udppkt.seq = ++ seq;
+        int rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &server, sizeof server);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "error sending udp packet: %m\n");
+            } else {
+                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+            return 1;
+        }
+
+        // read state from server
+        do {
+            rc = read (udpfd, &udppkt, sizeof udppkt);
+            if (rc != sizeof udppkt) {
+                if (rc < 0) {
+                    if (errno == EAGAIN) goto ping;
+                    fprintf (stderr, "error receiving udp packet: %m\n");
+                } else {
+                    fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                }
+                return 1;
+            }
+        } while (udppkt.seq < seq);
+        if (udppkt.seq > seq) {
+            fprintf (stderr, "bad seq rcvd %llu, sent %llu\n", (long long unsigned) udppkt.seq, (long long unsigned) seq);
+            return 1;
+        }
+
+        if (pthread_sigmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
+
+        // decode and print status line
+        int driveno = (udppkt.status_a >> 9) & 7;
+        int func    = (udppkt.status_a >> 3) & 7;
+        bool go     = (udppkt.status_a & 00200) != 0;
+        bool rev    = (udppkt.status_a & 00400) != 0;
+        printf (ESC_HOMEC ESC_EREOL "\nstatus_A %04o <%o %s %s %s %s %s>  status_B %04o" ESC_EREOL "\n",
+            udppkt.status_a, driveno, (rev ? "REV" : "FWD"), (go ? " GO " : "STOP"),
+            ((udppkt.status_a & 000100) ? "CON" : "NOR"), funcmnes[func], ((udppkt.status_a & 00004) ? "IENA" : "IDIS"),
+            udppkt.status_b);
+
+        // display line for each drive with a tape file loaded
+        char rwfc = "  rRwWW "[func];
+        for (int i = 0; i < MAXDRIVES; i ++) {
+            Drive *drive = &udppkt.drives[i];
+            if (drive->dtfd >= 0) {
+                char *bargraph = &bargraphs[i*66];
+                if (filesizes[i] == 0xFFFFFFFFU) {
+                    filesizes[i] = drive->filesize;
+                    memset (&bargraphs[i*66], '-', 64);
+                    int j = filesizes[i] * 64 / BLOCKSPERTAPE / WORDSPERBLOCK / 2;
+                    bargraph[j]  = '|';
+                    bargraph[64] = ']';
+                }
+                uint16_t blocknumber  = drive->tapepos / 4;
+
+                bool gofwd = go && ! rev && (i == driveno);
+                bool gorev = go &&   rev && (i == driveno);
+                char rorw  = drive->rdonly ? '-' : '+';
+                printf (ESC_EREOL "\n  %o: %c%s", i, rorw, drive->fname);
+                printf (ESC_EREOL "\n");
+                printf (" [%s" ESC_EREOL "\n", bargraph);
+                printf ("%*s%c%c^%04o%c%c%c" ESC_EREOL "\n",
+                    drive->tapepos * 16 / BLOCKSPERTAPE, "",
+                    (gorev ? rwfc : ' '), (gorev ? '<' : ' '),
+                    blocknumber, 'a' + drive->tapepos % 4,
+                    (gofwd ? '>' : ' '), (gofwd ? rwfc : ' '));
+            } else {
+                filesizes[i] = 0xFFFFFFFFU;
+            }
+        }
+
+        printf (ESC_EREOL "\n    0000a = beg-of-tape"
+                ESC_EREOL "\n    ____b = between leading block number and data"
+                ESC_EREOL "\n    ____c = between data and trailing block number"
+                ESC_EREOL "\n    2701d = end-of-tape" ESC_EREOL "\n");
+
+        // little twirly to show we are cycling
+        printf (ESC_EREOL "\n  %c" ESC_EREOP "\r", "-\\|/"[++twirly&3]);
+        fflush (stdout);
+
+        if (pthread_sigmask (SIG_UNBLOCK, &sigintmask, NULL) != 0) ABORT ();
+    }
+
+    return 0;
+}
+
+
+
+// pass state of tapes to whoever asks via udp
+static void *udpthread (void *dummy)
+{
+    pthread_detach (pthread_self ());
+
+    // create a socket to listen on
+    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+    if (udpfd < 0) ABORT ();
+
+    // prevent TCL script exec commands from inheriting the fd and keeping it open
+    if (fcntl (udpfd, F_SETFD, FD_CLOEXEC) < 0) ABORT ();
+
+    struct sockaddr_in server;
+    memset (&server, 0, sizeof server);
+    server.sin_family = AF_INET;
+    server.sin_port   = htons (UDPPORT);
+    if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
+        fprintf (stderr, "udpthread: error binding to %d: %m\n", UDPPORT);
+        ABORT ();
+    }
+
+    while (true) {
+        struct sockaddr_in client;
+        socklen_t clilen = sizeof client;
+        UDPPkt udppkt;
+        int rc = recvfrom (udpfd, &udppkt, sizeof udppkt, 0, (struct sockaddr *) &client, &clilen);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "udpthread: error receiving udp packet: %m\n");
+            } else {
+                fprintf (stderr, "udpthread: only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+            continue;
+        }
+
+        LOCKIT;
+        uint32_t status = tcat[1];
+        udppkt.status_a = (status & TC_STATA) / TC_STATA0;
+        udppkt.status_b = (status & TC_STATB) / TC_STATB0;
+        memcpy (udppkt.drives, drives, sizeof udppkt.drives);
+        UNLKIT;
+
+        rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &client, sizeof client);
+        if (rc != sizeof udppkt) {
+            if (rc < 0) {
+                fprintf (stderr, "udpthread: error sending udp packet: %m\n");
+            } else {
+                fprintf (stderr, "udpthread: only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+            }
+        }
+    }
 }

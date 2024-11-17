@@ -24,8 +24,12 @@ startat 07613
 
 puts "testos8dtape: starting"
 
-checkttyprompt "." "DIR"            ;# takes about 20sec to get listing
-checkttymatch 0 "ABSLDR.SV   5"
+checkttyprompt "." "COPY BUILD.XX<BUILD.SV"
+checkttymatch 0 "FILES COPIED:"
+checkttymatch 0 "BUILD.SV"
+
+checkttyprompt "." "DIR" 100000     ;# takes about 90sec to copy file
+checkttymatch 0 "ABSLDR.SV   5"     ;# takes about 20sec to start listing
 checkttymatch 0 "CCL   .SV  18"
 checkttymatch 0 "FOTP  .SV   8"
 checkttymatch 0 "DIRECT.SV   7"
@@ -55,7 +59,8 @@ checkttymatch 0 "PIP10 .SV  17"
 checkttymatch 0 "HELP  .SV   8"
 checkttymatch 0 "RKLFMT.SV   9"
 checkttymatch 0 "LIB8  .RL  29"
-checkttymatch 0 " 315 FREE BLOCKS"
+checkttymatch 0 "BUILD .XX  33"
+checkttymatch 0 " 282 FREE BLOCKS"
 checkttyprompt "." "R PIP"
 checkttymatch 0 "*"
 sendchartottykb "\003"
