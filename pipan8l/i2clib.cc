@@ -46,6 +46,7 @@
     dtoverlay=i2c-gpio,bus=3    "software i2c", uses GPIO 23(SDA) & 24(SCL)
 */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
@@ -58,7 +59,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "abcd.h"
 #include "padlib.h"
 #include "pindefs.h"
 
@@ -204,7 +204,6 @@ void I2CLib::openpads ()
     }
 }
 
-#define ZPRDPADS 0x08   // abcd paddles on zynqpage giving pdp-8/v actual state
 #define ZPI2CCMD 0x14   // i2cmaster.v command register (64 bits)
 #define ZPI2CSTS 0x16   // i2cmaster.v status register (64 bits)
 #define ZYNQWR 3ULL     // write command (2 bits)

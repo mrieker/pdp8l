@@ -475,7 +475,7 @@ static void *thread (void *dummy)
 
                 // SEARCH (2.5.1.4 p 27)
                 case 1: {
-                    uint32_t cm;
+                    uint32_t cm = 0;
                     do {
                         // update tape position for the search
                         if (delayblk ()) goto finished;
@@ -491,7 +491,7 @@ static void *thread (void *dummy)
 
                 // READ DATA (2.5.1.5 p 27)
                 case 2: {
-                    uint32_t cm;
+                    uint32_t cm = 0;
                     do {
                         // update tape position for the read
                         if (delayblk ()) goto finished;
@@ -552,7 +552,7 @@ static void *thread (void *dummy)
                 // - runs MAINDEC D3RA test (forward and reverse)
                 //   let it run at least 2 passes over tape to get some read-all-reverses
                 case 3: {
-                    uint32_t cm;
+                    uint32_t cm = 0;
                     do {
                         if (delayblk ()) goto finished;
                         if (stepxfer (drive)) goto endtape;
@@ -634,13 +634,13 @@ static void *thread (void *dummy)
 
                 // WRITE DATA (2.5.1.7 p 28)
                 case 4: {
+                    uint32_t cm = 0;
                     if (drive->rdonly) {
                         DBGPR (2, "thread: write attempt on read-only drive %d\n", driveno);
                         status_b |= SELERR;
                         goto finerror;
                     }
 
-                    uint32_t cm;
                     do {
                         if (delayblk ()) goto finished;
                         if (stepxfer (drive)) goto endtape;

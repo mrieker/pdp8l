@@ -20,7 +20,6 @@ default: mcp23017.$(MACH) pipan8l.$(MACH) z8lcmemtest.$(MACH) z8ldump.$(MACH) z8
 	z8lsimtest.$(MACH) z8ltc08.$(MACH) z8ltrace.$(MACH) z8ltty.$(MACH) z8lxmemtest.$(MACH)
 
 lib.$(MACH).a: \
-		abcd.$(MACH).o \
 		assemble.$(MACH).o \
 		disassemble.$(MACH).o \
 		i2clib.$(MACH).o \
