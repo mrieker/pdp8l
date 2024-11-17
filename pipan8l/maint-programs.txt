@@ -12,6 +12,7 @@ Memory Address Test     08-D1B0 not found
 Extended Mem Checkbd    08-D1EB         works
 Extended Mem Control    08-D1GB         works
 
+DECtape                    D3RA         works
 
 To run on real PDP-8/L (with pipan8l board plugged
 into console and real tty wired to /dev/ttyACM0):
