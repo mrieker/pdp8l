@@ -71,7 +71,7 @@ module pdp8lrk8je (
     always @(posedge CLOCK) begin
         if (BINIT) begin
             if (RESET) begin
-                enable <= 0;
+                enable <= 1;
             end
             command  <= 0;
             diskaddr <= 0;

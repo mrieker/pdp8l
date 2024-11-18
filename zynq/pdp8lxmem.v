@@ -89,7 +89,7 @@ module pdp8lxmem (
             if (RESET) begin
                 // these get cleared on power up
                 // they remain as is when start switch is pressed
-                ctlenab       <= 0;
+                ctlenab       <= 1;
                 ctllo4K       <= 0;
                 dfld          <= 0;
                 ifld          <= 0;

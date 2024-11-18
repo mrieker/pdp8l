@@ -62,7 +62,7 @@ module pdp8ltty
     always @(posedge CLOCK) begin
         if (BINIT) begin
             if (RESET) begin
-                enable <= 0;
+                enable <= 1;
             end
             intenab <= 1;
             kbflag  <= 0;

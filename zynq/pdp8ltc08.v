@@ -52,7 +52,7 @@ module pdp8ltc08 (
     always @(posedge CLOCK) begin
         if (BINIT) begin
             if (RESET) begin
-                enable <= 0;
+                enable <= 1;
             end
             iopend   <= 0;
             status_a <= 0;
