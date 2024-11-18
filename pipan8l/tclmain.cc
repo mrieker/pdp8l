@@ -37,7 +37,14 @@
 
 #define ABORT() do { fprintf (stderr, "abort() %s:%d\n", __FILE__, __LINE__); abort (); } while (0)
 
+struct TclExit {
+    TclExit *next;
+    Tcl_Interp *interp;
+    char command[1];
+};
+
 // internal TCL commands
+static Tcl_ObjCmdProc cmd_atexit;
 static Tcl_ObjCmdProc cmd_ctrlcflag;
 static Tcl_ObjCmdProc cmd_help;
 
@@ -48,14 +55,17 @@ static TclFunDef const *fundefs;
 static int logfd, pipefds[2], oldstdoutfd;
 static pthread_cond_t logflcond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t logflmutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t tclxmutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t logtid;
 static sigset_t sigintmask;
+static TclExit *tclexits;
 
 static void tclloop (char const *progname, Tcl_Interp *interp);
 static void siginthand (int signum);
 static void *logthread (void *dummy);
 static void closelog ();
 static int writepipe (int fd, char const *buf, int len);
+static void tclatexit ();
 
 
 
@@ -87,6 +97,7 @@ int tclmain (
     for (int i = 0; tclfundefs[i].name != NULL; i ++) {
         if (Tcl_CreateObjCommand (interp, tclfundefs[i].name, tclfundefs[i].func, NULL, NULL) == NULL) ABORT ();
     }
+    if (Tcl_CreateObjCommand (interp, "atexit", cmd_atexit, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "ctrlcflag", cmd_ctrlcflag, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "help", cmd_help, NULL, NULL) == NULL) ABORT ();
 
@@ -191,6 +202,7 @@ int tclmain (
         tclloop (progname, interp);
     }
 
+    tclatexit ();
     Tcl_Finalize ();
 
     return 0;
@@ -326,6 +338,47 @@ static int writepipe (int fd, char const *buf, int len)
     return 0;
 }
 
+// execute the given command when the program exits
+int cmd_atexit (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    switch (objc) {
+        case 2: {
+            char const *opstr = Tcl_GetString (objv[1]);
+            if (strcasecmp (opstr, "help") == 0) {
+                puts ("");
+                puts ("  atexit \"<command>\" - execute command on exit");
+                puts ("");
+                return TCL_OK;
+            }
+            int oplen = strlen (opstr);
+            TclExit *tclx = (TclExit *) malloc (oplen + sizeof *tclx);
+            tclx->interp = interp;
+            memcpy (tclx->command, opstr, ++ oplen);
+            if (pthread_mutex_lock (&tclxmutex) != 0) ABORT ();
+            tclx->next = tclexits;
+            tclexits = tclx;
+            if (pthread_mutex_unlock (&tclxmutex) != 0) ABORT ();
+            if (tclx->next == NULL) atexit (tclatexit);
+            return TCL_OK;
+        }
+    }
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+static void tclatexit ()
+{
+    if (pthread_mutex_lock (&tclxmutex) != 0) ABORT ();
+    for (TclExit *tclx; (tclx = tclexits) != NULL;) {
+        tclexits = tclx->next;
+        if (pthread_mutex_unlock (&tclxmutex) != 0) ABORT ();
+        Tcl_EvalEx (tclx->interp, tclx->command, -1, TCL_EVAL_GLOBAL);
+        free (tclx);
+        if (pthread_mutex_lock (&tclxmutex) != 0) ABORT ();
+    }
+    if (pthread_mutex_unlock (&tclxmutex) != 0) ABORT ();
+}
+
 // read and clear the control-C flag
 int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
@@ -364,13 +417,21 @@ int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj 
 int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     puts ("");
-    bool didctrlc = false;
+    bool didatexit = false;
+    bool didctrlc  = false;
     for (TclFunDef const *fd = fundefs; fd->help != NULL; fd ++) {
+        if (! didatexit && (strcasecmp (fd->name, "atexitflag") > 0)) {
+            printf ("  %10s - %s\n", "atexit", "execute given command on exit");
+            didatexit = true;
+        }
         if (! didctrlc && (strcasecmp (fd->name, "ctrlcflag") > 0)) {
             printf ("  %10s - %s\n", "ctrlcflag", "read and clear control-C flag");
             didctrlc = true;
         }
         printf ("  %10s - %s\n", fd->name, fd->help);
+    }
+    if (! didatexit) {
+        printf ("  %10s - %s\n", "atexit", "execute given command on exit");
     }
     if (! didctrlc) {
         printf ("  %10s - %s\n", "ctrlcflag", "read and clear control-C flag");

@@ -19,7 +19,12 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Switch the Zynq FPGA to use real PDP-8/L instead of pdp8lsim.v
-//  ./z8lreal [-enlo4k]
+// Resets all FPGA devices to power-on reset state
+// Leaves simulator held in power-on reset state
+//  ./z8lreal [-enlo4k] [-entty03]
+//    -enlo4k  = use FPGA extmem for low 4K memory (else use PDP-8/L core)
+//    -entty03 = use FPGA tty (else use PDP-8/L tty)
+//               tty boards must be unplugged for this to work
 
 #include <stdio.h>
 #include <string.h>
@@ -28,14 +33,28 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
+static bool findtty03 (void *param, uint32_t volatile *ttyat)
+{
+    if (ttyat == NULL) {
+        fprintf (stderr, "findtt: cannot find TT port 03\n");
+        ABORT ();
+    }
+    return (ttyat[Z_TTYPN] & 077) == 003;
+}
+
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
     bool enlo4k = false;
+    bool entty03 = false;
     for (int i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-enlo4k") == 0) {
             enlo4k = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-entty03") == 0) {
+            entty03 = true;
             continue;
         }
         fprintf (stderr, "unknown argument %s\n", argv[i]);
@@ -67,6 +86,14 @@ int main (int argc, char **argv)
     pdpat[Z_RK] = 0;
     usleep (10);
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
+                            // omitting e_simit holds sim in power-on reset state
+
+    // all devices are enabled at this point
+    // turn off tty 03 if not wanted
+    if (! entty03) {
+        uint32_t volatile *tty03 = z8p.findev ("TT", findtty03, NULL, true);
+        tty03[Z_TTYKB] &= ~ KB_ENAB;
+    }
 
     return 0;
 }

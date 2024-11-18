@@ -15,7 +15,8 @@ proc openttypipes {} {
     chan configure $rdprpipe -translation binary
     chan configure $wrprpipe -translation binary
     chan configure $rdprpipe -blocking 0
-    exec ./z8ltty -cps 30 -killit <@ $rdkbpipe >@ $wrprpipe &
+    set ttypid [exec ./z8ltty -cps 30 -killit <@ $rdkbpipe >@ $wrprpipe &]
+    atexit "exec kill $ttypid"
 }
 
 return $ret

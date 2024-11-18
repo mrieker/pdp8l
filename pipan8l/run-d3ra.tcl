@@ -8,8 +8,10 @@
 loadbin ../alltapes/d3ra-pb.bin
 puts "= = = = = = = = = = = = = = = ="
 puts "run-d3ra: loading tape files"
-exec ./z8ltc08 -killit -loadrw 1 tape1.tu56 -loadrw 2 tape2.tu56 -loadrw 3 tape3.tu56 &
-after 2000
+set home [getenv HOME /tmp]
+set tcpid [exec ./z8ltc08 -killit -loadrw 1 $home/tape1.tu56 -loadrw 2 $home/tape2.tu56 -loadrw 3 $home/tape3.tu56 &]
+atexit "exec kill $tcpid"
+after 3000
 puts "= = = = = = = = = = = = = = = ="
 puts "run-d3ra: starting test"
 setsw sr 03400
@@ -27,7 +29,8 @@ setsw sr 00000
 flicksw cont
 puts "= = = = = = = = = = = = = = = ="
 puts "run-d3ra: running (control-C to stop)..."
-exec ./z8ltty -killit -nokb &
+set ttpid [exec ./z8ltty -killit -nokb &]
+atexit "exec kill $ttpid"
 while {[getreg run]} {
     if {[ctrlcflag]} return
     after 100

@@ -4,18 +4,10 @@
 #
 puts ""
 puts "testos8dpack: test running OS/8"
-
-stopandreset
-
-set home [getenv HOME /tmp]
-exec cp rkab0.rk05 $home/rkab0.rk05
-exec chmod o+w $home/rkab0.rk05
-exec ./z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &
-after 1000
+source "os8lib.tcl"
+os8dpackloadandboot
 
 openttypipes
-
-startat [loadbin rk8jeboot.bin]
 
 puts "testos8dpack: starting"
 

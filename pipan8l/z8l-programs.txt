@@ -22,25 +22,25 @@ other programs:
 
     z8lpin:                     individual pin access via tcl scripting
 
-    z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus, set/clear xmem enlo4k
-        pulse e_softreset       and always sets e_nanocontin (so devices are continuously clocked)
-        clear e_simit
+    z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus,
+        pulse e_softreset       set/clear xmem enlo4k, set/clear tty03 enable, set all other dev enables
+        clear e_simit           and always sets e_nanocontin (so devices are continuously clocked)
 
-    z8lrk8je:                   sets RK8s enable to connect to iobus
-        process RK8JE io instructions
+    z8lrk8je:                   process RK8JE io instructions
+                                sets RK8s enable to connect to iobus if not already
 
-    z8ltc08:                    sets TC08s enable to connect to iobus
-        process TC08 io instructions
+    z8ltc08:                    process TC08 io instructions
+                                sets TC08s enable to connect to iobus if not already
 
     z8ltrace:                   sets e_simit, pulses e_nanotrigger, clears e_nanocontin
 
-    z8ltty:                     sets TTYs enable to connect to iobus
-        process TTY io instructions
+    z8ltty:                     process TTY io instructions
+                                sets TTYs enable to connect to iobus if nit already
 
     ./z8lsim bootos8dpack.tcl   boot OS/8 from decpack with interactive session
     ./z8lsim bootos8dtape.tcl   boot OS/8 from dectape with interactive session
 
-softreset - halts simulator, disconnects io devices from iobus, puts all in power-on reset state:
+softreset - halts simulator, connects io devices to iobus, puts all in power-on reset state:
     regctle[01]
     pwronreset
         pdp8lsim RESET
@@ -48,7 +48,7 @@ softreset - halts simulator, disconnects io devices from iobus, puts all in powe
         pdp8lrk8je RESET
         pdp8lxmem RESET
         pdp8lcmem RESET
-        pxp8lextar RESET
+        pdp8lextar RESET
         iobusreset
             pdp8ltty BINIT
             pdp8lrk8je BINIT
