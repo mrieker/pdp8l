@@ -22,12 +22,20 @@
 
 // arm registers:
 //  [0] = ident='XM',sizecode=1,version
-//  [1] = <enable> <enlo4K> 000000000000000000000000000000
+//  [1] = <enable> <enlo4k> 00000000000000000000000000000 os8zap
 //    enable = 0 : ignore io instructions, ie, be a dumb 4K system
 //             1 : handle io instructions
-//    enlo4K = 0 : PDP-8/L core stack will be used for low 4K addresses
+//    enlo4k = 0 : PDP-8/L core stack will be used for low 4K addresses
 //             1 : the low 4K of the 32K block memory will be used for low 4K addresses
 //                 ...regardless of the enable bit setting
+//    os8zap = 0 : nothing special
+//             1 : os8 likes to do:
+//                  ISZ x
+//                  JMP .-1
+//              ...as a delay during printing
+//              zap the JMP .-1 to be:
+//                  NOP ; x <= 0
+//              must have enlo4k set for it to work in low 4K
 
 module pdp8lxmem (
     input CLOCK, CSTEP, RESET, BINIT,
@@ -66,23 +74,31 @@ module pdp8lxmem (
     output reg xbrwena              // ... write enable
 );
 
-    reg ctlenab, ctllo4K, ctlwrite, intinhibeduntiljump, lastintack;
+    reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump, lastintack;
     reg[7:0] memdelay;
     reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
     reg[7:0] numcycles;
+
+    reg os8zap;
+    reg[11:00] os8iszrdata;
+    reg[14:00] os8iszxaddr;
+    reg[1:0] os8step;
+    reg[6:0] os8iszopcad;
 
     wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
                         ~ _bf_enab ? brkfld :           // break field if cpu says so
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1014 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4K, 30'b0 } :
+    assign armrdata = (armraddr == 0) ? 32'h584D1016 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4k, 29'b0, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
-                      { numcycles, lastintack, 23'b0 };
+                      { numcycles, lastintack, 21'b0, os8step };
 
-    assign _ea = ~ (ctllo4K | (field != 0));
+    assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
+
+    wire[6:0] os8jmpopcad = os8iszopcad + 1;
 
     always @(posedge CLOCK) begin
         if (BINIT) begin
@@ -90,13 +106,15 @@ module pdp8lxmem (
                 // these get cleared on power up
                 // they remain as is when start switch is pressed
                 ctlenab       <= 1;
-                ctllo4K       <= 0;
+                ctllo4k       <= 0;
                 dfld          <= 0;
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 memdelay      <= 0;
                 _mrdone       <= 1;
                 _mwdone       <= 1;
+                os8step       <= 0;
+                os8zap        <= 0;
                 xbrenab       <= 0;
                 xbrwena       <= 0;
             end
@@ -118,7 +136,8 @@ module pdp8lxmem (
                 // arm processor is wanting to write the registers
                 1: begin
                     ctlenab  <= armwdata[31];           // save overall enabled flag
-                    ctllo4K  <= armwdata[30];           // save low 4K enabled flag
+                    ctllo4k  <= armwdata[30];           // save low 4K enabled flag
+                    os8zap   <= armwdata[00];           // save os8zap enabled flag
                 end
             endcase
         end else if (CSTEP) begin
@@ -211,7 +230,7 @@ module pdp8lxmem (
             end
 
             // maybe pdp is requesting a memory cycle on extended memory
-            // includes the lower 4K if our enlo4K bit is set cuz that forces _EA=0
+            // includes the lower 4K if our enlo4k bit is set cuz that forces _EA=0
             else if (memstart & ~ _ea & (memdelay == 0)) begin
                 memdelay <= memdelay + 1;
             end
@@ -294,12 +313,57 @@ module pdp8lxmem (
 
                 // 200nS, send read data to cpu
                 20: begin
-                    memrdat  <= xbrrdat;
+                    if (os8zap & exefet) case (os8step)
+
+                        // see if we just fetched an ISZ direct page, not last word on page (so there is room for following JMP on page)
+                        // if so, save ISZ opcode address, save ISZ operand address
+                        // in any case, send opcode on to processor
+                        0: begin
+                            if ((xbrrdat[11:07] == 5'b01001) & (xbraddr[06:00] != 7'b1111111)) begin
+                                os8iszopcad <= xbraddr[06:00];
+                                os8iszxaddr <= { xbraddr[14:07], xbrrdat[06:00] };
+                                os8step <= 1;
+                            end
+                            memrdat <= xbrrdat;
+                        end
+
+                        // see if we just read the operand for the ISZ
+                        // if so, save the operand
+                        // if not, last cycle wasn't really a fetch of an ISZ, abandon zap
+                        // in any case, send operand on to processor
+                        1: begin
+                            if (xbraddr == os8iszxaddr) begin
+                                os8iszrdata <= xbrrdat;
+                                os8step <= 2;
+                            end
+                            else os8step <= 0;
+                            memrdat <= xbrrdat;
+                        end
+
+                        // see if we just fetched a JMP .-1 following the ISZ
+                        // if so, send NOP to processor instead of JMP .-1
+                        // if not, send opcode to processor and abandon zap
+                        2: begin
+                            if ((xbraddr == { os8iszxaddr[14:07], os8jmpopcad }) &
+                                    (xbrrdat == { 5'b10101, os8iszopcad })) begin
+                                memrdat <= 12'o7000;
+                                os8step <= 3;
+                            end
+                            else begin
+                                memrdat <= xbrrdat;
+                                os8step <= 0;
+                            end
+                        end
+                    endcase
+                    else begin
+                        os8step <= 0;
+                        memrdat <= xbrrdat;
+                    end
                     xbrenab  <= 0;
                     memdelay <= memdelay + 1;
                 end
 
-                // 500nS, send strobe pulse for 100nS
+                // 500nS, send strobe pulse for 100nS telling processor read data is valid
                 50: begin
                     _mrdone  <= 0;
                     memdelay <= memdelay + 1;
@@ -313,7 +377,37 @@ module pdp8lxmem (
 
                 // 700nS, clock in write data, start writing to memory
                 70: begin
-                    xbrwdat  <= memwdat;
+
+                    // see if doing ISZ/JMP .-1 zap
+                    case (os8step)
+
+                        // see if writing ISZ operand is read value + 1
+                        // if so, only EXEC state of ISZ increments memory so we know we are in EXEC following FETCH of an ISZ direct
+                        // if not, abandon zap
+                        // in any case, send operand on to processor as is
+                        2: begin
+                            if (memwdat != os8iszrdata + 1) os8step <= 0;
+                            xbrwdat <= memwdat;
+                        end
+
+                        // see if writing back JMP .-1 that was zapped to a NOP (should always be the case)
+                        // if so, zap the writeback to write 0 to the ISZ operand and zap is complete
+                        // if not, leave the writeback as is and abandon zap and disable future zapping as error indication
+                        3: begin
+                            if (memwdat == 12'o7000) begin
+                                xbraddr <= os8iszxaddr;
+                                xbrwdat <= 0;
+                            end
+                            else begin
+                                xbrwdat <= memwdat;
+                                os8zap  <= 0;
+                            end
+                            os8step <= 0;
+                        end
+
+                        // either not zapping or writing back FETCH of the ISZ opcode, write what processor wants as is
+                        default: xbrwdat <= memwdat;
+                    endcase
                     xbrenab  <= 1;
                     xbrwena  <= 1;
                     memdelay <= memdelay + 1;
