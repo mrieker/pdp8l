@@ -593,9 +593,10 @@ module pdp8lsim (
                     end
                 end
 
-                // delay 280nS between first and second io pulse
+                // delay 300nS between first and second io pulse
+                // real PDP-8/L is 280nS, but stretch for 4.25uS IO instr time
                 TS_BEGIOP2: begin
-                    if (timedelay != 28) timedelay <= timedelay + 1;
+                    if (timedelay != 30) timedelay <= timedelay + 1;
                     else begin timedelay <= 0; timestate <= TS_DOIOP2; end
                 end
 
@@ -614,15 +615,17 @@ module pdp8lsim (
                     end
                 end
 
-                // delay 280nS between second and third io pulse
+                // delay 300nS between second and third io pulse
+                // real PDP-8/L is 280nS, but stretch for 4.25uS IO instr time
                 TS_BEGIOP4: begin
-                    if (timedelay != 28) timedelay <= timedelay + 1;
+                    if (timedelay != 30) timedelay <= timedelay + 1;
                     else begin timedelay <= 0; timestate <= TS_DOIOP4; end
                 end
 
-                // output third io pulse for 500nS
+                // output third io pulse for 580nS
+                // real PDP-8/L is 500nS, but stretch for 4.25uS IO instr time
                 TS_DOIOP4: begin
-                    if (timedelay != 50) timedelay <= timedelay + 1;
+                    if (timedelay != 58) timedelay <= timedelay + 1;
                     else begin
                         acum <= ioac;
                         if (~ i_IO_SKIP) pctr <= pctr + 1;
@@ -636,9 +639,10 @@ module pdp8lsim (
                 ///////////////////////////////
                 // - do any final processing for the state such as update acum, link, pctr
 
-                // finish up this cycle (400nS if did io, otherwise 480nS)
+                // finish up this cycle (260nS if did io, otherwise 340nS)
+                // - real PDP is 400/480nS but do 260/340 to make 1.60uS cycles
                 TS_TS4BODY: begin
-                    if (timedelay != 48) timedelay <= timedelay + 1;
+                    if (timedelay != 34) timedelay <= timedelay + 1;
                     else begin
 
                         // finish off cycle
