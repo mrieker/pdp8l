@@ -158,11 +158,10 @@ void Z8LLib::openpads ()
     }
 
     // enable extended memory io instruction processing
-    // locate lower 4K memory in extmem block memory so it can be accessed via extmem
+    // leave XM_ENLO4K and XM_OS8ZAP bits as they were
     uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
     fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
-    char const *envar = getenv ("z8llib_enlo4k");
-    xmemat[1] = XM_ENABLE | (((envar != NULL) && (envar[0] & 1)) ? XM_ENLO4K : 0);
+    xmemat[1] |= XM_ENABLE;
 }
 
 // read switches and lightbulbs from zynq pdp8l.v

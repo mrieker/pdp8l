@@ -71,6 +71,7 @@ static void doldad (uint16_t addr, uint16_t data);
 static void dostart ();
 static void docont ();
 static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t wdata);
+static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t rdbkdata, uint16_t wtbkdata, uint16_t vfywaddr, uint16_t vfywdata);
 static void debounce ();
 static void clockit ();
 static bool g2skip (uint16_t opcode);
@@ -140,7 +141,8 @@ int main (int argc, char **argv)
 
     // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
     // ...so we can directly access its contents via extmemptr, feeding in random numbers as needed
-    xmemat[1] = XM_ENABLE | XM_ENLO4K;
+    // also tell it to convert ISZ x / JMP .-1 to ISZ x / NOP ; x <= 0
+    xmemat[1] = XM_ENABLE | XM_ENLO4K | XM_OS8ZAP;
     for (int i = 0; i < 5; i ++) clockit ();
 
     // get initial conditions
@@ -161,6 +163,8 @@ int main (int argc, char **argv)
 
     // run random instructions, verifying the cycles
     bool contforcesfetch = false;
+    uint16_t lastiszptr = 0xFFFFU;
+    uint16_t lastwasisz = 0xFFFFU;
     uint32_t instrno = 0;
     while (true) {
 
@@ -168,7 +172,7 @@ int main (int argc, char **argv)
 
         printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
 
-        ////if (instrno == 4814169) perclock = true;
+        ////if (instrno == 1403110) perclock = true;
 
         uint32_t startclockno = clockno;
 
@@ -217,9 +221,15 @@ int main (int argc, char **argv)
             uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%o%04o / %04o <= %04o", dmafield, dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmafield, dmaaddr, dmardata, dmawdata);
+
+            lastiszptr = 0xFFFFU;
+            lastwasisz = 0xFFFFU;
         } else {
 
+            uint8_t os8stepbeforefetch = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
+
             // maybe interrupt request is next
+            uint16_t extfetaddr = 0xFFFFU;
             uint8_t datafield = xmem_ifld;
             if (intrequest && ! xmem_intdisableduntiljump && intenabled && ! contforcesfetch) {
                 printf ("interrupt acknowledge");
@@ -247,7 +257,13 @@ int main (int argc, char **argv)
                 intenabled = intdelayed;
 
                 // send random opcode
-                opcode = xrandbits (12);
+                // for IOs, only allow processor (600x) and xmem (62xx)
+                while (true) {
+                    opcode = xrandbits (12);
+                    if ((opcode & 07000) != 06000) break;
+                    if ((opcode & 07770) == 06000) break;
+                    if ((opcode & 07700) == 06200) break;
+                }
                 printf ("OP=%04o  %s", opcode, disassemble (opcode, pctr).c_str ());
 
                 // set random switch register contents if about to do an OSR instruction
@@ -257,7 +273,22 @@ int main (int argc, char **argv)
                 }
 
                 // perform fetch memory cycle
-                memorycycle (g_lbFET, xmem_ifld, pctr, opcode, opcode);
+                extfetaddr = (xmem_ifld << 12) | pctr;
+                if (((lastwasisz + 1) == ((xmem_ifld << 12) | pctr)) && (opcode == (05200 | (lastwasisz & 00177)))) {
+                    // pdp8lxmem.v is changing the fetch JMP .-1 to fetch NOP, writeback ISZ value with 0
+                    printf ("  os8zapped ");
+                    printf (" (os8step=%o)", os8stepbeforefetch);
+                    memorycyclx (g_lbFET,
+                        xmem_ifld, pctr,    // pdp8lxmem.v reads opcode from usual ifld:pctr
+                        opcode,             // it gets the the JMP .-1 opcode from memory
+                        07000,              // it sends a NOP to the processor
+                        07000,              // the processor sends a NOP as writeback for the fetch
+                        lastiszptr, 0);     // pdp8lxmem.v writes a zero to the ISZs counter
+                    opcode = 07000;         // process the NOP just like the processor is
+                } else {
+                    // anything else, fetch from ifld/pctr
+                    memorycycle (g_lbFET, xmem_ifld, pctr, opcode, opcode);
+                }
                 effaddr = ((opcode & 00200) ? (pctr & 07600) : 0) | (opcode & 00177);
                 pctr = (pctr + 1) & 07777;
 
@@ -276,6 +307,8 @@ int main (int argc, char **argv)
             }
 
             // do the exec cycle
+            lastiszptr = 0xFFFFU;
+            lastwasisz = 0xFFFFU;
             switch (opcode >> 9) {
 
                 // and, tad, isz, dca
@@ -299,9 +332,27 @@ int main (int argc, char **argv)
                         }
                         case 2: {
                             uint16_t incd = (operand + 1) & 07777;
+                            printf (" (os8step=%o)", (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0);
                             printf (" => %04o", incd);
                             memorycycle (g_lbEXE, datafield, effaddr, operand, incd);
+                            printf (" (os8step=%o)", (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0);
                             if (incd == 0) pctr = (pctr + 1) & 07777;
+
+                            // if ISZ direct page, save operand 15-bit address and opcode 15-bit address
+                            // but if last instruction had an exec cycle that read something that looked like an ISZ instruction,
+                            // ...pdp8lxmem.v won't detect this ISZ so skip this test in that case
+                            //   TAD xxxx ; last instruction, xxxx contained 2347 so it sets os8step=1 cuz it thinks 2347 might be an ISZ opcode
+                            //   ISZ yyyy ; this instruction, the fetch doesn't do read/modify+1/write so it knows the 2347 isn't an opcode and sets os8step=0
+                            //   JMP .-1  ; next instruction, will be processed as normal cuz os8step=0
+                            // the TAD could be an ISZ in which case we get os8step=2 with the same result
+                            //   ISZ xxxx ; last instruction, sets os8step=2 cuz it is an ISZ and looking for JMP next
+                            //   ISZ yyyy ; this instruction, not a JMP so it sets os8step=0
+                            //   JMP .-1  ; next instruction, will be processed as normal cuz os8step=0
+                            // in either case, it should successfully zap after JMP .-1 is taken cuz the JMP .-1 leaves os8step=0
+                            if ((os8stepbeforefetch == 0) && ((opcode & 07600) == 02200) && ((extfetaddr & 0177) != 0177)) {
+                                lastiszptr = (datafield << 12) | effaddr;
+                                lastwasisz = extfetaddr;
+                            }
                             break;
                         }
                         case 3: {
@@ -609,6 +660,14 @@ static void docont ()
 //   TS4 = any post-processing for the cycle
 static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t wdata)
 {
+    memorycyclx (state, field, addr, rdata, rdata, wdata, (field << 12) | addr, wdata);
+}
+// - rdbkdata = data sent to processor as result of read
+// - wtbkdata = data received back from processor
+// - vfywaddr = address in extmem[] to verify the write happened
+// - vfywdata = data that should be at vfywaddr
+static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t rdbkdata, uint16_t wtbkdata, uint16_t vfywaddr, uint16_t vfywdata)
+{
     // write the read data to the given address so cpu can read it
     // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
     // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
@@ -643,7 +702,7 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 
     // MB should now have the value we wrote to the memory location
-    verify12 (Z_RH, h_oBMB, rdata, "MB during read");
+    verify12 (Z_RH, h_oBMB, rdbkdata, "MB during read");
 
     // maybe request dma or interrupt
     // processor samples it at end of TS3
@@ -676,7 +735,7 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 
     // beginning of TS3, MB should now have the possibly modified value
-    verify12 (Z_RH, h_oBMB, wdata, "MB during writeback");
+    verify12 (Z_RH, h_oBMB, wtbkdata, "MB during writeback");
 
     // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
     for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
@@ -685,9 +744,10 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
 
     // verify the memory contents
-    uint16_t vdata = extmemptr[xaddr];
-    if (vdata != wdata) {
-        printf ("address %05o contained %04o at end of cycle, should be %04o\n", xaddr, vdata, wdata);
+    ASSERT (vfywaddr <= 077777);
+    uint16_t vdata = extmemptr[vfywaddr];
+    if (vdata != vfywdata) {
+        printf ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
         fatalerr ("memory validation error\n");
     }
 }
@@ -723,12 +783,13 @@ static void clockit ()
         uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
         uint8_t savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
         uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
+        uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intreq=%o intinh=%o intena=%o ifld=%o dfld=%o ifaj=%o savifld=%o savdfld=%o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intreq=%o intinh=%o intena=%o ifld=%o dfld=%o ifaj=%o savifld=%o savdfld=%o os8step=%o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
             ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
-            ifld, dfld, ifaj, savedifld, saveddfld);
+            ifld, dfld, ifaj, savedifld, saveddfld, os8step);
 #endif
     }
 }

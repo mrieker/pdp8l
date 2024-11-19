@@ -152,9 +152,9 @@ int main (int argc, char **argv)
         for (int i = 0; i < 1024;) {
             uint32_t idver = z8ls[i];
             if (((idver >> 24) == 'X') && (((idver >> 16) & 255) == 'M')) {
-                printf (EOL "VERSION=%08X XM  enlo4k=%o  enable=%o  ifld=%o  dfld=%o  field=%o  memdelay=%3u  _mwdone=%o  _mrdone=%o" EOL,
+                printf (EOL "VERSION=%08X XM  enlo4k=%o  enable=%o  ifld=%o  dfld=%o  field=%o  memdelay=%3u  _mwdone=%o  _mrdone=%o  os8zap=%o,step=%o" EOL,
                     idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
-                    FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE));
+                    FIELD (i+2,XM2_MEMDELAY), FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE), FIELD (i+1,XM_OS8ZAP), FIELD (i+3,XM3_OS8STEP));
             } else {
                 if ((idver & 0xF000U) == 0x0000U) {
                     printf (EOL "VERSION=%08X %c%c %08X" EOL, idver, idver >> 24, idver >> 16, z8ls[i+1]);

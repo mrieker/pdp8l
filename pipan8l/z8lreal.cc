@@ -48,6 +48,7 @@ int main (int argc, char **argv)
 
     bool enlo4k = false;
     bool entty03 = false;
+    bool os8zap = false;
     for (int i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-enlo4k") == 0) {
             enlo4k = true;
@@ -55,6 +56,10 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-entty03") == 0) {
             entty03 = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-os8zap") == 0) {
+            os8zap = true;
             continue;
         }
         fprintf (stderr, "unknown argument %s\n", argv[i]);
@@ -69,7 +74,6 @@ int main (int argc, char **argv)
 
     uint32_t volatile *xmemat = z8p.findev ("XM", NULL, NULL, true);
     printf ("XM version %08X\n", xmemat[0]);
-    xmemat[1] = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0);
 
     // select real PDP-8/L and reset io devices
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_softreset;   // no e_simit
@@ -84,6 +88,7 @@ int main (int argc, char **argv)
     pdpat[Z_RI] = 0;
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
+    xmemat[1]   = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0) | (os8zap ? XM_OS8ZAP : 0);
     usleep (10);
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
                             // omitting e_simit holds sim in power-on reset state

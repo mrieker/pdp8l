@@ -56,7 +56,7 @@ static TclFunDef const fundefs[] = {
 
 // pin definitions
 struct PinDef {
-    char const *name;
+    char name[16];
     int dev;
     int reg;
     uint32_t mask;
@@ -181,6 +181,7 @@ static PinDef const pindefs[] = {
     { "KB_ENAB",         DEV_TT, Z_TTYKB, KB_ENAB,      true  },
     { "PR_FLAG",         DEV_TT, Z_TTYPR, PR_FLAG,      false },
     { "PR_FULL",         DEV_TT, Z_TTYPR, PR_FULL,      false },
+    { "XM_OS8ZAP",       DEV_XM, 1, XM_OS8ZAP,          true  },
     { "XM_ENLO4K",       DEV_XM, 1, XM_ENLO4K,          true  },
     { "XM_ENABLE",       DEV_XM, 1, XM_ENABLE,          true  },
     { "XM2_MEMDELAY",    DEV_XM, 2, XM2_MEMDELAY,       false },
@@ -192,7 +193,8 @@ static PinDef const pindefs[] = {
     { "XM2_FIELD",       DEV_XM, 2, XM2_FIELD,          false },
     { "XM2__MWDONE",     DEV_XM, 2, XM2__MWDONE,        false },
     { "XM2__MRDONE",     DEV_XM, 2, XM2__MRDONE,        false },
-    { NULL, 0, 0, 0, false }
+    { "XM3_OS8STEP",     DEV_XM, 3, XM3_OS8STEP,        false },
+    { "", 0, 0, 0, false }
 };
 
 static uint32_t volatile *extmemptr;
@@ -286,7 +288,7 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             writeable = true;
         } else {
             PinDef const *pte;
-            for (pte = pindefs; pte->name != NULL; pte ++) {
+            for (pte = pindefs; pte->name[0] != 0; pte ++) {
                 if (strcasecmp (pte->name, name) == 0) goto gotit;
             }
             if (! testmode) {

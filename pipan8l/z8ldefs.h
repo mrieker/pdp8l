@@ -273,6 +273,7 @@
 #define PR_FULL 0x40000000
 
 // pdp8lxmem.v registers
+#define XM_OS8ZAP (1U <<  0)
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
 
@@ -293,5 +294,8 @@
 #define XM2_DFLD0       (1U << 20)
 #define XM2_BUSYONARM0  (1U << 24)
 #define XM2_FIELD0      (1U << 27)
+
+#define XM3_OS8STEP     (3U <<  0)
+#define XM3_OS8STEP0    (1U <<  0)
 
 #endif
