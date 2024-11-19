@@ -45,6 +45,7 @@ static bool intdelayed;
 static bool intenabled;
 static bool intrequest;
 static bool linc;
+static bool memcycwcover;
 static bool perclock;
 static bool threecycle;
 static int nseqs;
@@ -172,7 +173,7 @@ int main (int argc, char **argv)
 
         printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
 
-        ////if (instrno == 1403110) perclock = true;
+        ////if (instrno == 119764) perclock = true;
 
         uint32_t startclockno = clockno;
 
@@ -187,11 +188,16 @@ int main (int argc, char **argv)
             if (threecycle) {
 
                 // WC state reads wordcount from dmaaddr, increments it and writes it back
+                // make wordcount overflow somewhat common for testing
                 uint16_t oldwordcount = xrandbits (12);
+                if (oldwordcount & 04000) oldwordcount |= 07700;
                 uint16_t newwordcount = (oldwordcount + 1) & 07777;
-                printf ("  WC:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
+                printf ("  WC:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
                 memorycycle (g_lbWC, 0, dmaaddr, oldwordcount, newwordcount);
-                verifybit (Z_RF, f_oBWC_OVERFLOW, newwordcount == 0, "BWC OVERFLOW at end of WC cycle");
+                bool wcshouldover = (newwordcount == 0);
+                if (memcycwcover != wcshouldover) {
+                    fatalerr ("BWC OVERFLOW is %o should be %o\n", memcycwcover, wcshouldover);
+                }
 
                 // CA state reads pointer from dmaaddr + 1, increments it and writes it back
                 // then we use the incremented pointer for the transfer address
@@ -199,7 +205,7 @@ int main (int argc, char **argv)
                 bool cainc = xrandbits (1);
                 uint16_t oldcuraddr = xrandbits (12);
                 uint16_t newcuraddr = (oldcuraddr + cainc) & 07777;
-                printf ("  CA:%04o / %04o <= %04o", dmaaddr, oldwordcount, newwordcount);
+                printf ("  CA:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
                 pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iCA_INCREMENT) | (cainc ? a_iCA_INCREMENT : 0);
                 memorycycle (g_lbCA, 0, dmaaddr, oldcuraddr, newcuraddr);
                 dmaaddr = newcuraddr;
@@ -219,7 +225,7 @@ int main (int argc, char **argv)
             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
             pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
             uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
-            printf ("  BRK:%o%04o / %04o <= %04o", dmafield, dmaaddr, dmardata, dmawdata);
+            printf ("  BRK:%o%04o / %04o => %04o", dmafield, dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmafield, dmaaddr, dmardata, dmawdata);
 
             lastiszptr = 0xFFFFU;
@@ -650,6 +656,7 @@ static void docont ()
 //   processor could possibly be somewhere near end of previous memory cycle
 //  output:
 //   returns with processor just exited TS3
+//   memcycwcover = processor's oBWC_OVERFLOW at beg of TS3
 //
 // steps through:
 //   TS1 = reading memory location
@@ -713,7 +720,7 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
         if (brkrequest) {
             dmaaddr = randbits (12);
             threecycle = randbits (2) == 0;
-            printf ("  <<brkrequest=1 threecycle=%o>>  ", threecycle);
+            printf ("  <<brkreq=1 3cycle=%o>>  ", threecycle);
             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
             pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
         }
@@ -722,7 +729,7 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     if (! intrequest && ((state != g_lbFET) || ((rdata & 07403) != 07402))) {
         intrequest = xrandbits (6) == 0;
         if (intrequest) {
-            printf ("  <<intrequest=1 intenabled=%d>>  ", intenabled);
+            printf ("  <<intreq=1 intena=%d>>  ", intenabled);
             pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
         }
     }
@@ -737,6 +744,11 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // beginning of TS3, MB should now have the possibly modified value
     verify12 (Z_RH, h_oBMB, wtbkdata, "MB during writeback");
 
+    // BWC_OVERFLOW is valid
+    // - clocked with TP2 (vol 2, p5 D-5)
+    // - cleared with TP3
+    memcycwcover = FIELD (Z_RF, f_oBWC_OVERFLOW);
+
     // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
     for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
@@ -747,8 +759,7 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     ASSERT (vfywaddr <= 077777);
     uint16_t vdata = extmemptr[vfywaddr];
     if (vdata != vfywdata) {
-        printf ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
-        fatalerr ("memory validation error\n");
+        fatalerr ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
     }
 }
 
@@ -778,18 +789,20 @@ static void clockit ()
     if (perclock) {
 #if 111
         uint32_t timestate = FIELD (Z_RK, k_timestate);
-        uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
-        uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
-        uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
-        uint8_t savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
-        uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
-        uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
+        bool bwcover = FIELD (Z_RF, f_oBWC_OVERFLOW);
+        //uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
+        //uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
+        //uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
+        //uint8_t savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
+        //uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
+        //uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s intreq=%o intinh=%o intena=%o ifld=%o dfld=%o ifaj=%o savifld=%o savdfld=%o os8step=%o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s bwc_overflow=%o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
-            ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
-            ifld, dfld, ifaj, savedifld, saveddfld, os8step);
+            bwcover);
+        //  ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
+        //  ifld, dfld, ifaj, savedifld, saveddfld, os8step);
 #endif
     }
 }
