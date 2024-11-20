@@ -3,7 +3,7 @@
 <!--                                                         -->
 <!-- Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.   -->
 
-<Project Version="7" Minor="39" Path="/home/mrieker/nfs_pdp8l_zynq/pdp8l.xpr">
+<Project Version="7" Minor="39" Path="/home/nfs/mrieker/pdp8l/zynq/pdp8l.xpr">
   <DefaultLaunch Dir="$PRUNDIR"/>
   <Configuration>
     <Option Name="Id" Val="16f5fa1c78fc4af68383d6f5af804dbf"/>

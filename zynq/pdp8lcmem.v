@@ -20,7 +20,7 @@
 
 // Provide arm processor access to PDP-8/L core memory via dma requests
 // If xmem enlo4K is set, this circuit will access the low 4K of the 32K block memory
-// If xmxm enlo4K is clear, this circuit will access the PDP-8/L 4K core memory
+// If xmem enlo4K is clear, this circuit will access the PDP-8/L 4K core memory
 // Can also access upper 28K (of the 32K block memory) via dma for testing
 
 // PDP-8/L Users Handbook Chap 5 p38/39 discuss the DMA cycle
@@ -37,7 +37,7 @@
 //    (ro) rddone = read data is available (sets while busy still set)
 //    (ro) busy   = busy performing memory cycle (do not modify register)
 //    (rw) data   = write: data to be written to memory via dma cycle
-//                 read: data read from memory
+//                  read: data read from memory
 //    (rw) write  = write given data to memory
 //    (rw) addr   = address of memory word to access
 //  [3] = 32-bit test-and-set cell
