@@ -282,8 +282,7 @@ int main (int argc, char **argv)
                 extfetaddr = (xmem_ifld << 12) | pctr;
                 if (((lastwasisz + 1) == ((xmem_ifld << 12) | pctr)) && (opcode == (05200 | (lastwasisz & 00177)))) {
                     // pdp8lxmem.v is changing the fetch JMP .-1 to fetch NOP, writeback ISZ value with 0
-                    printf ("  os8zapped ");
-                    printf (" (os8step=%o)", os8stepbeforefetch);
+                    printf (" os8zapped");
                     memorycyclx (g_lbFET,
                         xmem_ifld, pctr,    // pdp8lxmem.v reads opcode from usual ifld:pctr
                         opcode,             // it gets the the JMP .-1 opcode from memory
@@ -338,10 +337,8 @@ int main (int argc, char **argv)
                         }
                         case 2: {
                             uint16_t incd = (operand + 1) & 07777;
-                            printf (" (os8step=%o)", (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0);
                             printf (" => %04o", incd);
                             memorycycle (g_lbEXE, datafield, effaddr, operand, incd);
-                            printf (" (os8step=%o)", (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0);
                             if (incd == 0) pctr = (pctr + 1) & 07777;
 
                             // if ISZ direct page, save operand 15-bit address and opcode 15-bit address
@@ -533,7 +530,7 @@ int main (int argc, char **argv)
                         printf (" => %o.%04o", linc, acum);
                     } else if (! (opcode & 0001)) {
                         if (g2skip (opcode)) {
-                            printf (" SKIP");
+                            printf (" skip");
                             pctr = (pctr + 1) & 07777;
                         }
                         if (opcode & 0200) acum  = 0;
@@ -544,7 +541,7 @@ int main (int argc, char **argv)
                                 if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
                                 clockit ();
                             }
-                            printf ("  cont");
+                            printf (" cont");
                             docont ();
                             contforcesfetch = true; // cont switch in pdp8lsim.v always does fetch next (no brk, irq, etc)
                         }

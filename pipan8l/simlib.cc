@@ -115,17 +115,19 @@ void SimLib::openpads ()
         char *p;
         memfields = strtoul (mfenv, &p, 0);
         if ((*p != 0) || (memfields < 1) || (memfields > 8)) {
-            fprintf (stderr, "SimLib::openlads: num mem fields %s must be in range 1..8\n", mfenv);
+            fprintf (stderr, "SimLib::openpads: num mem fields %s must be in range 1..8\n", mfenv);
             ABORT ();
         }
     }
-    fprintf (stderr, "SimLib::openlads: memory size %uK words\n", memfields * 4);
+    fprintf (stderr, "SimLib::openpads: memory size %uK words\n", memfields * 4);
 
     // maybe turn tracing on
     char const *trenv = getenv ("pipan8l_simtrace");
     traceon = (trenv != NULL) && (trenv[0] & 1);
 
     // create named pipes for tty's keyboard and printer
+    // tcl script can read printer output from pipan8l_ttypr
+    // and can send keyboard input to pipan8l_ttykb to debug test scripts
     unlink ("pipan8l_ttykb");
     unlink ("pipan8l_ttypr");
     if (mkfifo ("pipan8l_ttykb", 0666) < 0) {
