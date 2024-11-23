@@ -1,8 +1,8 @@
-proc os8dpackloadandboot {} {
+proc os8dpackloadandboot {{sourcedisk "os8-rkab0.rk05"}} {
     stopandreset
 
     set home [getenv HOME /tmp]
-    exec cp rkab0.rk05 $home/rkab0.rk05
+    exec cp $sourcedisk $home/rkab0.rk05
     exec chmod o+w $home/rkab0.rk05
     set rk8pid [exec ./z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &]
     atexit "exec kill $rk8pid"
@@ -20,11 +20,11 @@ proc os8dpackloadandboot {} {
     startat 023
 }
 
-proc os8dtapeloadandboot {} {
+proc os8dtapeloadandboot {{sourcetape "os8-dta0.tu56"}} {
     stopandreset
 
     set home [getenv HOME /tmp]
-    exec cp dta0.tu56 $home/dta0.tu56
+    exec cp $sourcetape $home/dta0.tu56
     exec chmod o+w $home/dta0.tu56
     set tc08pid [exec ./z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &]
     atexit "exec kill $tc08pid"

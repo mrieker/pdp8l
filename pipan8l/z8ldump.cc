@@ -21,7 +21,7 @@
 // Runs PIPan8L on a Zynq board programmed with 8/L emulation code
 // It does not write to the zynq memory pages so does not alter zynq state
 
-//  ./z8ldump.armv7l
+//  ./z8ldump.armv7l [-once | -step]
 
 #include <signal.h>
 #include <stdint.h>
@@ -67,8 +67,11 @@ int main (int argc, char **argv)
 {
     setvbuf (stdout, stdoutbuf, _IOFBF, sizeof stdoutbuf);
 
+    bool oncemode = false;
     bool stepmode = false;
-    if ((argc == 2) && (strcasecmp (argv[1], "-step") == 0)) {
+    if ((argc == 2) && (strcasecmp (argv[1], "-once") == 0)) {
+        oncemode = true;
+    } else if ((argc == 2) && (strcasecmp (argv[1], "-step") == 0)) {
         stepmode = true;
     } else if (argc > 1) {
         fprintf (stderr, "unknown argument %s\n", argv[1]);
@@ -94,7 +97,9 @@ int main (int argc, char **argv)
             z8ls[i] = pdpat[i];
         }
 
-        printf (ESC_HOMEC "VERSION=%08X 8L" EOL, z8ls[0]);
+        if (! oncemode) printf (ESC_HOMEC);
+
+        printf ("VERSION=%08X 8L" EOL, z8ls[0]);
 
         printf ("  oBIOP1=%o             oBAC=%04o           brkwhenhltd=%o    ",   FIELD(Z_RF,f_oBIOP1),         FIELD(Z_RH,h_oBAC),           FIELD(Z_RE,e_brkwhenhltd));
         printf ("  iBEMA=%o              i_DMAADDR=%04o      majstate=%s" EOL,      FIELD(Z_RA,a_iBEMA),          FIELD(Z_RD,d_i_DMAADDR),  majstatenames[FIELD(Z_RK,k_majstate)]);
@@ -173,6 +178,8 @@ int main (int argc, char **argv)
         printf (EOP);
 
         fflush (stdout);
+
+        if (oncemode) break;
 
         if (stepmode) {
             char temp[8];

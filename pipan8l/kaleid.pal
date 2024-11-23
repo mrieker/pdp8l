@@ -1,0 +1,169 @@
+
+/ ../asm/assemble -pal kaleid.pal kaleid.obj > kaleid.lis
+/ ../asm/link -o kaleid.oct kaleid.obj > kaleid.map
+
+/       tubes: vc8pms=2000 vc8type=e ../driver/raspictl kaleid.oct
+/        zynq: vc8pms=2000 vc8type=e ../driver/raspictl -zynqlib kaleid.oct
+/  pidp panel: vc8pms=500 vc8type=e ../driver/raspictl -pidp -nohwlib kaleid.oct
+
+/ https://homepage.cs.uiowa.edu/~jones/pdp8/man/vc8e.html
+
+/ Kaleidoscope program for the VC8E/VR14 scope.
+/ Based on suggestions from page 6-19 of the Small Computer
+/ Handbook, 1973.
+
+/   SR<MSB> = ON : show the big circle
+/            OFF : normal kaleidoscope
+
+	DISD = 6052
+	DILX = 6053
+	DILY = 6054
+	DIXY = 6055
+	DILE = 6056
+	DIRE = 6057
+
+	CLA2 = 7600	/ one cycle faster than plain CLA
+	NOP2 = 7400
+
+*0020
+
+X,	3777		/ any initial value works, but
+Y,	6		/ 0,0 is least interesting.
+EXTRA,	0
+BIAS,	0
+MUNGES,	0
+
+SCOUNT, .-.
+FOUR,	4
+_2631,	2631
+_0012,	0012
+_NOPOP,	7000
+
+*0200
+
+	.global	__boot
+__boot,
+
+	/ NORMALLY, THE TOP TWO BITS OF X,Y ARE IGNORED WHEN PLOTTING TO THE SCREEN.
+	/ BUT IF X,Y ARE RTR'D TO FIT 10 BITS (SIGNED) WHEN PLOTTED, A BIG CIRCLE CAN BE SEEN.
+	/ IT HAS VARYING CENTER APPROX 0,0 AND VARYING RADIUS.
+	/ IF THE BIG CIRCLE IS CLIPPED ON THE EDGES OF SCREEN, THE FUN STUFF APPEARS.
+	/ IF THE BIG CIRCLE REMAINS WITHIN SCREEN BOUNDARIES, IE, X & Y REMAIN -2048..-2047 
+	/ ALL THE WAY AROUND, A BORING BIG CIRCLE APPEARS WHICH CAN LAST A LONG TIME.
+
+	/ SO WE DETECT A BIG CIRCLE THAT FITS THE SCREEN AND MOVE THE X,Y OUTWARD TO MAKE IT BIGGER
+	/ THIS KEEPS THE FUN PATTERNS APPEARING MOST OF THE TIME
+
+START,
+	CLA2
+START2,
+	TAD	X	/ SEE IF BOTH X,Y ARE NEGATIVE
+	AND	Y
+	SMA CLA
+	JMP	STEPPT
+
+	TAD	X	/ SEE IF X .LT. -0.7*2048=-1433=-02631
+	TAD	_2631
+	SPA CLA
+	JMP	STEPPT	/ - X IS .LT. -1433, KEEP POINT AS IS
+	TAD	Y	/ SEE IF X .LT. -0.7*2048=-1433=-02631
+	TAD	_2631
+	SPA CLA
+	JMP	STEPPT	/ - Y IS .LT. -1433, KEEP POINT AS IS
+
+	TAD	X	/ BOTH ARE IN RANGE -1..-1433
+	JMS	SCALE	/ ... MAKE THEM BOTH A LITTLE MORE NEGATIVE
+	TAD	X	/ IE, X += X/SCALE
+	DCA	X
+	TAD	Y
+	JMS	SCALE
+	TAD	Y
+	DCA	Y	/ AND Y += Y/SCALE
+
+//	ISZ	MUNGES	/ DISPLAY NUMBER OF MUNGES IN 'MQ' LEDS ON PIDP PANEL
+//	TAD	MUNGES
+//	MQL
+
+	/ STEP POINT TO NEW POSITION
+STEPPT,
+	TAD	Y
+	JMS	SCALE
+	CMA
+	TAD	X
+	DCA	X	/ X = X - SCALE(Y)
+	TAD	X
+	JMS	SCALE
+	TAD	Y
+	DCA	Y	/ Y = Y + SCALE(X)
+
+	/ PLOT THE POINT
+	DIXY		/ previous ppint should be ready to plot by now
+	TAD	X	/ send new point X to display
+RTRX,	NOP		/ maybe see the BIG CIRCLE
+	DILX
+	CLA2
+	TAD	Y	/ send new point Y to display
+RTRY,	NOP		/ maybe see the BIG CIRCLE
+	DILY
+
+	/ MAYBE CHANGE SCALE FACTOR
+	ISZ	EXTRA	/ COUNT 4096 CYCLES
+	JMP	START
+
+	ISZ	BIAS
+	NOP2
+	CLA IAC		/ CHANGE SHIFT COUNT IN LOOP 2,3
+	AND	BIAS
+	CMA
+	DCA	SCOUNT	/ SAVE COUNT 2 AS -1, COUNT 3 AS -2
+//	CLA CLL CMA RAL
+//	TAD	SCOUNT	/ DISPLAY COUNT IN 'SC' ON PIDP8 PANEL
+//	DCA	.+2
+//	SCL
+//	.-.
+	TAD	SCOUNT	/ SET COLOR GREEN FOR 2, RED FOR 3
+	CLL IAC RTL
+	AND	FOUR
+	DILE
+	TAD	SCOUNT	/ SET UP SHIFTING BY THAT AMOUNT
+	TAD	_SCPOS1
+	DCA	SCPOS
+	TAD	SCOUNT
+	TAD	_SCNEG1
+	DCA	SCNEG
+
+	OSR		/ SELECT NORMAL/BIGCIRCLE DISPLAY
+	SPA CLA
+	TAD	_0012	/ SR<MSB> SET, USE RTR FOR BIGCIRCLE DISPLAY
+	TAD	_NOPOP	/ SR<MSB> CLEAR, USE NOP FOR NORMAL DISPLAY
+	DCA	RTRX
+	TAD	RTRX
+	DCA	RTRY
+
+	JMP	START2
+
+/ Divide AC (signed) by 2**(2 or 3)
+_SCPOS1, JMP	SCPOS1
+_SCNEG1, JMP	SCNEG1
+
+SCALE,	.-.
+	SMA
+SCPOS,	JMP	SCPOS2
+SCNEG,	JMP	SCNEG2
+
+SCPOS3,
+	CLL RAR		/ shift right positive
+SCPOS2,
+	CLL RAR		/ shift right positive
+SCPOS1,
+	CLL RAR		/ shift right positive
+	JMP I	SCALE
+
+SCNEG3,
+	CLL CML	RAR	/ shift right negative
+SCNEG2,
+	CLL CML RAR	/ shift right negative
+SCNEG1,
+	CLL CML	RAR	/ shift right negative
+	JMP I	SCALE
+

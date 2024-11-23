@@ -298,4 +298,28 @@
 #define XM3_OS8STEP     (3U <<  0)
 #define XM3_OS8STEP0    (1U <<  0)
 
+// pdp8lvc8.v registers
+#define VC1_REMOVE   (077777U << 17)
+#define VC1_INSERT   (077777U <<  0)
+#define VC2_TYPEE         (1U << 31)
+#define VC2_INTENS        (3U << 28)
+#define VC2_EFLAGS    (07777U << 16)
+#define VC3_DEQUEUE       (1U << 31)
+#define VC3_READADDR (077777U <<  0)
+#define VC4_READBUSY      (3U << 30)
+#define VC4_EMPTY         (1U << 29)
+#define VC4_TCOORD        (3U << 20)
+#define VC4_YCOORD    (01777U << 10)
+#define VC4_XCOORD    (01777U <<  0)
+
+#define VC1_REMOVE0       (1U << 17)
+#define VC1_INSERT0       (1U <<  0)
+#define VC2_INTENS0       (1U << 28)
+#define VC2_EFLAGS0       (1U << 16)
+#define VC3_READADDR0     (1U <<  0)
+#define VC4_READBUSY0     (1U << 30)
+#define VC4_TCOORD0       (1U << 20)
+#define VC4_YCOORD0       (1U << 10)
+#define VC4_XCOORD0       (1U <<  0)
+
 #endif
