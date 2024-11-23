@@ -35,7 +35,8 @@ int tclmain (
     char const *progname,
     char const *logname,
     char const *scriptini,
-    char const *scriptfn,
+    int scriptargc,
+    char const *const *scriptargv,
     bool repeat = false);
 
 void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...);

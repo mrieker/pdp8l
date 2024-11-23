@@ -75,7 +75,8 @@ int tclmain (
     char const *progname,           // program name for prompt and error messages
     char const *logname,            // log file name or NULL
     char const *scriptini,          // script init filename or NULL
-    char const *scriptfn,           // script filenane or NULL
+    int scriptargc,                 // script filename or 0
+    char const *const *scriptargv,  // script filename or NULL
     bool repeat)                    // repeated prompts from tty
 {
     Tcl_FindExecutable (argv0);
@@ -159,7 +160,22 @@ int tclmain (
     }
 
     // if given a filename, process that file as a whole
-    if (scriptfn != NULL) {
+    char const *scriptfn = NULL;
+    if (scriptargc > 0) {
+
+        // get tcl filename from first argument
+        scriptfn = scriptargv[0];
+
+        // pass remaining arguments as list 'argv'
+        Tcl_Obj *scriptargobjs[scriptargc-1];
+        for (int i = 0; ++ i < scriptargc;) {
+            scriptargobjs[i-1] = Tcl_NewStringObj (scriptargv[i], -1);
+        }
+        if (Tcl_ObjSetVar2 (interp, Tcl_NewStringObj ("argv", 4), NULL, Tcl_NewListObj (scriptargc - 1, scriptargobjs), TCL_GLOBAL_ONLY) == NULL) {
+            ABORT ();
+        }
+
+        // evaluate the script file as a whole
         rc = Tcl_EvalFile (interp, scriptfn);
         if (rc != TCL_OK) {
             char const *res = Tcl_GetStringResult (interp);

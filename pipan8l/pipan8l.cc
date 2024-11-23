@@ -137,8 +137,8 @@ int main (int argc, char **argv)
 
     bool simit = false;
     bool z8lit = false;
-    char const *fn = NULL;
     char const *logname = NULL;
+    int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-log") == 0) {
             if ((++ i >= argc) || (argv[i][0] == '-')) {
@@ -158,11 +158,12 @@ int main (int argc, char **argv)
             z8lit = true;
             continue;
         }
-        if ((argv[i][0] == '-') || (fn != NULL)) {
-            fprintf (stderr, "usage: %s [-log <logfilename>] [-sim | -z8l] [<tclfilename>]\n", argv[0]);
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "usage: %s [-log <logfilename>] [-sim | -z8l] [<tclfilename> ...]\n", argv[0]);
             return 1;
         }
-        fn = argv[i];
+        tclargs = i;
+        break;
     }
 
     padlib = z8lit ? (PadLib *) new Z8LLib () : simit ? (PadLib *) new SimLib () : (PadLib *) new I2CLib ();
@@ -179,7 +180,7 @@ int main (int argc, char **argv)
     }
 
     // process tcl commands
-    return tclmain (fundefs, argv[0], "pipan8l", logname, getenv ("pipan8lini"), fn);
+    return tclmain (fundefs, argv[0], "pipan8l", logname, getenv ("pipan8lini"), argc - tclargs, argv + tclargs);
 }
 
 

@@ -205,13 +205,14 @@ int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
-    char const *fn = NULL;
+    int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
-        if ((argv[i][0] == '-') || (fn != NULL)) {
-            fprintf (stderr, "usage: %s [<tclfilename>]\n", argv[0]);
+        if (argv[i][0] == '-') {
+            fprintf (stderr, "usage: %s [<tclfilename> ...]\n", argv[0]);
             return 1;
         }
-        fn = argv[i];
+        tclargs = i;
+        break;
     }
 
     // access the zynq io page and find devices thereon
@@ -227,7 +228,7 @@ int main (int argc, char **argv)
     extmemptr = z8p.extmem ();
 
     // execute script(s)
-    return tclmain (fundefs, argv[0], "z8lpin", NULL, getenv ("z8lpinini"), fn);
+    return tclmain (fundefs, argv[0], "z8lpin", NULL, getenv ("z8lpinini"), argc - tclargs, argv + tclargs);
 }
 
 static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])

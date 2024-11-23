@@ -109,7 +109,7 @@ int main (int argc, char **argv)
 
     bool killit = false;
     bool loadit = false;
-    char const *fn = NULL;
+    int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
@@ -136,11 +136,8 @@ int main (int argc, char **argv)
             fprintf (stderr, "unknown option %s\n", argv[i]);
             return 1;
         }
-        if (fn != NULL) {
-            fprintf (stderr, "unknown argument %s\n", argv[i]);
-            return 1;
-        }
-        fn = argv[i];
+        tclargs = i;
+        break;
     }
 
     z8p  = new Z8LPage ();
@@ -169,7 +166,7 @@ int main (int argc, char **argv)
     if (rc != 0) ABORT ();
 
     // run scripting
-    rc = tclmain (fundefs, argv[0], "z8lrk8je", NULL, NULL, fn, true);
+    rc = tclmain (fundefs, argv[0], "z8lrk8je", NULL, NULL, argc - tclargs, argv + tclargs, true);
 
     exiting = true;
     pthread_join (threadid, NULL);
