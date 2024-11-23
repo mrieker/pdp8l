@@ -20,3 +20,4 @@ myboard/ui
 vivado*.jou
 vivado*.log
 vivado*.str
+hs_err*.log

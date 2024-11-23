@@ -130,6 +130,11 @@ module Zynq (
     output xbrenab,
     output xbrwena,
 
+    output[14:00] vidaddra, vidaddrb,
+    output[21:00] viddataa,
+    output videnaba, vidwrena, videnabb,
+    input[21:00] viddatab,
+
     // arm processor memory bus interface (AXI)
     // we are a slave for accessing the control registers (read and write)
     input[11:00]  saxi_ARADDR,
@@ -150,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4058;
+    localparam VERSION = 32'h384C4059;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -404,6 +409,11 @@ module Zynq (
     wire[11:00] tcibus;
     wire tcacclr, tcintrq, tcioskp;
 
+    // video interface wires
+    wire[31:00] vcardata;
+    wire[11:00] vcibus;
+    wire vcacclr, vcintrq, vcioskp;
+
     // bus values that are constants
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
@@ -436,28 +446,30 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
-        (readaddr[11:04] ==  8'b00001010)   ? ttardata   :  // 00001010xx00
-        (readaddr[11:04] ==  8'b00001011)   ? tt40ardata :  // 00001011xx00
-        (readaddr[11:04] ==  8'b00001100)   ? xmardata   :  // 00001100xx00
-        (readaddr[11:04] ==  8'b00001101)   ? cmardata   :  // 00001101xx00
-        (readaddr[11:04] ==  8'b00001110)   ? eaardata   :  // 00001110xx00
-        (readaddr[11:04] ==  8'b00001111)   ? tt42ardata :  // 00001111xx00
-        (readaddr[11:04] ==  8'b00010000)   ? tt44ardata :  // 00010000xx00
-        (readaddr[11:04] ==  8'b00010001)   ? tt46ardata :  // 00010001xx00
-        (readaddr[11:03] ==  9'b000100100)  ? tcardata   :  // 000100100x00
+        (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
+        (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
+        (readaddr[11:04] ==  8'b00001101)   ? tt40ardata :  // 00001101xx00
+        (readaddr[11:04] ==  8'b00001110)   ? xmardata   :  // 00001110xx00
+        (readaddr[11:04] ==  8'b00001111)   ? cmardata   :  // 00001111xx00
+        (readaddr[11:04] ==  8'b00010000)   ? eaardata   :  // 00010000xx00
+        (readaddr[11:04] ==  8'b00010001)   ? tt42ardata :  // 00010001xx00
+        (readaddr[11:04] ==  8'b00010010)   ? tt44ardata :  // 00010010xx00
+        (readaddr[11:04] ==  8'b00010011)   ? tt46ardata :  // 00010011xx00
+        (readaddr[11:03] ==  9'b000101000)  ? tcardata   :  // 000101000x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
     wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;    // 0000100xxx00
-    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001010;   // 00001010xx00
-    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001011;   // 00001011xx00
-    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001100;   // 00001100xx00
-    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001101;   // 00001101xx00
-    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
-    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
-    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
-    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
-    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000100100;  // 000100100x00
+    wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;    // 0000101xxx00
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001100;   // 00001100xx00
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001101;   // 00001101xx00
+    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
+    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
+    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
+    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
+    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
+    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101000;  // 000101000x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -817,6 +829,10 @@ module Zynq (
     assign regctlj[15:00] = { 4'b0, sim_lbMA };
     assign regctlj[31:16] = { 4'b0, sim_lbMB };
 
+    // some arm program is resetting or zynq is powering up
+    // - resets devices
+    wire pwronreset = softreset | ~ RESET_N;
+
     // count memory cycles
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
@@ -1022,29 +1038,26 @@ module Zynq (
     assign dev_iBEMA         =      arm_iBEMA;
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT | ~ bareit & cmbrkcainc;
     assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
-    assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus);
+    assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus);
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
     assign dev_iTHREECYCLE   =      arm_iTHREECYCLE   | ~ bareit & cmbrk3cycl;
-    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR    | ~ bareit & (ttacclr | tt40acclr | rkacclr | eaacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr));
+    assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR    | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | eaacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr));
     assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST    | ~ bareit & cmbrkrqst);
     assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR     | ~ bare12 & cmbrkaddr);
     assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA     | ~ bare12 & cmbrkwdat);
     assign dev_i_EA          = ~ (~ arm_i_EA          | ~ bareit & ~ xm_ea);
     assign dev_i_EMA         =      arm_i_EMA;
     assign dev_i_INT_INHIBIT = ~ (~ arm_i_INT_INHIBIT | ~ bareit & ~ xm_intinh);
-    assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST    | ~ bareit & (ttintrq | tt40intrq | rkintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq));
-    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP     | ~ bareit & (ttioskp | tt40ioskp | rkioskp | tcioskp | eaioskp | tt42ioskp | tt44ioskp | tt46ioskp));
+    assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST    | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq));
+    assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP     | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | eaioskp | tt42ioskp | tt44ioskp | tt46ioskp));
     assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
     assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
 
     ///////////////////////////////////
     //  simulated PDP-8/L processor  //
     ///////////////////////////////////
-
-    wire pwronreset = softreset | ~ RESET_N;    // some arm program is resetting or zynq is powering up
-                                                // - resets devices and they disconnect themselves from pio bus
 
     // when nanocontin is set to 1 by the arm,
     //   this continuously shifts 1s into nanotrigger and nanoctep and everything runs normally
@@ -1489,6 +1502,39 @@ module Zynq (
         .AC_CLEAR (tcacclr),
         .IO_SKIP  (tcioskp),
         .INT_RQST (tcintrq)
+    );
+
+    // video interface
+
+    pdp8lvc8 vcinst (
+        .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
+
+        .armwrite (vcawrite),
+        .armraddr (readaddr[4:2]),
+        .armwaddr (writeaddr[4:2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (vcardata),
+
+        .iopstart (iopstart),
+        .iopstop  (iopstop),
+        .ioopcode (dev_oBMB),
+        .cputodev (dev_oBAC),
+
+        .devtocpu (vcibus),
+        .AC_CLEAR (vcacclr),
+        .IO_SKIP  (vcioskp),
+        .INT_RQST (vcintrq),
+
+        .vidaddra (vidaddra),
+        .vidaddrb (vidaddrb),
+        .viddataa (viddataa),
+        .videnaba (videnaba),
+        .vidwrena (vidwrena),
+        .videnabb (videnabb),
+        .viddatab (viddatab)
     );
 
 endmodule
