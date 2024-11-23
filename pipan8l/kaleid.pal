@@ -22,6 +22,13 @@
 	DILE = 6056
 	DIRE = 6057
 
+	DXL  = 6053
+	DIX  = 6054
+	DYL  = 6063
+	DIY  = 6064
+	DYS  = 6067
+	DSB0 = 6074
+
 	CLA2 = 7600	/ one cycle faster than plain CLA
 	NOP2 = 7400
 
@@ -97,14 +104,24 @@ STEPPT,
 	DCA	Y	/ Y = Y + SCALE(X)
 
 	/ PLOT THE POINT
+.if typee
 	DIXY		/ previous ppint should be ready to plot by now
+.endif
 	TAD	X	/ send new point X to display
 RTRX,	NOP		/ maybe see the BIG CIRCLE
+.if typee
 	DILX
+.else
+	DXL
+.endif
 	CLA2
 	TAD	Y	/ send new point Y to display
 RTRY,	NOP		/ maybe see the BIG CIRCLE
+.if typee
 	DILY
+.else
+	DYS
+.endif
 
 	/ MAYBE CHANGE SCALE FACTOR
 	ISZ	EXTRA	/ COUNT 4096 CYCLES
@@ -121,10 +138,21 @@ RTRY,	NOP		/ maybe see the BIG CIRCLE
 //	DCA	.+2
 //	SCL
 //	.-.
+.if typee
 	TAD	SCOUNT	/ SET COLOR GREEN FOR 2, RED FOR 3
 	CLL IAC RTL
 	AND	FOUR
 	DILE
+	CLA2
+.else
+	CLA IAC
+	AND	SCOUNT
+	CLL CML RAL
+	TAD	_DSB0
+	DCA	.+2
+	.-.
+.endif
+
 	TAD	SCOUNT	/ SET UP SHIFTING BY THAT AMOUNT
 	TAD	_SCPOS1
 	DCA	SCPOS
@@ -145,6 +173,7 @@ RTRY,	NOP		/ maybe see the BIG CIRCLE
 / Divide AC (signed) by 2**(2 or 3)
 _SCPOS1, JMP	SCPOS1
 _SCNEG1, JMP	SCNEG1
+_DSB0,	DSB0
 
 SCALE,	.-.
 	SMA

@@ -200,6 +200,7 @@ static void thread ()
         }
         case VC8TypeI: {
             vcat[2] = 0;
+            break;
         }
         default: ABORT ();
     }

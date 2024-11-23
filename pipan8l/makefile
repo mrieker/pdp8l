@@ -73,3 +73,13 @@ z8lxmemtest.$(MACH): z8lxmemtest.$(MACH).o $(LIBS)
 %.$(MACH).o: %.cc *.h
 	$(GPP) -DUNIPROC=$(UNIPROC) -c -o $@ $<
 
+kaleid-e.bin: kaleid-e.pal kaleid.pal
+	pdp8v/asm/assemble -pal kaleid-e.pal kaleid-e.obj > kaleid-e.lis
+	pdp8v/asm/link -o kaleid-e.oct kaleid-e.obj > kaleid-e.map
+	pdp8v/asm/octtobin < kaleid-e.oct > kaleid-e.bin
+
+kaleid-i.bin: kaleid-i.pal kaleid.pal
+	pdp8v/asm/assemble -pal kaleid-i.pal kaleid-i.obj > kaleid-i.lis
+	pdp8v/asm/link -o kaleid-i.oct kaleid-i.obj > kaleid-i.map
+	pdp8v/asm/octtobin < kaleid-i.oct > kaleid-i.bin
+
