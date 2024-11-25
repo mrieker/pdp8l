@@ -1,0 +1,9 @@
+fp-info-cache
+gerber/
+signals.csv
+*~
+*-backups
+*.bak
+*.class
+*.tgz
+*.zip
