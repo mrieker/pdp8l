@@ -1,5 +1,14 @@
-proc os8dpackloadandboot {{sourcedisk "os8-rkab0.rk05"}} {
+proc os8dpackloadandboot {{sourcedisk ""}} {
     stopandreset
+
+    if {$sourcedisk == ""} {
+        set sourcedisk "os8-rkab0.rk05"
+        if {! [file exists $sourcedisk]} {
+            exec -ignorestderr wget -nv -O $sourcedisk.temp https://tangentsoft.com/pidp8i/uv/ock.rk05
+            exec mv $sourcedisk.temp $sourcedisk
+            exec chmod a-w $sourcedisk
+        }
+    }
 
     set home [getenv HOME /tmp]
     exec cp $sourcedisk $home/rkab0.rk05
@@ -20,8 +29,17 @@ proc os8dpackloadandboot {{sourcedisk "os8-rkab0.rk05"}} {
     startat 023
 }
 
-proc os8dtapeloadandboot {{sourcetape "os8-dta0.tu56"}} {
+proc os8dtapeloadandboot {{sourcetape ""}} {
     stopandreset
+
+    if {$sourcetape == ""} {
+        set sourcetape "os8-dta0.tu56"
+        if {! [file exists $sourcetape]} {
+            exec -ignorestderr wget -nv -O $sourcetape.temp https://www.pdp8online.com/ftp/images/misc_dectapes/AL-4711C-BA.tu56
+            exec mv $sourcetape.temp $sourcetape
+            exec chmod a-w $sourcetape
+        }
+    }
 
     set home [getenv HOME /tmp]
     exec cp $sourcetape $home/dta0.tu56
