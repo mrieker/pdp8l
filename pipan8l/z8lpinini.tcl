@@ -6,8 +6,11 @@ proc helpini {} {
     puts "  octal <val>         - convert value to 4-digit octal string"
     puts "  splitcsvline <line> - split line into list"
     puts ""
-    puts "  loopinpin <conn> <side> - test input-to-cpu pins"
-    puts "                            eg, loopinpin C36 1"
+    puts "  loopintest <conn> <side> - test input-to-cpu pins"
+    puts "                             eg, loopintest C36 1"
+    puts ""
+    puts "  loopoutest <conn> <side> - test output-from-cpu pins"
+    puts "                             eg, loopoutest C36 1"
     puts ""
     puts "  DMA bus"
     puts "    sendmadr          - send DMA ADDR over DMA bus"
@@ -62,49 +65,7 @@ proc splitcsvline {line} {
 
 ## -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
-# alternate connector 'input-to-cpu' pin 1's and 0's
-#  conn = B34 B35 B36 C35 C36 D34 D35 D36
-#  side = 1 or 2
-proc loopinpin {conn side} {
-
-    # turn all tri-states off
-    pin set x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
-
-    # select pins from csv file
-    set csvfile [open "../zturn/signals.csv" "r"]
-    set foundpins [list]
-    while {! [ctrlcflag]} {
-        set csvline [gets $csvfile]
-        if {$csvline == ""} break
-        set columns [splitcsvline $csvline]
-        set signame [lindex $columns 0]
-        set connpin [lindex $columns 1]
-        if {([string index $signame 0] == "i") && ([string length $connpin] == 6) && ([string range $connpin 0 2] == $conn) && ([string index $connpin 5] == $side)} {
-            lappend foundpins "$connpin $signame"
-        }
-    }
-
-    # loop through pins in sorted order
-    set foundpins [lsort $foundpins]
-    foreach cs $foundpins {
-        set on 0
-        set connpin [string range $cs 0 5]
-        set signame [string range $cs 7 end]
-        if {[string range $signame 0 8] == "i_DMAADDR"} {pin set x_DMAADDR 0}
-        if {[string range $signame 0 8] == "i_DMADATA"} {pin set x_DMADATA 0}
-        if {[string range $signame 0 8] == "iINPUTBUS"} {pin set x_INPUTBUS 0}
-        if {[string range $signame 0 3] == "iMEM"}      {pin set x_MEM 0}
-        while {! [ctrlcflag 0]} {
-            set on [expr {1 - $on}]
-            puts "  $connpin = $on  ($signame)"
-            pin set $signame $on
-            after 1000
-        }
-        after 1000
-        pin set x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
-        if {[ctrlcflag]} break
-    }
-}
+## read/write multiplexed bus signals
 
 # read AC as seen on the PIO bus
 # oBAC comes directly from the PIOBUS
@@ -118,7 +79,7 @@ proc readac {} {
 # so reset everything so flipflops clock then turn on the r_BMB 74T254s and read it
 proc readmb {} {
     pin set softreset 1 nanocontin 1 simit 0 softreset 0
-    pin set r_BAC 1 r_BMB 1 x_INPUTBUS 1 bareit 1 r_BMB 0
+    pin set r_BAC 1 r_MA 1 x_INPUTBUS 1 bareit 1 r_BMB 0
     return [pin get oBMB set r_BMB 1]
 }
 
@@ -127,7 +88,7 @@ proc readmb {} {
 # so reset everything and set r_MA=0 so flipflops clock then read it
 proc readma {} {
     pin set softreset 1 nanocontin 1 simit 0 softreset 0
-    pin set x_MEM 1 r_MA 0 bareit 1 r_BMB 0
+    pin set x_MEM 1 r_BMB 1 bareit 1 r_MA 0
     return [pin get oMA set r_MA 1]
 }
 
@@ -158,6 +119,107 @@ proc sendmoff {} {
 # iINPUTBUS gets gated out to PIOBUS as long as we have x_INPUTBUS=0
 proc sendio {io} {
     pin set r_BAC 1 r_BMB 1 x_INPUTBUS 0 bareit 1 iINPUTBUS $io
+}
+
+## -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+## test individual edge-connector pins
+
+# alternate connector 'input-to-cpu' pin 1's and 0's
+# step through pins with control-C
+#  conn = B34 B35 B36 C35 C36 D34 D35 D36
+#  side = 1 or 2
+proc loopintest {conn side} {
+
+    # turn all tri-states off
+    #  bareit=1 : direct control of tri-state enables
+    pin set bareit 1 x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
+
+    # select pins from csv file
+    set csvfile [open "../zturn/signals.csv" "r"]
+    set foundpins [list]
+    while {! [ctrlcflag]} {
+        set csvline [gets $csvfile]
+        if {$csvline == ""} break
+        set columns [splitcsvline $csvline]
+        set signame [lindex $columns 0]
+        set connpin [lindex $columns 1]
+        if {([string index $signame 0] == "i") && ([string length $connpin] == 6) && ([string range $connpin 0 2] == $conn) && ([string index $connpin 5] == $side)} {
+            lappend foundpins "$connpin $signame"
+        }
+    }
+    if {[llength $foundpins] == 0} {
+        puts "no pins found"
+        return
+    }
+
+    # loop through pins in sorted order
+    set foundpins [lsort $foundpins]
+    foreach cs $foundpins {
+        set on 0
+        set connpin [string range $cs 0 5]
+        set signame [string range $cs 7 end]
+        if {[string range $signame 0 8] == "i_DMAADDR"} {pin set x_DMAADDR 0}
+        if {[string range $signame 0 8] == "i_DMADATA"} {pin set x_DMADATA 0}
+        if {[string range $signame 0 8] == "iINPUTBUS"} {pin set x_INPUTBUS 0}
+        if {[string range $signame 0 3] == "iMEM"}      {pin set x_MEM 0}
+        while {! [ctrlcflag 0]} {
+            set on [expr {1 - $on}]
+            puts "  $connpin = $on  ($signame)"
+            pin set $signame $on
+            after 1000
+        }
+        after 1000
+        pin set x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
+        if {[ctrlcflag]} break
+    }
+}
+
+# continuously display 'output-from-cpu' pin
+# step through pins with control-C
+#  conn = B34 B35 B36 C35 C36 D34 D35 D36
+#  side = 1 or 2
+proc loopoutest {conn side} {
+
+    # turn all tri-states off
+    #  bareit=1 : direct control of tri-state enables
+    pin set bareit 1 x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
+
+    # select pins from csv file
+    set csvfile [open "../zturn/signals.csv" "r"]
+    set foundpins [list]
+    while {! [ctrlcflag]} {
+        set csvline [gets $csvfile]
+        if {$csvline == ""} break
+        set columns [splitcsvline $csvline]
+        set signame [lindex $columns 0]
+        set connpin [lindex $columns 1]
+        set ztrnpin [lindex $columns 4]
+        if {($ztrnpin != "") && ([string index $signame 0] == "o") && ([string length $connpin] == 6) && ([string range $connpin 0 2] == $conn) && ([string index $connpin 5] == $side)} {
+            lappend foundpins "$connpin $signame"
+        }
+    }
+    if {[llength $foundpins] == 0} {
+        puts "no pins found"
+        return
+    }
+
+    # loop through pins in sorted order
+    set foundpins [lsort $foundpins]
+    while {! [ctrlcflag]} {
+        puts ""
+        foreach cs $foundpins {
+            set connpin [string range $cs 0 5]
+            set signame [string range $cs 7 end]
+            if {[string range $signame 0 3] == "oBAC"} {pin set r_BAC 0}
+            if {[string range $signame 0 3] == "oBMB"} {pin set r_BMB 0}
+            if {[string range $signame 0 2] == "oMA"}  {pin set r_MA  0}
+            set on [pin get $signame]
+            puts "  $connpin = $on  ($signame)"
+            pin set x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
+        }
+        after 1000
+    }
 }
 
 # message displayed as part of help command

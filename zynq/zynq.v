@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405A;
+    localparam VERSION = 32'h384C405B;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -780,7 +780,8 @@ module Zynq (
     assign regctle[03] = nanotrigger;
     assign regctle[04] = nanocstep;
     assign regctle[05] = brkwhenhltd;
-    assign regctle[31:06] = 0;
+    assign regctle[06] = bareit;
+    assign regctle[31:07] = 0;
 
     assign regctlf[00] = dev_oBIOP1;
     assign regctlf[01] = dev_oBIOP2;
