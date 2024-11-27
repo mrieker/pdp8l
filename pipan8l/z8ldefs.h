@@ -61,6 +61,8 @@
 #define a_i_IO_SKIP     (1U << 12)
 #define a_i_MEMDONE     (1U << 13)
 #define a_i_STROBE      (1U << 14)
+#define a_iB36V1        (1U << 15)
+#define a_iD36B2        (1U << 16)
 
 #define b_swCONT        (1U <<  0)
 #define b_swDEP         (1U <<  1)
@@ -94,7 +96,7 @@
 #define f_oBTP3         (1U <<  4)
 #define f_oBTS_1        (1U <<  5)
 #define f_oBTS_3        (1U <<  6)
-//                      (1U <<  7)
+#define f_oC36B2        (1U <<  7)
 #define f_oBWC_OVERFLOW (1U <<  8)
 #define f_oB_BREAK      (1U <<  9)
 #define f_oE_SET_F_SET  (1U << 10)
@@ -112,6 +114,7 @@
 #define f_o_KEY_LOAD    (1U << 22)
 #define f_o_LOAD_SF     (1U << 23)
 #define f_o_SP_CYC_NEXT (1U << 24)
+#define f_oD35B2        (1U << 25)
 
 #define g_lbBRK         (1U <<  0)
 #define g_lbCA          (1U <<  1)

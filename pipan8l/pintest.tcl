@@ -4,32 +4,6 @@
 
 # toggles each on/off/on/off in sequence by J pin number
 
-# split csv line into a list of columns
-proc splitcsvline {line} {
-    set len [string length $line]
-    set columns [list]
-    set column ""
-    set quoted false
-    for {set i 0} {$i < $len} {incr i} {
-        set ch [string index $line $i]
-        if {($ch == ",") && ! $quoted} {
-            lappend columns $column
-            set column ""
-            continue
-        }
-        if {$ch == "\""} {
-            set quoted [expr {! $quoted}]
-            continue
-        }
-        if {$ch == "\\"} {
-            set ch [string index $line [incr i]]
-        }
-        append column $ch
-    }
-    lappend columns $column
-    return $columns
-}
-
 # test 'input-to-processor' pins
 proc intest {} {
 
