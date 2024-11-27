@@ -12,6 +12,8 @@ proc helpini {} {
     puts "  loopoutest <conn> <side> - test output-from-cpu pins"
     puts "                             eg, loopoutest C36 1"
     puts ""
+    puts "  loopdumpac          - continually dump AC as seen on PIOBUS"
+    puts ""
     puts "  DMA bus"
     puts "    sendmadr          - send DMA ADDR over DMA bus"
     puts "    sendmdat          - send DMA DATA over DMA bus"
@@ -25,6 +27,16 @@ proc helpini {} {
     puts "    readmb            - read MB from PIO bus"
     puts "    sendio            - send IO data over PIO bus"
     puts ""
+}
+
+# loop continually dumping the AC as it appears on the PIOBUS
+proc loopdumpac {} {
+    pin set bareit 1 x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_MA 1 r_BMB 1 r_BAC 0
+    while {! [ctrlcflag]} {
+        after 200
+        puts "  PIOBUS/BAC=[octal [pin get bPIOBUS]]  BAC=[octal [pin get oBAC]]"
+    }
+    pin set bareit 1 x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_MA 1 r_BMB 1 r_BAC 1
 }
 
 # get environment variable, return default value if not defined
@@ -215,6 +227,7 @@ proc loopoutest {conn side} {
             if {[string range $signame 0 3] == "oBMB"} {pin set r_BMB 0}
             if {[string range $signame 0 2] == "oMA"}  {pin set r_MA  0}
             set on [pin get $signame]
+            puts "  bareit=[pin get bareit] r_BAC=[pin get r_BAC] r_BMB=[pin get r_BMB] x_INPUTBUS=[pin get x_INPUTBUS]"
             puts "  $connpin = $on  ($signame)"
             pin set x_DMAADDR 1 x_DMADATA 1 x_INPUTBUS 1 x_MEM 1 r_BAC 1 r_BMB 1 r_MA 1
         }

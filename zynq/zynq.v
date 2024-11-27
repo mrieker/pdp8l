@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405B;
+    localparam VERSION = 32'h384C405C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -980,8 +980,9 @@ module Zynq (
     //   during second half of io pulse and for 40nS after, PIOBUS is gating INPUTBUS out to PDP-8/L
 
     // receive AC contents from PIOBUS, but it is valid only during first half of io pulse (ie, when r_BAC is asserted), garbage otherwise
-    assign oBAC = { bPIOBUSF, bPIOBUSN, bPIOBUSL,  bPIOBUSM, bPIOBUSE, bPIOBUSD,
-                    bPIOBUSK, bPIOBUSC, bPIOBUSJ,  bPIOBUSB, bPIOBUSH, bPIOBUSA };
+    assign oBAC = {
+        bPIOBUSA, bPIOBUSH, bPIOBUSB, bPIOBUSJ, bPIOBUSC, bPIOBUSK,
+        bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
 
     // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
     assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
@@ -1011,8 +1012,8 @@ module Zynq (
                 dev_r_BAC <= 1;
                 dev_r_BMB <= 0;
                 dev_x_INPUTBUS <= 1;
-                oBMB  <= { bPIOBUSF, bPIOBUSN, bPIOBUSM ,  bPIOBUSE, bPIOBUSC, bPIOBUSJ,
-                           bPIOBUSD, bPIOBUSL, bPIOBUSK ,  bPIOBUSB, bPIOBUSA, bPIOBUSH };
+                oBMB  <= { bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
+                           bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
             end else if (iopsetcount ==  1 & iopclrcount == 0) begin
                 // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
                 // ...and leave oBMB contents as they were (contains io opcode)
