@@ -82,10 +82,10 @@ module Zynq (
     output i_IO_SKIP,
     output i_MEMDONE,
     output i_STROBE,
-    output iB36V1,
+    output reg iB36V1,
     output iBEMA,
     output iCA_INCREMENT,
-    output iD36B2,
+    output reg iD36B2,
     output iDATA_IN,
     output iMEM_07,
     output iMEMINCR,
@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4059;
+    localparam VERSION = 32'h384C405A;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -537,6 +537,8 @@ module Zynq (
                         arm_i_IO_SKIP     <= saxi_WDATA[12];
                         arm_i_MEMDONE     <= saxi_WDATA[13];
                         arm_i_STROBE      <= saxi_WDATA[14];
+                        iB36V1            <= saxi_WDATA[15];
+                        iD36B2            <= saxi_WDATA[16];
                     end
 
                     10'b0000000010: begin
@@ -750,7 +752,9 @@ module Zynq (
     assign regctla[12] = dev_i_IO_SKIP;
     assign regctla[13] = dev_i_MEMDONE;
     assign regctla[14] = dev_i_STROBE;
-    assign regctla[25:15] = 0;
+    assign regctla[15] = iB36V1;
+    assign regctla[16] = iD36B2;
+    assign regctla[25:17] = 0;
 
     assign regctlb[00] = arm_swCONT;
     assign regctlb[01] = arm_swDEP;
@@ -785,7 +789,7 @@ module Zynq (
     assign regctlf[04] = dev_oBTP3;
     assign regctlf[05] = dev_oBTS_1;
     assign regctlf[06] = dev_oBTS_3;
-    assign regctlf[07] = 0;
+    assign regctlf[07] = oC36B2;
     assign regctlf[08] = dev_oBWC_OVERFLOW;
     assign regctlf[09] = dev_oB_BREAK;
     assign regctlf[10] = dev_oE_SET_F_SET;
@@ -803,7 +807,8 @@ module Zynq (
     assign regctlf[22] = dev_o_KEY_LOAD;
     assign regctlf[23] = dev_o_LOAD_SF;
     assign regctlf[24] = dev_o_SP_CYC_NEXT;
-    assign regctlf[31:25] = 0;
+    assign regctlf[25] = oD35B2;
+    assign regctlf[31:26] = 0;
 
     assign regctlg[00] = sim_lbBRK;
     assign regctlg[01] = sim_lbCA;
