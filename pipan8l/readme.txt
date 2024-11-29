@@ -1,4 +1,7 @@
 
+The pipan8l program runs on a RasPI-Zero-W plugged into the pcb that
+is then plugged into slot 1 of the PDP-8/L replacing its front panel.
+
 RasPI-Zero-W uses /dev/i2c-1 to access the I2C bus going to the PCB.
 Any RasPI that runs recent RasPI OS and has a 40-pin GPIO connector
 should work, but I use a RasPI Zero because it is small, allowing me
@@ -9,8 +12,9 @@ Here is a pic of everything running:
     https://www.outerworldapps.com/pdp8l-with-pipan8l.jpg
 
 The PIPAN8L board is in the lower right corner plugged into the 8/L downside-up.
-The PC screen on the left shows the pipan8l program on the lower terminal window,
-with the ttpan8l program running on the upper terminal window.
+The PC screen on the left shows the pipan8l program on the lower terminal window
+testing memory, with pipan8l -status running on the upper terminal window
+continuously showing the status of the lights and switches
 
 - - - - - - - - - - - - -
 
@@ -26,6 +30,9 @@ BE SURE TO USE 1.4mm THICK PCB STOCK.  1.6mm WON'T FIT.  The Digital spec says
 board thickness of their modules is 0.056", which is a hair thicker than 1.4mm.
 Even at 1.4mm, it takes a little gentle tapping to get it plugged in, so maybe
 1.2mm might be better.  But even Digital's modules can be tough to insert.
+
+I've used 1.2mm on the zturn36 board and it seems to work and is still firm but fairly
+easy to insert.
 
 - - - - - - - - - - - - -
 
@@ -137,8 +144,8 @@ pipan8l>
 - - - - - - - - - - - - -
 
 It is somewhat tedious to keep entering dumpit commands to see what the panel is doing.
-So there is a program called ttpan8l that will continuously dump the panel contents in
-similar format to the actual PDP-8/L panel:
+So pipan8l can be passed the -status option, and it will continuously dump the panel
+contents in similar format to the actual PDP-8/L panel:
 
 
   PDP-8/L       -   - - -   - * -   - * *   - * -  0.0232  MA   IR [ - * *  DCA ]           1804 fps
@@ -156,13 +163,13 @@ Also, the ON lights are highlighted in green.
 
 Leave pipan8l running in one terminal window of the RasPI.
 
-Then, you can either run ttpan8l from another terminal window of the RasPI:
+Then, you can either run pipan8l -status from another terminal window of the RasPI:
 
-    ./ttpan8l
+    ./pipan8l -status
 
 Or you can run it from a terminal window of a PC:
 
-    ./ttpan8l <ip-address-of-raspi>
+    ./pipan8l -status <ip-address-of-raspi>
 
 It does UDP to the pipan8l program to read the panel state as fast as it can.
 
