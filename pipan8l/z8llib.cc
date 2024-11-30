@@ -18,8 +18,8 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Runs PIPan8L on a Zynq board programmed with 8/L emulation code
-// We get signals that look a lot like the B,C,D 34,35,36 connectors and the front panel
+// Runs PIPan8L on a Zynq board programmed with 8/L simulation code (pdp8lsim.v)
+// We get signals that look a lot like the front panel signals of a real PDP-8/L
 // Start PIPan8L via z8lsim script, eg,
 //  $ z8lsim testmem.tcl
 //  pipan8l> looptest testrands
@@ -157,7 +157,7 @@ void Z8LLib::openpads ()
         pdpat[i] = forceons[i];
     }
 
-    // enable extended memory io instruction processing
+    // enable extended memory io instruction processing (to set data field, instruciton field, etc)
     // leave XM_ENLO4K and XM_OS8ZAP bits as they were
     uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
     fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);

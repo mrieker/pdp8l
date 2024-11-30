@@ -48,7 +48,7 @@ static Tcl_ObjCmdProc cmd_atexit;
 static Tcl_ObjCmdProc cmd_ctrlcflag;
 static Tcl_ObjCmdProc cmd_help;
 
-static bool volatile ctrlcflag;
+bool volatile ctrlcflag;
 static bool logflushed;
 static char *inihelp;
 static TclFunDef const *fundefs;

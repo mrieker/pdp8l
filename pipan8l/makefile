@@ -65,7 +65,7 @@ z8ltrace.$(MACH): z8ltrace.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
 z8ltty.$(MACH): z8ltty.$(MACH).o $(LIBS)
-	$(GPP) -o $@ $^ -lpthread
+	$(GPP) -o $@ $^ $(LNKFLG)
 
 z8lvc8.$(MACH): z8lvc8.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lX11

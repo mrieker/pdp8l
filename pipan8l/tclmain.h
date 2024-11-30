@@ -29,6 +29,8 @@ struct TclFunDef {
     char const *help;
 };
 
+extern bool volatile ctrlcflag;
+
 int tclmain (
     TclFunDef const *tclfundefs,
     char *argv0,
