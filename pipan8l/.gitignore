@@ -11,6 +11,7 @@
 *.o
 *.obj
 *.oct
+*.rim
 *.rk05
 *.so
 *.tgz

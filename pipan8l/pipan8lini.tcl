@@ -22,6 +22,7 @@ proc helpini {} {
     puts "  postinc <var>           - increment var but return its previous value"
     puts "  rdmem <addr>            - read memory at the given address"
     puts "  readloop <addr> ...     - continuously read the addresses until CTRLC"
+    puts "  rimloader <lo|hi>       - deposit rim loader in memory"
     puts "  sendchartottykb         - send char to tty kb, don't check for echo"
     puts "  sendtottykb             - send string to tty keyboard and check echo"
     puts "  startat <addr>          - load pc and start at given address"
@@ -622,6 +623,58 @@ proc readttychartimed {msec} {
         set ii [expr {$ii & 0177}]
         if {$ii != 0} {return [inttochar $ii]}
     }
+}
+
+# deposit rim loader in memory
+# returns start address
+#  speed = "lo" or "hi"
+proc rimloader {speed} {
+    stopandreset
+    switch $speed {
+        "lo" {
+            wrmem 07756 06032
+            wrmem 07757 06031
+            wrmem 07760 05357
+            wrmem 07761 06036
+            wrmem 07762 07106
+            wrmem 07763 07006
+            wrmem 07764 07510
+            wrmem 07765 05357
+            wrmem 07766 07006
+            wrmem 07767 06031
+            wrmem 07770 05367
+            wrmem 07771 06034
+            wrmem 07772 07420
+            wrmem 07773 03776
+            wrmem 07774 03376
+            wrmem 07775 05356
+            wrmem 07776 00000
+        }
+        "hi" {
+            wrmem 07756 06014
+            wrmem 07757 06011
+            wrmem 07760 05357
+            wrmem 07761 06016
+            wrmem 07762 07106
+            wrmem 07763 07006
+            wrmem 07764 07510
+            wrmem 07765 05374
+            wrmem 07766 07006
+            wrmem 07767 06011
+            wrmem 07770 05367
+            wrmem 07771 06016
+            wrmem 07772 07420
+            wrmem 07773 03776
+            wrmem 07774 03376
+            wrmem 07775 05357
+            wrmem 07776 00000
+        }
+        default {
+            return "bad speed $speed"
+        }
+    }
+    disas 07756 07775
+    return 07756
 }
 
 # read memory location
