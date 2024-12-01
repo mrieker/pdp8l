@@ -292,8 +292,9 @@ proc inttochar {ii} {
 #       -1: successful, no start address
 #     else: successful, start address
 proc loadbin {fname} {
-
     set fp [open $fname rb]
+
+    stopandreset
 
     set rubbingout 0
     set inleadin 1
@@ -337,10 +338,7 @@ proc loadbin {fname} {
         # 03x0 sets field to 'x'
         # not counted in checksum
         if {($ch & 0300) == 0300} {
-            set field [expr ($ch & 0070) >> 3]
-            setsw ifld $field
-            setsw dfld $field
-            set nextaddr -1
+            set field [expr {($ch & 0070) >> 3}]
             continue
         }
 
@@ -363,16 +361,17 @@ proc loadbin {fname} {
 
         # state 4 means we have a data word assembled ready to go to memory
         # it also invalidates the last address as being a start address
-        # and it means the next word is the first of a data pair
+        # and it means the next byte is the first of a data pair
         if {$state == 4} {
-            set xaddr [expr {($field << 12) | $addr}]
-            dict set verify $xaddr $data
-            puts -nonewline [format "  %05o / %04o\r" $xaddr $data]
+            dict set verify $addr $data
+            puts -nonewline [format "  %05o / %04o\r" $addr $data]
             flush stdout
 
             # do 'load address' if not sequential
             if {$nextaddr != $addr} {
-                setsw sr $addr
+                setsw dfld [expr {$addr >> 12}]
+                setsw ifld [expr {$addr >> 12}]
+                setsw sr [expr {$addr & 07777}]
                 flicksw ldad
             }
 
@@ -381,17 +380,16 @@ proc loadbin {fname} {
             flicksw dep
 
             # verify resultant lights
-            set actea $field ;##;;TODO; [getreg ea]
             set actma [getreg ma]
             set actmb [getreg mb]
-            if {($actea != $field) || ($actma != $addr) || ($actmb != $data)} {
+            if {($actma != ($addr & 007777)) || ($actmb != $data)} {
                 close $fp
                 puts ""
-                return [format "%o%04o %04o showed %o%04o %04o" $field $addr $data $actea $actma $actmb]
+                return [format "%04o %04o showed %04o %04o" $addr $data $actma $actmb]
             }
 
             # set up for next byte
-            set addr [expr {($addr + 1) & 07777}]
+            set addr [expr {($addr & 070000) | (($addr + 1) & 007777)}]
             set start -1
             set state 2
             set nextaddr $addr
@@ -413,7 +411,7 @@ proc loadbin {fname} {
 
             0 {
                 # top 6 bits of address are followed by bottom 6 bits
-                set addr [expr {$ch << 6}]
+                set addr [expr {($field << 12) | ($ch << 6)}]
                 set state 1
             }
 
@@ -421,7 +419,7 @@ proc loadbin {fname} {
                 # bottom 6 bits of address are followed by top 6 bits data
                 # it is also the start address if it is last address on tape and is not followed by any data other than checksum
                 incr addr $ch
-                set start [expr {($field << 12) | $addr}]
+                set start $addr
                 set state 2
             }
 
@@ -463,8 +461,9 @@ proc loadbin {fname} {
 #   string: error message
 #       "": successful
 proc loadrim {fname} {
-
     set fp [open $fname rb]
+
+    stopandreset
 
     set addr 0
     set data 0
