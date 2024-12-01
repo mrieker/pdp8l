@@ -41,6 +41,13 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
+struct TTYStopOn {
+    TTYStopOn *next;
+    Tcl_Obj *strobj;
+    int hits;
+    char buff[1];
+};
+
 static Tcl_ObjCmdProc cmd_punch;
 static Tcl_ObjCmdProc cmd_reader;
 static Tcl_ObjCmdProc cmd_run;
@@ -64,15 +71,10 @@ static uint32_t volatile *ttyat;
 static uint8_t punchmask;
 static uint8_t readermask;
 
-static bool findtt (void *param, uint32_t volatile *ttyat)
-{
-    uint32_t port = *(uint32_t *) param;
-    if (ttyat == NULL) {
-        fprintf (stderr, "findtt: cannot find TT port %02o\n", port);
-        ABORT ();
-    }
-    return (ttyat[Z_TTYPN] & 077) == port;
-}
+static bool findtt (void *param, uint32_t volatile *ttyat);
+static bool stoponcheck (TTYStopOn *const stopon, char prchar);
+
+
 
 int main (int argc, char **argv)
 {
@@ -132,6 +134,61 @@ int main (int argc, char **argv)
     }
     return rc;
 }
+
+
+
+static bool findtt (void *param, uint32_t volatile *ttyat)
+{
+    uint32_t port = *(uint32_t *) param;
+    if (ttyat == NULL) {
+        fprintf (stderr, "findtt: cannot find TT port %02o\n", port);
+        ABORT ();
+    }
+    return (ttyat[Z_TTYPN] & 077) == port;
+}
+
+// have outgoing char, step stopon state and see if complete match has occurred
+static bool stoponcheck (TTYStopOn *const stopon, char prchar)
+{
+    // null doesn't match anything so reset
+    if (prchar == 0) {
+        stopon->hits = 0;
+        return false;
+    }
+
+    // if char matches next coming up, increment number of matching chars
+    // if reached the end, this one is completely matched
+    // if previously completely matched, prchar will mismatch on the null
+    int i = stopon->hits;
+    if (stopon->buff[i] != prchar) {
+
+        // mismatch, but maybe an earlier part is still matched
+        // eg, looking for "abcabcabd" but got "abcabcabc", we reset to 6
+        //     looking for "abcd" but got "abca", we reset to 1
+        // also has to work for case where "aaa" was completely matched last time,
+        //   if prchar is 'a', we say complete match this time, else reset to 0
+        do {
+            char *p = (char *) memrchr (stopon->buff, prchar, i);
+            if (p == NULL) {
+                i = -1;
+                break;
+            }
+            i = p - stopon->buff;
+
+            // prchar = 'c'
+            // hits = 8 in "abcabcabd"
+            //                      ^hits
+            //    i = 5 in "abcabcabd"
+            //                   ^i
+        } while (memcmp (stopon->buff, stopon->buff + stopon->hits - i, i) != 0);
+    }
+
+    // i = index where prchar matches (or -1 if not at all)
+    stopon->hits = ++ i;
+    return stopon->buff[i] == 0;
+}
+
+
 
 // load file to into punch
 static int cmd_punch (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
@@ -286,6 +343,15 @@ static int cmd_reader (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
 // keep going until we get control-backslash
 static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
+    bool stdintty, stdoutty;
+    uint64_t nowus;
+    uint64_t readnextkbat;
+    uint64_t readnextprat;
+
+    int retcode = TCL_ERROR;
+    TTYStopOn *stopons = NULL;
+    TTYStopOn **laststopon = &stopons;
+
     for (int i = 0; ++ i < objc;) {
         char const *arg = Tcl_GetString (objv[i]);
         if ((objc == 2) && (strcasecmp (arg, "help") == 0)) {
@@ -294,24 +360,27 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             puts ("    -cps = characters per second");
             puts ("    -kb = enable keyboard processing");
             puts ("    -nokb = disable keyboard processing");
+            puts ("    -stopon <string> = stop when string printed");
             puts ("");
             return TCL_OK;
         }
+
         if (strcasecmp (arg, "-cps") == 0) {
             if ((++ i >= objc) || (Tcl_GetString (objv[i])[0] == '-')) {
-                Tcl_SetResultF (interp, "missing speed after -cps\n");
-                return TCL_ERROR;
+                Tcl_SetResultF (interp, "missing speed after -cps");
+                goto reterr;
             }
             int icps;
             int rc = Tcl_GetIntFromObj (interp, objv[i], &icps);
             if (rc != TCL_OK) return rc;
             if ((icps < 1) || (icps > 1000)) {
                 Tcl_SetResultF (interp, "cps %d must be in range 1..1000", icps);
-                return TCL_ERROR;
+                goto reterr;
             }
             cps = icps;
             continue;
         }
+
         if (strcasecmp (arg, "-kb") == 0) {
             nokb = false;
             continue;
@@ -320,12 +389,31 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             nokb = true;
             continue;
         }
+
+        if (strcasecmp (arg, "-stopon") == 0) {
+            if (++ i >= objc) {
+                Tcl_SetResultF (interp, "missing string after -stopon");
+                goto reterr;
+            }
+            char const *str = Tcl_GetString (objv[i]);
+            int len = strlen (str);
+            TTYStopOn *stopon = (TTYStopOn *) malloc (len + sizeof *stopon);
+            if (stopon == NULL) ABORT ();
+            *laststopon = stopon;
+            laststopon = &stopon->next;
+            stopon->next = NULL;
+            stopon->strobj = objv[i];
+            stopon->hits = 0;
+            memcpy (stopon->buff, str, len + 1);
+            continue;
+        }
+
         Tcl_SetResultF (interp, "unknown argument %s", arg);
-        return TCL_ERROR;
+        goto reterr;
     }
 
     struct termios term_modified, term_original;
-    bool stdintty = isatty (STDIN_FILENO) > 0;
+    stdintty = isatty (STDIN_FILENO) > 0;
     if (stdintty && ! nokb) {
         if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();
         term_modified = term_original;
@@ -334,28 +422,25 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
         fprintf (stderr, "z8ltty: use control-\\ for stop char\r\n");
     }
 
-    bool stdoutty = isatty (STDOUT_FILENO) > 0;
-    uint64_t readnextkbat   = (nokb && (readerfile < 0)) ? 0xFFFFFFFFFFFFFFFFULL : 0;
-    uint64_t setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
+    struct timeval nowtv;
+    if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
+    nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
+
+    stdoutty = isatty (STDOUT_FILENO) > 0;
+    readnextprat = nowus + 1111111 / cps;
+    readnextkbat = (nokb && (readerfile < 0)) ? 0xFFFFFFFFFFFFFFFFULL : readnextprat;
 
     // keep processing until control-backslash
     // control-C is recognized only if -nokb mode
     while (! ctrlcflag) {
-        struct timeval nowtv;
         if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
-        uint64_t nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
+        nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
         usleep (1000 - nowus % 1000);
         if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
         nowus = nowtv.tv_sec * 1000000ULL + nowtv.tv_usec;
 
-        // maybe set printing complete flag
-        if (nowus >= setprintdoneat) {
-            ttyat[Z_TTYPR] = PR_FLAG;
-            setprintdoneat = 0xFFFFFFFFFFFFFFFFULL;
-        }
-
         // maybe see if PDP has a character to print
-        if (setprintdoneat == 0xFFFFFFFFFFFFFFFFULL) {
+        if (nowus >= readnextprat) {
             uint32_t prreg = ttyat[Z_TTYPR];
             if (prreg & PR_FULL) {
 
@@ -383,8 +468,20 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                     }
                 }
 
-                // set done flag after 1000000/cps usec
-                setprintdoneat = nowus + 1000000 / cps;
+                // clear printing full flag, set printing complete flag
+                ttyat[Z_TTYPR] = PR_FLAG;
+
+                // check for another char to print after 1000000/cps usec
+                readnextprat = nowus + 1000000 / cps;
+
+                // check stopons, stop if match
+                for (TTYStopOn *stopon = stopons; stopon != NULL; stopon = stopon->next) {
+                    if (stoponcheck (stopon, prchar)) {
+                        Tcl_IncrRefCount (stopon->strobj);
+                        Tcl_SetObjResult (interp, stopon->strobj);
+                        goto stopped;
+                    }
+                }
             }
         }
 
@@ -393,9 +490,9 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             // chars from stdin take precedence over reader file
             // ...so user can do ctrl-\ to get back even if there is a reader file loaded
             struct pollfd polls[1] = { STDIN_FILENO, POLLIN, 0 };
-            int rc = poll (polls, 1, 0);
+            int rc = nokb ? 0 : poll (polls, 1, 0);
             if ((rc < 0) && (errno != EINTR)) ABORT ();
-            if ((rc >= 0) && (polls[0].revents & POLLIN)) {
+            if ((rc > 0) && (polls[0].revents & POLLIN)) {
 
                 // stdin char ready, read and pass along to pdp
                 // but exit if it is a ctrl-backslash
@@ -431,8 +528,14 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
         }
     }
 
+stopped:;
     if (stdintty && ! nokb && (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0)) ABORT ();
     fprintf (stderr, "\n");
-
-    return TCL_OK;
+    retcode = TCL_OK;
+reterr:;
+    for (TTYStopOn *stopon; (stopon = stopons) != NULL;) {
+        stopons = stopon->next;
+        free (stopon);
+    }
+    return retcode;
 }
