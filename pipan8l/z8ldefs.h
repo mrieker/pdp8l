@@ -264,6 +264,8 @@
 #define CM2_CAINC (1U << 30)
 #define CM2_3CYCL (1U << 31)
 
+#define CM3 (0xFFFFFFFFU)
+
 // pdp8ltty.v registers
 #define Z_TTYVER 0
 #define Z_TTYKB 1

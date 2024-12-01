@@ -253,6 +253,7 @@ static PinDef const pindefs[] = {
     { "CM_ENAB",         DEV_CM, 1, CM_ENAB,               true  },
     { "CM2_CAINC",       DEV_CM, 2, CM2_CAINC,             true  },
     { "CM2_3CYCL",       DEV_CM, 2, CM2_3CYCL,             true  },
+    { "CM3",             DEV_CM, 3, CM3,                   true  },
     { "KB_FLAG",         DEV_TT, Z_TTYKB, KB_FLAG,         false },
     { "KB_ENAB",         DEV_TT, Z_TTYKB, KB_ENAB,         true  },
     { "PR_FLAG",         DEV_TT, Z_TTYPR, PR_FLAG,         false },
@@ -380,8 +381,11 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             continue;
         gotit:;
             mask = pte->mask;
-            width = 0;
-            while (1U << ++ width <= mask / (mask & - mask)) { }
+            width = 32;
+            if (mask != 0xFFFFFFFFU) {
+                width = 0;
+                while (1U << ++ width <= mask / (mask & - mask)) { }
+            }
             ptr = devs[pte->dev] + pte->reg;
             writeable = pte->writ;
         }
@@ -402,7 +406,7 @@ static int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
             int val;
             int rc  = Tcl_GetIntFromObj (interp, objv[i], &val);
             if (rc != TCL_OK) return rc;
-            if ((val < 0) || (val >= 1 << width)) {
+            if ((val < 0) || ((uint32_t) val >= 1ULL << width)) {
                 Tcl_SetResultF (interp, "value 0%o too big for %s", val, name);
                 return TCL_ERROR;
             }

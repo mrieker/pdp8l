@@ -2,9 +2,9 @@
 # help for commands defined herein
 proc helpini {} {
     puts ""
-    puts "  getenv              - get environment variable"
-    puts "  octal <val>         - convert value to 4-digit octal string"
-    puts "  splitcsvline <line> - split line into list"
+    puts "  getenv                - get environment variable"
+    puts "  octal <val>           - convert value to 4-digit octal string"
+    puts "  splitcsvline <line>   - split line into list"
     puts ""
     puts "  loopintest <conn> <side> - test input-to-cpu pins"
     puts "                             eg, loopintest C36 1"
@@ -12,20 +12,23 @@ proc helpini {} {
     puts "  loopoutest <conn> <side> - test output-from-cpu pins"
     puts "                             eg, loopoutest C36 1"
     puts ""
-    puts "  loopdumpac          - continually dump AC as seen on PIOBUS"
+    puts "  loopdumpac            - continually dump AC as seen on PIOBUS"
+    puts ""
+    puts "  cmemrd <xaddr>        - read memory via DMA cycle"
+    puts "  cmemwr <xaddr> <data> - write memory via DMA cycle"
     puts ""
     puts "  DMA bus"
-    puts "    sendmadr          - send DMA ADDR over DMA bus"
-    puts "    sendmdat          - send DMA DATA over DMA bus"
+    puts "    sendmadr            - send DMA ADDR over DMA bus"
+    puts "    sendmdat            - send DMA DATA over DMA bus"
     puts ""
     puts "  MEM bus"
-    puts "    readma            - read MA from MEM bus"
-    puts "    sendmd            - send MD over MEM bus"
+    puts "    readma              - read MA from MEM bus"
+    puts "    sendmd              - send MD over MEM bus"
     puts ""
     puts "  PIO bus"
-    puts "    readac            - read AC from PIO bus"
-    puts "    readmb            - read MB from PIO bus"
-    puts "    sendio            - send IO data over PIO bus"
+    puts "    readac              - read AC from PIO bus"
+    puts "    readmb              - read MB from PIO bus"
+    puts "    sendio              - send IO data over PIO bus"
     puts ""
 }
 
@@ -73,6 +76,67 @@ proc splitcsvline {line} {
     }
     lappend columns $column
     return $columns
+}
+
+## -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+# read memory via DMA cycle
+proc cmemrd {xaddr} {
+
+    # get access to CMEM interface and wait for it to be idle
+    set mypid [pid]
+    for {set i 0} true {incr i} {
+        pin set CM3 $mypid
+        if {([pin get CM3] == $mypid) && ! [pin get CM_BUSY]} break
+        if {$i > 50000} {
+            error "timed out locking cmem"
+        }
+    }
+
+    # send address to read memory via DMA cycle
+    pin set CM_ADDR $xaddr set CM_WRITE 0 CM_ENAB 1
+
+    # wait for cycle to complete
+    for {set i 0} true {incr i} {
+        if {[pin get CM_DONE]} break
+        if {$i > 50000} {
+            pin set CM_ENAB 0 CM3 $mypid
+            error "timed out reading cmem"
+        }
+    }
+
+    # retrieve data and release interface
+    set data [pin get CM_DATA]
+    pin set CM_ENAB 0 CM3 $mypid
+    return $data
+}
+
+# write memory via DMA cycle
+proc cmemwr {xaddr data} {
+
+    # get access to CMEM interface and wait for it to be idle
+    set mypid [pid]
+    for {set i 0} true {incr i} {
+        pin set CM3 $mypid
+        if {([pin get CM3] == $mypid) && ! [pin get CM_BUSY]} break
+        if {$i > 50000} {
+            error "timed out locking cmem"
+        }
+    }
+
+    # send address and data to write memory via DMA cycle
+    pin set CM_ADDR $xaddr set CM_DATA $data CM_WRITE 1 CM_ENAB 1
+    for {set i 0} true {incr i} {
+        if {[pin get CM_DONE]} break
+        if {$i > 50000} {
+            pin set CM_WRITE 0 CM_ENAB 0 CM3 $mypid
+            error "timed out reading cmem"
+        }
+    }
+
+    # release interface
+    pin set CM_WRITE 0 CM_ENAB 0 CM3 $mypid
+    return $data
 }
 
 ## -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
