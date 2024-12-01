@@ -62,9 +62,14 @@ static TclFunDef const fundefs[] = {
 static uint8_t const nullbuf[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static bool nokb;
+static bool punchquiet;
+static bool punchstat;
+static bool readerquiet;
+static bool readerstat;
 static int punchfile = -1;
 static int readerfile = -1;
 static uint32_t cps = 10;
+static uint32_t punchbytes;
 static uint32_t readerbytes;
 static uint32_t readersize;
 static uint32_t volatile *ttyat;
@@ -190,7 +195,7 @@ static bool stoponcheck (TTYStopOn *const stopon, char prchar)
 
 
 
-// load file to into punch
+// load file into punch
 static int cmd_punch (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     if (objc > 1) {
@@ -198,7 +203,9 @@ static int cmd_punch (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
         if (strcasecmp (subcmd, "help") == 0) {
             puts ("");
             puts ("  punch load [<option>...] <filename> - load file");
-            puts ("      -7bit = mask top bit to zero when writing file");
+            puts ("    -7bit = mask top bit to zero when writing file");
+            puts ("    -quiet = suppress terminal output while punching");
+            puts ("    -stat = print status as file is written");
             puts ("  punch nulls  - punch 16 nulls");
             puts ("  punch unload - unload file");
             puts ("");
@@ -206,12 +213,25 @@ static int cmd_punch (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
         }
 
         if (strcasecmp (subcmd, "load") == 0) {
+            close (punchfile);
+            punchfile  = -1;
+            bool quiet = false;
             char const *fn = NULL;
-            punchmask = 0377;
+            punchmask  = 0377;
+            punchquiet = false;
+            punchstat  = false;
             for (int i = 1; ++ i < objc;) {
                 char const *arg = Tcl_GetString (objv[i]);
                 if (strcasecmp (arg, "-7bit") == 0) {
                     punchmask = 0177;
+                    continue;
+                }
+                if (strcasecmp (arg, "-quiet") == 0) {
+                    quiet = true;
+                    continue;
+                }
+                if (strcasecmp (arg, "-stat") == 0) {
+                    punchstat = true;
                     continue;
                 }
                 if (arg[0] == '-') {
@@ -233,24 +253,31 @@ static int cmd_punch (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
                 Tcl_SetResultF (interp, "error creating %s: %m", fn);
                 return TCL_ERROR;
             }
-            close (punchfile);
-            punchfile = fd;
+            punchbytes = 0;
+            punchfile  = fd;
+            punchquiet = quiet;
             return TCL_OK;
         }
 
         if (strcasecmp (subcmd, "nulls") == 0) {
+            if (punchfile < 0) {
+                Tcl_SetResultF (interp, "no punch file loaded");
+                return TCL_ERROR;
+            }
             int rc = write (punchfile, nullbuf, sizeof nullbuf);
             if (rc < 0) {
-                Tcl_SetResultF (interp, "error writing leader: %m");
+                Tcl_SetResultF (interp, "error writing nulls: %m");
                 return TCL_ERROR;
             }
             if (rc < (int) sizeof nullbuf) {
-                Tcl_SetResultF (interp, "only wrote %d bytes of %d bytes", rc, sizeof nullbuf);
+                Tcl_SetResultF (interp, "only wrote %d of %d nulls", rc, (int) sizeof nullbuf);
                 return TCL_ERROR;
             }
+            return TCL_OK;
         }
 
         if (strcasecmp (subcmd, "unload") == 0) {
+            punchquiet = false;
             int fd = punchfile;
             if (fd >= 0) {
                 punchfile = -1;
@@ -273,8 +300,9 @@ static int cmd_reader (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
         char const *subcmd = Tcl_GetString (objv[1]);
         if (strcasecmp (subcmd, "help") == 0) {
             puts ("");
-            puts ("  reader load [-7bit] <filename> - load file");
+            puts ("  reader load [<option>...] <filename> - load file");
             puts ("    -7bit = force top bit to one when reading file");
+            puts ("    -quiet = suppress terminal output while reading");
             puts ("    -stat = print status as file is read");
             puts ("  reader unload - unload file");
             puts ("");
@@ -282,17 +310,25 @@ static int cmd_reader (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
         }
 
         if (strcasecmp (subcmd, "load") == 0) {
-            bool status = false;
+            close (readerfile);
+            readerfile  = -1;
+            bool quiet  = false;
             char const *fn = NULL;
-            readermask = 0;
+            readermask  = 0;
+            readerquiet = false;
+            readerstat  = false;
             for (int i = 1; ++ i < objc;) {
                 char const *arg = Tcl_GetString (objv[i]);
                 if (strcasecmp (arg, "-7bit") == 0) {
                     readermask = 0200;
                     continue;
                 }
+                if (strcasecmp (arg, "-quiet") == 0) {
+                    quiet = true;
+                    continue;
+                }
                 if (strcasecmp (arg, "-stat") == 0) {
-                    status = true;
+                    readerstat = true;
                     continue;
                 }
                 if (arg[0] == '-') {
@@ -315,21 +351,22 @@ static int cmd_reader (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
                 return TCL_ERROR;
             }
             readerbytes = 0;
+            readerfile  = fd;
+            readerquiet = quiet;
             readersize  = 0;
-            if (status) {
+            if (readerstat) {
                 struct stat statbuf;
                 if ((fstat (fd, &statbuf) >= 0) && S_ISREG (statbuf.st_mode)) {
                     readersize = statbuf.st_size;
                 }
             }
-            close (readerfile);
-            readerfile = fd;
             return TCL_OK;
         }
 
         if (strcasecmp (subcmd, "unload") == 0) {
             close (readerfile);
-            readerfile = -1;
+            readerfile  = -1;
+            readerquiet = false;
             return TCL_OK;
         }
     }
@@ -446,12 +483,14 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
 
                 // print character to stdout
                 uint8_t prchar = prreg & 0177;
-                if ((prchar == 7) && stdoutty) {
-                    int rc = write (STDOUT_FILENO, "<BEL>", 5);
-                    if (rc < 5) ABORT ();
-                } else {
-                    int rc = write (STDOUT_FILENO, &prchar, 1);
-                    if (rc <= 0) ABORT ();
+                if (! readerquiet && ! punchquiet) {
+                    if ((prchar == 7) && stdoutty) {
+                        int rc = write (STDOUT_FILENO, "<BEL>", 5);
+                        if (rc < 5) ABORT ();
+                    } else {
+                        int rc = write (STDOUT_FILENO, &prchar, 1);
+                        if (rc <= 0) ABORT ();
+                    }
                 }
 
                 // if punchfile, write character to file
@@ -466,6 +505,7 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                         fprintf (stderr, "\r\nz8ltty: only wrote %d bytes of 1 to punch file\r\n", rc);
                         break;
                     }
+                    if (punchstat) fprintf (stderr, "\r[%u]", ++ punchbytes);
                 }
 
                 // clear printing full flag, set printing complete flag
@@ -516,12 +556,12 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                 if (rc == 0) {
                     fprintf (stderr, "\r\nz8ltty: reached end of reader file\r\n");
                     close (readerfile);
-                    readerfile = -1;
+                    readerfile  = -1;
+                    readerquiet = false;
                 } else {
                     ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbbyte | readermask;
-                    if (readersize > 0) {
-                        fprintf (stderr, "\r[%u/%u]", ++ readerbytes, readersize);
-                    }
+                    if (readerstat) fprintf (stderr, "\r[%u/%u]", ++ readerbytes, readersize);
+                    // little slower for reader so pdp doesn't get overrun echoing
                     readnextkbat = nowus + 1111111 / cps;
                 }
             }
