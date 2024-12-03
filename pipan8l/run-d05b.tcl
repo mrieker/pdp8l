@@ -25,4 +25,3 @@ for {set i 0} {$i < 3} {incr i} {
     puts "d05b: got a <CR><LF>05"
 }
 puts "SUCCESS!"
-exit 0

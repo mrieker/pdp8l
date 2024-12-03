@@ -14,7 +14,7 @@ for {set started [clock seconds]} {[clock seconds] - $started < 30} {} {
     if {! [getreg run]} {
         puts "d02b: processor halted"
         puts [dumpit]
-        return
+        exit 1
     }
     set ch [readttychartimed 100]
     if {$ch == ""} continue
@@ -26,7 +26,7 @@ for {set started [clock seconds]} {[clock seconds] - $started < 30} {} {
         incr nbells
         if {$nbells > 2} {
             puts "SUCCESS!"
-            exit 0
+            return
         }
     }
 }

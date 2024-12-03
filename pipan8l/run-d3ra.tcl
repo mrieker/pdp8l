@@ -6,13 +6,11 @@
 #    ./z8ltc08 -status [<ip-address-of-this-system>]
 #
 loadbin ../alltapes/d3ra-pb.bin
-puts "= = = = = = = = = = = = = = = ="
 puts "run-d3ra: loading tape files"
 set home [getenv HOME /tmp]
 set tcpid [exec ./z8ltc08 -killit -loadrw 1 $home/tape1.tu56 -loadrw 2 $home/tape2.tu56 -loadrw 3 $home/tape3.tu56 &]
 atexit "exec kill $tcpid"
 after 3000
-puts "= = = = = = = = = = = = = = = ="
 puts "run-d3ra: starting test"
 setsw sr 03400
 startat 00200
@@ -27,12 +25,17 @@ if {([getreg state] != "") || ([getreg ma] != 00207)} {
 }
 setsw sr 00000
 flicksw cont
-puts "= = = = = = = = = = = = = = = ="
-puts "run-d3ra: running (control-C to stop)..."
+set nmin 3
+puts "run-d3ra: running for $nmin minutes (control-C to stop)..."
 set ttpid [exec ./z8ltty -killit -nokb &]
 atexit "exec kill $ttpid"
-while {[getreg run]} {
+for {set started [clock seconds]} {[clock seconds] - $started < $nmin * 60} {} {
+    if {! [getreg run]} {
+        puts "halted: [dumpit]"
+        exit 1
+    }
     if {[ctrlcflag]} return
     after 100
 }
-puts "halted: [dumpit]"
+puts "d3ra: still running after $nmin minutes we assume is success"
+puts "SUCCESS!"

@@ -15,4 +15,3 @@ for {set i 0} {$i < 3} {incr i} {
     puts "d04b: got a 04"
 }
 puts "SUCCESS!"
-exit 0

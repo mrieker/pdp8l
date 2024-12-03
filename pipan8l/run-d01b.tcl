@@ -42,7 +42,7 @@ for {set started [clock seconds]} {[clock seconds] - $started < 6} {} {
         incr nbells
         if {$nbells > 2} {
             puts "SUCCESS!"
-            exit 0
+            return
         }
     }
 }

@@ -715,13 +715,11 @@ proc sendtottykb {str} {
             if {$ch > " "} break
             if {$ch == $ex} break
             if {$i > 0} break
-            puts "sendtottykb*: tossing char [escapechr $ch]"
         }
         if {$ch != $ex} {
             puts "sendtottykb: sent char [escapechr $ex] to tty kb but echoed as [escapechr $ch]"
             exit 1
         }
-        puts "sendtottykb*: sent char [escapechr $ex] to tty"
     }
 }
 
@@ -806,7 +804,6 @@ proc waitforttypr {msec str} {
             puts "waitforttypr: expected char [escapechr $ex] on tty but got [escapechr $ch]"
             exit 1
         }
-        puts "waitforttypr*: matched char [escapechr $ex] on tty"
     }
 }
 
@@ -848,8 +845,6 @@ setsw mprt  0
 setsw start 0
 setsw step  0
 flicksw stop
-puts ""
-puts [dumpit]
 
 # message displayed as part of help command
 return "also, 'helpini' will print help for pipan8lini.tcl commands"

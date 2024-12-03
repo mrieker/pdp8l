@@ -46,4 +46,3 @@ for {set started [clock seconds]} {[clock seconds] - $started < $nmin * 60} {} {
 }
 puts "d1eb: no output for $nmin minutes we assume is success"
 puts "SUCCESS!"
-exit 0
