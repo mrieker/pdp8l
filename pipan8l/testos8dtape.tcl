@@ -55,4 +55,3 @@ sendchartottykb "\003"
 checkttymatch 0 "^C."
 puts ""
 puts "SUCCESS!"
-exit

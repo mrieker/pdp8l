@@ -160,11 +160,10 @@ int tclmain (
     }
 
     // if given a filename, process that file as a whole
-    char const *scriptfn = NULL;
     if (scriptargc > 0) {
 
         // get tcl filename from first argument
-        scriptfn = scriptargv[0];
+        char const *scriptfn = scriptargv[0];
 
         // pass remaining arguments as list 'argv'
         Tcl_Obj *scriptargobjs[scriptargc-1];
@@ -186,29 +185,22 @@ int tclmain (
         }
     }
 
-    // either way, prompt and process commands from stdin
-    // to have a script file with no stdin processing, end script file with 'exit'
-    if (repeat && (isatty (STDIN_FILENO) > 0)) {
+    // otherwise, prompt and process commands from stdin
+    else if (repeat && (isatty (STDIN_FILENO) > 0)) {
+        printf ("\nTCL scripting, do 'help' for %s-specific commands\n", progname);
+        printf ("  do 'exit' to exit %s altogether\n", progname);
+        puts ("  do ctrl-D to close prompt but keep running");
+        puts ("  do ctrl-C to re-open prompt");
 
-        if (scriptfn == NULL) {
-            ctrlcflag = true;
-        } else {
-            printf ("%s: press ctrl-C for command prompt\n", progname);
-        }
-
-        bool firstctrlc = true;
         while (true) {
-            if (ctrlcflag) {
-                if (firstctrlc) {
-                    printf ("\nTCL scripting, do 'help' for %s-specific commands\n", progname);
-                    printf ("  do 'exit' to exit %s altogether\n", progname);
-                    puts ("  do ctrl-D to close prompt but keep running");
-                    puts ("  do ctrl-C to re-open prompt");
-                    firstctrlc = false;
-                }
-                tclloop (progname, interp);
+            tclloop (progname, interp);
+            sigset_t oldsigmask;
+            if (sigprocmask (SIG_BLOCK, &sigintmask, &oldsigmask) != 0) ABORT ();
+            while (! ctrlcflag) {
+                sigsuspend (&oldsigmask);
+                if (errno != EINTR) ABORT ();
             }
-            usleep (1000000);
+            if (sigprocmask (SIG_UNBLOCK, &oldsigmask, NULL) != 0) ABORT ();
         }
     } else {
         if (isatty (STDIN_FILENO) > 0) {

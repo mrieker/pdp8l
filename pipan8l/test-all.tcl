@@ -40,6 +40,16 @@ stopandreset
 source run-d3ra.tcl
 puts ""
 puts "= = = = = = = = = = = = = = = = ="
+puts "  OS8DPACK"
+stopandreset
+source testos8dpack.tcl
+puts ""
+puts "= = = = = = = = = = = = = = = = ="
+puts "  OS8DTAPE"
+stopandreset
+source testos8dtape.tcl
+puts ""
+puts "= = = = = = = = = = = = = = = = ="
 puts "ALL TESTS SUCCESSFUL!"
 stopandreset
 exit 0

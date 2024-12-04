@@ -70,4 +70,3 @@ checkttyprompt "READY" "BYE"
 checkttymatch 0 "."
 puts ""
 puts "SUCCESS!"
-exit
