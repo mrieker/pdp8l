@@ -36,4 +36,5 @@ PDP-8/L related projects
     zturn/zturn{34,35,36} - circuit boards for rear slots
     zturn/zturnic - interconnects the three boards
     zynq - zynq fpga code
+    zplin - zynq petalinux
 

@@ -1,0 +1,368 @@
+diff --git a/drivers/gpu/drm/xilinx/xilinx_vtc.c b/drivers/gpu/drm/xilinx/xilinx_vtc.c
+index 67a7e4fa..33faef1 100644
+--- a/drivers/gpu/drm/xilinx/xilinx_vtc.c
++++ b/drivers/gpu/drm/xilinx/xilinx_vtc.c
+@@ -603,43 +603,6 @@ static const struct of_device_id xilinx_vtc_of_match[] = {
+ struct xilinx_vtc *xilinx_vtc_probe(struct device *dev,
+ 				    struct device_node *node)
+ {
+-	struct xilinx_vtc *vtc;
+-	const struct of_device_id *match;
+-	struct resource res;
+-	int ret;
+-
+-	match = of_match_node(xilinx_vtc_of_match, node);
+-	if (!match) {
+-		dev_err(dev, "failed to match the device node\n");
+-		return ERR_PTR(-ENODEV);
+-	}
+-
+-	vtc = devm_kzalloc(dev, sizeof(*vtc), GFP_KERNEL);
+-	if (!vtc)
+-		return ERR_PTR(-ENOMEM);
+-
+-	ret = of_address_to_resource(node, 0, &res);
+-	if (ret) {
+-		dev_err(dev, "failed to of_address_to_resource\n");
+-		return ERR_PTR(ret);
+-	}
+-
+-	vtc->base = devm_ioremap_resource(dev, &res);
+-	if (IS_ERR(vtc->base))
+-		return ERR_CAST(vtc->base);
+-
+-	xilinx_vtc_intr_disable(vtc, VTC_IXR_ALLINTR_MASK);
+-	vtc->irq = irq_of_parse_and_map(node, 0);
+-	if (vtc->irq > 0) {
+-		ret = devm_request_irq(dev, vtc->irq, xilinx_vtc_intr_handler,
+-				       IRQF_SHARED, "xilinx_vtc", vtc);
+-		if (ret) {
+-			dev_warn(dev, "failed to requet_irq() for vtc\n");
+-			return ERR_PTR(ret);
+-		}
+-	}
+-
+-	xilinx_vtc_reset(vtc);
+-
+-	return vtc;
++	printk ("xilinx_vtc_probe: COMMENTED OUT!\n");
++	return -ENXIO;
+ }
+diff --git a/drivers/media/platform/xilinx/xilinx-vtc.c b/drivers/media/platform/xilinx/xilinx-vtc.c
+index 01c750e..407f507 100644
+--- a/drivers/media/platform/xilinx/xilinx-vtc.c
++++ b/drivers/media/platform/xilinx/xilinx-vtc.c
+@@ -321,30 +321,8 @@ static int xvtc_parse_of(struct xvtc_device *xvtc)
+ 
+ static int xvtc_probe(struct platform_device *pdev)
+ {
+-	struct xvtc_device *xvtc;
+-	int ret;
+-
+-	xvtc = devm_kzalloc(&pdev->dev, sizeof(*xvtc), GFP_KERNEL);
+-	if (!xvtc)
+-		return -ENOMEM;
+-
+-	xvtc->xvip.dev = &pdev->dev;
+-
+-	ret = xvtc_parse_of(xvtc);
+-	if (ret < 0)
+-		return ret;
+-
+-	ret = xvip_init_resources(&xvtc->xvip);
+-	if (ret < 0)
+-		return ret;
+-
+-	platform_set_drvdata(pdev, xvtc);
+-
+-	xvip_print_version(&xvtc->xvip);
+-
+-	xvtc_register_device(xvtc);
+-
+-	return 0;
++	printk ("xvtc_probe: COMMENTED OUT!\n");
++	return -ENXIO;
+ }
+ 
+ static int xvtc_remove(struct platform_device *pdev)
+diff --git a/drivers/video/fbdev/vdmafb.c b/drivers/video/fbdev/vdmafb.c
+index f984958..00cab6e 100755
+--- a/drivers/video/fbdev/vdmafb.c
++++ b/drivers/video/fbdev/vdmafb.c
+@@ -431,56 +431,7 @@ static void vdmafb_init_vtc_regs(struct vdmafb_layer_data *ld, struct vdmafb_com
+ 
+ static int vdmafb_setupfb(struct vdmafb_dev *fbdev)
+ {
+-	struct fb_var_screeninfo *var = &fbdev->info.var;
+-	struct dma_async_tx_descriptor *desc;
+-	struct dma_interleaved_template *dma_template = fbdev->dma_template;
+-	struct xilinx_vdma_config vdma_config;
+-	int hsize = var->xres * 4;
+-
+-	dmaengine_terminate_all(fbdev->dma);
+-
+-	/* Setup VDMA address etc */
+-	memset(&vdma_config, 0, sizeof(vdma_config));
+-	vdma_config.park = 1;
+-	xilinx_vdma_channel_set_config(fbdev->dma, &vdma_config);
+-
+-	/*
+-	* Interleaved DMA:
+-	* Each interleaved frame is a row (hsize) implemented in ONE
+-	* chunk (sgl has len 1).
+-	* The number of interleaved frames is the number of rows (vsize).
+-	* The icg in used to pack data to the HW, so that the buffer len
+-	* is fb->piches[0], but the actual size for the hw is somewhat less
+-	*/
+-	dma_template->dir = DMA_MEM_TO_DEV;
+-	dma_template->src_start = fbdev->fb_phys;
+-	/* sgl list have just one entry (each interleaved frame have 1 chunk) */
+-	dma_template->frame_size = 1;
+-	/* the number of interleaved frame, each has the size specified in sgl */
+-	dma_template->numf = var->yres;
+-	dma_template->src_sgl = 1;
+-	dma_template->src_inc = 1;
+-	/* vdma IP does not provide any addr to the hdmi IP */
+-	dma_template->dst_inc = 0;
+-	dma_template->dst_sgl = 0;
+-	/* horizontal size */
+-	dma_template->sgl[0].size = hsize;
+-	/* the vdma driver seems to look at icg, and not src_icg */
+-	dma_template->sgl[0].icg = 0; /*  stride - hsize */
+-
+-	desc = dmaengine_prep_interleaved_dma(fbdev->dma, dma_template, 0);
+-	if (!desc)
+-	{
+-		pr_err("Failed to prepare DMA descriptor\n");
+-		return -ENOMEM;
+-	}
+-	else
+-	{
+-		dmaengine_submit(desc);
+-		dma_async_issue_pending(fbdev->dma);
+-	}
+-
+-	return 0;
++	return -EIO;
+ }
+ 
+ // u32 ClkDivider(u32 divide)
+@@ -740,216 +691,8 @@ static struct fb_ops vdmafb_ops = {
+ 
+ static int vdmafb_probe(struct platform_device *pdev)
+ {
+-	int ret = 0;
+-	struct vdmafb_dev *fbdev;
+-	struct vdmafb_common_data *cd;
+-	struct vdmafb_layer_data *ld;
+-	struct resource *reg_res, *irq_res;
+-	int fbsize;
+-	unsigned long reg_base_phys;
+-	void *vtc_base_virt;
+-	unsigned long vtc_baseaddr;
+-	int vtc_size;
+-	void *clk_base_virt;
+-	unsigned long clk_baseaddr;
+-	int clk_size;
+-	int reg_range, layers, active_layer;
+-	int i, rc;
+-	struct vdmafb_init_data init_data;
+-	ClkConfig clkReg;
+-	ClkMode clkMode;
+-
+-	init_data.pdev = pdev;
+-
+-	fbdev = devm_kzalloc(&pdev->dev, sizeof(*fbdev), GFP_KERNEL);
+-	if (!fbdev)
+-		return -ENOMEM;
+-
+-	platform_set_drvdata(pdev, fbdev);
+-
+-	fbdev->info.fbops = &vdmafb_ops;
+-	fbdev->info.device = &pdev->dev;
+-	fbdev->info.par = fbdev;
+-
+-	fbdev->dma_template = devm_kzalloc(&pdev->dev,
+-									   sizeof(struct dma_interleaved_template) +
+-										   sizeof(struct data_chunk),
+-									   GFP_KERNEL);
+-	if (!fbdev->dma_template)
+-		return -ENOMEM;
+-
+-	reg_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-	// irq_res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+-	if ((!reg_res))
+-	{
+-		pr_err("Error fmrfb resources\n");
+-		return -ENODEV;
+-	}
+-
+-	ret = vdmafb_parse_hw_info(pdev->dev.of_node, &init_data);
+-	if (ret)
+-		return ret;
+-
+-	vdmafb_parse_vmode_info(pdev->dev.of_node, &init_data);
+-
+-	layers = init_data.layers;
+-	if (layers == 0)
+-	{
+-		pr_err("Error fmrfb zero layers\n");
+-		return -ENODEV;
+-	}
+-
+-	active_layer = init_data.active_layer;
+-	if (active_layer >= layers)
+-	{
+-		pr_err("Error fmrfb default layer: set to 0\n");
+-		active_layer = 0;
+-	}
+-
+-	vtc_baseaddr = init_data.vtc_baseaddr;
+-	vtc_size = init_data.vtc_size;
+-	if (vtc_baseaddr == 0 || vtc_size == 0)
+-	{
+-		pr_err("Error fmrfb vtc baseaddr\n");
+-		return -ENODEV;
+-	}
+-	
+-	clk_baseaddr = init_data.clk_baseaddr;
+-	clk_size = init_data.clk_size;
+-	if (clk_baseaddr == 0 || clk_size == 0)
+-	{
+-		pr_err("Error fmrfb clk baseaddr\n");
+-		return -ENODEV;
+-	}
+-
+-	cd = kzalloc(sizeof(struct vdmafb_common_data), GFP_KERNEL);
+-	if (!cd)
+-	{
+-		pr_err("Error fmrfb allocating internal data\n");
+-		rc = -ENOMEM;
+-		goto err_mem;
+-	}
+-
+-	ld = kzalloc(sizeof(struct vdmafb_layer_data), GFP_KERNEL);
+-	if (!cd)
+-	{
+-		pr_err("Error fmrfb allocating layer data\n");
+-		rc = -ENOMEM;
+-		goto err_mem;
+-	}
+-
+-	cd->vmode_data = init_data.vmode_data;
+-	cd->vmode_data_current = init_data.vmode_data;
+-	cd->fmrfb_display_interface_type = init_data.display_interface_type;
+-
+-	reg_base_phys = reg_res->start;
+-	reg_range = resource_size(reg_res);
+-
+-	// reg_base_virt = ioremap_nocache(reg_base_phys, reg_range);
+-
+-	vtc_base_virt = ioremap_nocache(vtc_baseaddr, vtc_size);
+-
+-	clk_base_virt = ioremap_nocache(clk_baseaddr, clk_size);
+-
+-	ld->vtc_base_virt = vtc_base_virt;
+-	ld->clk_base_virt = clk_base_virt;
+-
+-	/*
+-	 * Calculate the PLL divider parameters based on the required pixel clock frequency
+-	 */
+-	// ClkFindParams(cd->vmode_data_current.fb_vmode.pixclock, &clkMode);
+-
+-	// /*
+-	//  * Write to the PLL dynamic configuration registers to configure it with the calculated
+-	//  * parameters.
+-	//  */
+-	// if (!ClkFindReg(&clkReg, &clkMode))
+-	// {
+-	// 	printk("Error calculating CLK register values\n");
+-
+-	// 	return -1;
+-	// }
+-
+-	//init dynclk
+-	ClkWriteReg(&init_data.clkreg, ld->clk_base_virt);
+-	// ClkWriteReg(&clkReg, ld->clk_base_virt);
+-
+-	/*
+-	 * Enable the dynamically generated clock
+-    */
+-    if(init_data.clk_en)
+-   	{
+-		ClkStop(ld->clk_base_virt);
+-		ClkStart(ld->clk_base_virt);
+-	}
+-
+-	//init vtc
+-	vdmafb_init_var(fbdev, pdev, ld, cd);
+-	vdmafb_init_fix(fbdev);
+-
+-	/* Allocate framebuffer memory */
+-	fbsize = fbdev->info.fix.smem_len;
+-	fbdev->fb_virt = dma_alloc_coherent(&pdev->dev, PAGE_ALIGN(fbsize),
+-										&fbdev->fb_phys, GFP_KERNEL);
+-	if (!fbdev->fb_virt)
+-	{
+-		dev_err(&pdev->dev,
+-				"Frame buffer memory allocation failed\n");
+-		return -ENOMEM;
+-	}
+-	fbdev->info.fix.smem_start = fbdev->fb_phys;
+-	fbdev->info.screen_base = fbdev->fb_virt;
+-	fbdev->info.pseudo_palette = fbdev->pseudo_palette;
+-
+-	pr_debug("%s virt=%p phys=%x size=%d\n", __func__,
+-			 fbdev->fb_virt, fbdev->fb_phys, fbsize);
+-
+-	/* Clear framebuffer */
+-	memset_io(fbdev->fb_virt, 0, fbsize);
+-
+-	fbdev->dma = dma_request_slave_channel(&pdev->dev, "axivdma");
+-	if (IS_ERR_OR_NULL(fbdev->dma))
+-	{
+-		ret = PTR_ERR(fbdev->dma);
+-		dev_err(&pdev->dev, "Failed to allocate DMA channel (%d).\n", ret);
+-		goto err_dma_free;
+-	}
+-
+-	/* Setup and enable the framebuffer */
+-	vdmafb_setupfb(fbdev);
+-
+-	ret = fb_alloc_cmap(&fbdev->info.cmap, 256, 0);
+-	if (ret)
+-	{
+-		dev_err(&pdev->dev, "fb_alloc_cmap failed\n");
+-	}
+-
+-	/* Register framebuffer */
+-	ret = register_framebuffer(&fbdev->info);
+-	if (ret)
+-	{
+-		dev_err(&pdev->dev, "Framebuffer registration failed\n");
+-		goto err_channel_free;
+-	}
+-
+-	dev_dbg(&pdev->dev, "vdmafb probe ok\n");
+-
+-	return 0;
+-
+-err_channel_free:
+-	dma_release_channel(fbdev->dma);
+-err_dma_free:
+-	dma_free_coherent(&pdev->dev, PAGE_ALIGN(fbsize), fbdev->fb_virt,
+-					  fbdev->fb_phys);
+-
+-err_mem:
+-	if (cd)
+-	{
+-		kfree(cd->reg_list);
+-		kfree(cd);
+-	}
+-
+-	return ret;
++	pr_err("vdmafb_probe: COMMENTED OUT!\n");
++	return -ENODEV;
+ }
+ 
+ static int vdmafb_remove(struct platform_device *pdev)

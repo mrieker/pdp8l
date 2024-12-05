@@ -18,7 +18,7 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Back external memory with a core filw
+// Back external memory with a core file
 //  ./z8lcore [-fork] <corefile>
 
 #include <fcntl.h>

@@ -1,14 +1,16 @@
 #!/bin/bash
 #
 #  create the BOOT.BIN file for pdp8l
-#  assumes the .bit bitstream file is up-to-date
+#  assumes the .bit bitstream file is up-to-date (compiled with vivado)
 #  assumes hostname zturn points to zturn board all booted up with an existing BOOT.BIN file
-#  assumes directories ~/MYIR_HW/petadevel and ~/MYIR_HW/petakernel exist and are filled in
+#    zturn root .ssh/authorized_keys should have this user's .ssh public key so don't need to enter its password
+#  assumes directories ../zplin/petadevel and ../zplin/petakernel exist and are filled in
+#    follow howto file in ../zplin
 #
 set -e -v
 cd `dirname $0`
 mydir=`pwd`
-cd ~/MYIR_HW
+cd ../zplin
 source petadevel/settings.sh
 source /tools/Xilinx/Vivado/2018.3/settings64.sh
 cd petakernl/zturn
@@ -21,6 +23,6 @@ ssh root@zturn reboot
 ping zturn
 
 # ssh zturn
-# cd nfs/pdp8/driver
-# ./raspictl -zynqlib [-paddles] -randmem -mintimes
+# cd .../pdp8l/pipan8l
+# ./z8lsim run-d01b.tcl
 

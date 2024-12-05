@@ -1,0 +1,254 @@
+
+########################################################################
+#  How to set up tools for building Zynq FPGA code and create SD card  #
+########################################################################
+
+start with:
+    ubuntu 16.04
+    vivado 2018.3 installed in /tools/Xilinx/Vivado/2018.3/bin/vivado
+    petalinux 2018.3 in /tools/Xilinx/Downloads/petalinux-v2018.3-final-installer.run
+    ./zturn_7z020_hdmi.bsp
+    ./vdmahdmi.patch
+    raspberry pi os install image (32-bit lite version)
+    - bookworm (debian 12) is slow, bullseye (debian 11) is fast
+    - ref: https://forums.raspberrypi.com/viewtopic.php?t=6019 -- bug mentioned halfway down
+    ZTurn 7020 card
+
+    also make sure board_files/zturn-7z020 is in place in vivado tree
+        /tools/Xilinx/Vivado/2018.3/data/boards/board_files/zturn-7z020
+    untar ./zturn-7z020-board-files.tgz if not there
+
+    must use Vivado 2018.3 cuz of bsp file supplied by MYIR
+
+##############################
+#   build petalinux kernel   #
+##############################
+
+sudo ...
+    apt install tofrodos iproute gawk gcc git-core make net-tools ncurses-dev \
+        libncurses5-dev tftpd-hpa zlib1g-dev flex bison lib32z1 lib32ncurses5 lib32stdc++6 libselinux1
+    apt install build-essential
+    apt install chrpath socat autoconf libtool texinfo gcc-multilib
+    apt install libsdl1.2-dev libglib2.0-dev
+    apt install openssl-dev
+    apt install libssl-dev
+    apt install openssl
+    apt install zlib1g:i386
+
+    dpkg-reconfigure dash      << select <No>
+
+# https://www.instructables.com/Getting-Started-With-PetaLinux/
+
+[[ do the whole thing from medium-sized xterm ]]
+
+cd .../pdp8l/zplin              # ie, directory containing this howto.txt
+/tools/Xilinx/Downloads/petalinux-v2018.3-final-installer.run `pwd`/petadevel   # 11m56
+    q y <Enter> q y <Enter> q y <Enter>    to skip licenses
+
+source petadevel/settings.sh
+source /tools/Xilinx/Vivado/2018.3/settings64.sh
+
+mkdir petakernl
+cd petakernl
+petalinux-create -t project -s ../zturn_7z020_hdmi.bsp  # 1m05
+cd zturn
+petalinux-config    # 1m35 (just select <Exit> at the bottom)
+petalinux-build     # 5m44
+petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ./images/linux/system.bit --u-boot
+
+cd build/tmp/work-shared/plnx-zynq7/kernel-source
+patch -p1 < ../../../../../../../vdmahdmi.patch
+    to disable VDMA and HDMI  (don't have fpga source for hdmi stuff)
+
+    - unpatched xilinx_vtc.c 20094 bytes
+        patched xilinx_vtc.c 19220 bytes
+
+cd ../../../../..               (ie, petakernl/zturn)
+
+petalinux-config -c kernel
+    Device Drivers --->
+        DMA Engine Support --->
+            Xilinx DMA Engines [off]
+            Xilinx AXI DMAS Engine [off]
+petalinux-build     3m36                            # let it fail to compile vdmafb.c
+
+cd build/tmp/work-shared/plnx-zynq7/kernel-source
+patch -p1 < ../../../../../../../vdmahdmi.patch     # second time
+cd ../../../../..
+petalinux-build     4m52                            # it should succeed
+
+petalinux-build -c kernel -x compile -f             # 0m29
+petalinux-build                                     # 1m57
+petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ./images/linux/system.bit --u-boot
+ls -l images/linux/BOOT.BIN                         # contains default FPGA code
+ls -l images/linux/image.ub                         # linux kernel
+
+###################
+#  Set up SDCARD  #
+###################
+
+# put blank sdcard in pc, comes up as something like /dev/sda
+# replace /dev/sda in the commands below with whatever the sdcard really is
+
+df                  # see if sdcard got automounted
+umount /dev/sda1    # umount if so
+umount /dev/sda2 ...etc
+
+# copy raspi sdcard image to sdcard
+xzcat 2024-10-22-raspios-bullseye-armhf-lite.img.xz | dd of=/dev/sda status=progress
+partprobe /dev/sda
+
+# replace raspi kernel with zturn kernel
+mkdir /x
+mount /dev/sda1 /x
+rm -rf /x/*
+cp images/linux/BOOT.BIN /x/
+cp images/linux/image.ub /x/
+touch /x/config.txt
+umount /x
+
+# expand root partition to whole sdcard
+parted /dev/sda
+  resizepart 2 -1s
+  quit
+resize2fs /dev/sda2
+
+# remove root and pi passwords for now
+mount /dev/sda2 /x
+edit /x/etc/shadow              (use whatever editor you like)
+  remove * or ! from root and pi line password field
+
+# set up hostname
+echo zturn > /x/etc/hostname    (or whatever you want for hostname)
+edit /x/etc/hosts
+  change raspberrypi to whatever was put in /x/etc/hostname
+
+# copy kernel source so modules will compile
+mkdir -p /x/usr/src/linux-headers-4.14.0-xilinx-v2018.3
+rsync -av petakernl/zturn/build/tmp/work-shared/plnx-zynq7/kernel-source/ /x/usr/src/linux-headers-4.14.0-xilinx-v2018.3
+rsync -av petakernl/zturn/build/tmp/work-shared/plnx-zynq7/kernel-build-artifacts/ /x/usr/src/linux-headers-4.14.0-xilinx-v2018.3
+chown root:root -R /x/usr/src
+
+# done filling sdcard
+umount /x       may take a long time to flush to sdcard (30min)
+rmdir /x
+
+############################
+#  Boot ZTurn from SDCARD  #
+############################
+
+connect usb serial cable from pc to zturn (115200 baud) and use terminal program to access
+insert sdcard and boot zturn
+login as root (or as pi then sudo bash to get root)
+
+on zturn:
+  as root:
+    raspi-config -> Interface Options -> SSH -> Yes
+    passwd   to set root and pi passwords so ssh will work
+    apt install libreadline-dev
+    apt install libx11-dev
+    apt install tcl8.6-dev
+    apt install git
+    apt install bc
+
+    mkdir -p /lib/modules/4.14.0-xilinx-v2018.3
+    ln -s /usr/src/linux-headers-4.14.0-xilinx-v2018.3 /lib/modules/4.14.0-xilinx-v2018.3/build
+
+    cd /usr/src/linux-headers-4.14.0-xilinx-v2018.3
+    edit scripts/dtc/dtc-lexer.lex.c_shipped
+      Find the line 'YYLTYPE yylloc;' and change it to 'extern YYLTYPE yylloc;'
+      reference : https://lkml.org/lkml/2020/4/1/1206
+    make oldconfig          # 0m38
+    make prepare            # 0m31
+    make modules_prepare    # 1m28
+
+  as pi:
+    git clone .../pdp8l.git
+    cd pdp8l/pipan8l
+    make   (may need to change -ltcl to -ltcl8.6 in the makefile)
+    ./z8lsim
+      if Bus error - means the BOOT.BIN has default FPGA contents so do next section
+      if z8lsim> prompt - means our PDP-8/L code is loaded in FPGA
+    z8lsim> source testmem.tcl
+    z8lsim> looptest testrands
+        ...  control-C to stop test
+    z8lsim> exit
+
+######################################
+#  Put PDP-8/L FPGA file onto ZTurn  #
+######################################
+
+    make sure can do ssh root@zturn from pc
+
+then on zturn:
+    ls -l /boot should show BOOT.BIN, config.txt, image.ub files
+
+    # ls -l /boot
+    total 8456
+    -rwxr-xr-x 1 root root 4688040 Dec  5 22:43 BOOT.BIN
+    -rwxr-xr-x 1 root root       0 Dec  5 22:43 config.txt
+    -rwxr-xr-x 1 root root 3967676 Dec  5 22:43 image.ub
+
+then back on pc:
+    cd .../pdp8l/zynq
+    /tools/Xilinx/Vivado/2018.3/bin/vivado pdp8l.xpr
+        do 'Generate Bitstream' to compile verilog to .bit file
+    ./makebootbin.sh        make BOOT.BIN then copy to zturn and reboot
+
+then ssh pi@zturn and do:
+    cd pdp8l/pipan8l
+    ./z8lsim
+      if Bus error - means the BOOT.BIN still has default FPGA contents
+      if z8lsim> prompt - means our PDP-8/L code is loaded in FPGA
+    z8lsim> source testmem.tcl
+    z8lsim> looptest testrands
+        ...  control-C to stop test
+    z8lsim> exit
+
+All Done!
+
+#########################################
+#  FYI, how to create a Vivado project  #
+#########################################
+
+Use Z-turnBoard_Tutorial_Book.pdf
+    - make sure board_files/zturn-7z020 is in place in vivado tree
+      eg, /tools/Xilinx/Vivado/2018.3/data/boards/board_files/zturn-7z020
+    - in left column, "Create Block Design"
+    - add ZYNQ7 Processing System
+    - do "Run Block Automation" to define and connect DDR, FIXED_IO ports
+    - interconnect clocks FCLK_CLK0 -> M_AXI_GP0_ACLK, S_AXI_HP0_ACLK
+    - add any Verilog/VHDL files & add as modules to block diagram
+        keep them in top-level directory so Vivado doesn't bury them
+    - create hardware wrapper
+        "Sources" tab
+        right-click the .bd file
+        select "Create HDL Wrapper"
+        "Let Vivado manage..."
+        OK
+
+    - Run Synthesis, but then do "Open Synthesized Design"
+        - Window -> I/O Ports
+        - Scalar ports
+        - make pin assignments
+        - click save (floppy) button in upper left to save as constraints file
+
+    - Run Synthesis again to use new pin assignments
+    - Run Implementation
+    - Generate Bitstream
+
+    - for git, have it ignore everything except:
+      - your verilog/vhdl files (keep in top-level directory)
+      - your .xdc file assigning pins etc
+      - your .xpr file defining the project
+      - your <board>/<board>.bd file defining top-level layout
+      - your <board>/hdl/<board>_wrapper.vhd file
+
+create a new BOOT.BIN -
+    source petadevel/settings.sh
+    source /tools/Xilinx/Vivado/2018.3/settings64.sh
+    cd petakernl/zturn
+    petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ***BITFILE***.bit --u-boot
+
+...get BOOT.BIN from images/linux, copy to /boot/BOOT.BIN of ZTurn SD card then reboot
+
