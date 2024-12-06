@@ -3,3 +3,4 @@ setsw sr $sa
 flicksw ldad
 setsw sr 0234
 flicksw start
+puts [wait]

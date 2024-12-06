@@ -475,6 +475,7 @@ wfd_loop:
 	dtrb
 	sza
 	jmpi	waitfordone
+	tadi	_idwc
 	ion			; busy, enable interrupts
 	nop
 wfd_halt:
