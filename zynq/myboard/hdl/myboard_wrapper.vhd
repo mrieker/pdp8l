@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Wed Nov 27 16:57:27 2024
+--Date        : Fri Dec  6 19:47:29 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -78,6 +78,7 @@ entity myboard_wrapper is
     iCA_INCREMENT_0 : out STD_LOGIC;
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
+    iINT_RQST_0 : out STD_LOGIC;
     iMEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
     iTHREECYCLE_0 : out STD_LOGIC;
@@ -87,7 +88,6 @@ entity myboard_wrapper is
     i_EMA_0 : out STD_LOGIC;
     i_EXTDMAADD_12_0 : out STD_LOGIC;
     i_INT_INHIBIT_0 : out STD_LOGIC;
-    i_INT_RQST_0 : out STD_LOGIC;
     i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
@@ -174,6 +174,7 @@ architecture STRUCTURE of myboard_wrapper is
     iCA_INCREMENT_0 : out STD_LOGIC;
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
+    iINT_RQST_0 : out STD_LOGIC;
     iMEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
     iTHREECYCLE_0 : out STD_LOGIC;
@@ -183,7 +184,6 @@ architecture STRUCTURE of myboard_wrapper is
     i_EMA_0 : out STD_LOGIC;
     i_EXTDMAADD_12_0 : out STD_LOGIC;
     i_INT_INHIBIT_0 : out STD_LOGIC;
-    i_INT_RQST_0 : out STD_LOGIC;
     i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
@@ -311,6 +311,7 @@ myboard_i: component myboard
       iCA_INCREMENT_0 => iCA_INCREMENT_0,
       iD36B2_0 => iD36B2_0,
       iDATA_IN_0 => iDATA_IN_0,
+      iINT_RQST_0 => iINT_RQST_0,
       iMEMINCR_0 => iMEMINCR_0,
       iMEM_07_0 => iMEM_07_0,
       iTHREECYCLE_0 => iTHREECYCLE_0,
@@ -320,7 +321,6 @@ myboard_i: component myboard
       i_EMA_0 => i_EMA_0,
       i_EXTDMAADD_12_0 => i_EXTDMAADD_12_0,
       i_INT_INHIBIT_0 => i_INT_INHIBIT_0,
-      i_INT_RQST_0 => i_INT_RQST_0,
       i_IO_SKIP_0 => i_IO_SKIP_0,
       i_MEMDONE_0 => i_MEMDONE_0,
       i_STROBE_0 => i_STROBE_0,

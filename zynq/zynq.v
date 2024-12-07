@@ -78,7 +78,7 @@ module Zynq (
     output i_EMA,
     output i_EXTDMAADD_12,
     output i_INT_INHIBIT,
-    output i_INT_RQST,
+    output iINT_RQST,
     output i_IO_SKIP,
     output i_MEMDONE,
     output i_STROBE,
@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405C;
+    localparam VERSION = 32'h384C405D;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -697,7 +697,7 @@ module Zynq (
     assign     i_EA           = simit ? 1       : dev_i_EA;
     assign     i_EMA          = simit ? 1       : dev_i_EMA;
     assign     i_INT_INHIBIT  = simit ? 1       : dev_i_INT_INHIBIT;
-    assign     i_INT_RQST     = simit ? 1       : dev_i_INT_RQST;
+    assign     iINT_RQST      = simit ? 0       : ~ dev_i_INT_RQST;
     assign     i_IO_SKIP      = simit ? 1       : dev_i_IO_SKIP;
     assign     i_MEMDONE      = simit ? 1       : dev_i_MEMDONE;
     assign     i_STROBE       = simit ? 1       : dev_i_STROBE;
