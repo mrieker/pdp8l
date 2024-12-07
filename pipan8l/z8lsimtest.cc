@@ -41,16 +41,20 @@ static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
 
 static bool brkrequest;
+static bool dma3cycle;
+static bool dmacainc;
+static bool dmadatain;
 static bool intdelayed;
 static bool intenabled;
 static bool intrequest;
 static bool linc;
 static bool memcycwcover;
 static bool perclock;
-static bool threecycle;
 static int nseqs;
 static uint16_t acum;
 static uint16_t dmaaddr;
+static uint16_t dmafield;
+static uint16_t dmawdata;
 static uint16_t multquot;
 static uint16_t pctr;
 static uint16_t *seqs;
@@ -113,7 +117,7 @@ int main (int argc, char **argv)
     printf ("CM version %08X\n", cmemat[0]);
     printf ("XM version %08X\n", xmemat[0]);
 
-    cmemat[1] = 0;  // disable outputs so it doesn't interfere with arm_i_DMAADDR, arm_i_DMADATA, arm_iDATA_IN
+    cmemat[1] = 0;  // disable outputs until we request a cycle
 
     // get pointer to the 32K-word ram
     // maps each 12-bit word into low 12 bits of 32-bit word
@@ -184,8 +188,8 @@ int main (int argc, char **argv)
         // maybe do a dma cycle
         if (brkrequest && ! contforcesfetch) {
 
-            printf ("DMA %d-cycle", (threecycle ? 3 : 1));
-            if (threecycle) {
+            printf ("DMA %d-cycle", (dma3cycle ? 3 : 1));
+            if (dma3cycle) {
 
                 // WC state reads wordcount from dmaaddr, increments it and writes it back
                 // make wordcount overflow somewhat common for testing
@@ -201,30 +205,18 @@ int main (int argc, char **argv)
 
                 // CA state reads pointer from dmaaddr + 1, increments it and writes it back
                 // then we use the incremented pointer for the transfer address
-                dmaaddr = (dmaaddr + 1) & 07777;
-                bool cainc = xrandbits (1);
+                dmaaddr  = (dmaaddr + 1) & 07777;
                 uint16_t oldcuraddr = xrandbits (12);
-                uint16_t newcuraddr = (oldcuraddr + cainc) & 07777;
+                uint16_t newcuraddr = (oldcuraddr + dmacainc) & 07777;
                 printf ("  CA:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
-                pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iCA_INCREMENT) | (cainc ? a_iCA_INCREMENT : 0);
                 memorycycle (g_lbCA, 0, dmaaddr, oldcuraddr, newcuraddr);
                 dmaaddr = newcuraddr;
             }
 
-            // transfer word at address dmaaddr
-            bool dmadatain    = xrandbits (1);      // true: writing memory from d_i_DMADATA; false: writing MB as is back to memory
-            bool dmameminc    = xrandbits (1);      // true: increment value read; false: leave value as read
-            uint16_t dmardata = xrandbits (12);     // fake value we read from from memory location dmaaddr
-                                                    // - processor will put this in its MB register at end of TS1
-            uint16_t dmawrand = xrandbits (12);     // random value to send out over dmadata bus
-                                                    // - ignored by processor when dmadatain = false
-                                                    //   written to MB by processor at end of TS2 when dmadatain = true
-            uint8_t dmafield  = xrandbits (3);      // random memory field
-            cmemat[1] = dmafield << 12;             // put field in dma controller but don't start a cycle, we do that ourselves
+            // transfer word at address dmafield:dmaaddr
+            uint16_t dmardata = xrandbits (12);     // random value that will be sent to processor as content of memory location dmafield:dmaaddr
+            if (! dmadatain) dmawdata = dmardata;   // if writing, write will be value written to CM_DATA; if reading, write will be same as dmardata
 
-            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_iDATA_IN & ~ a_iMEMINCR) | (dmadatain ? a_iDATA_IN : 0) | (dmameminc ? a_iMEMINCR : 0);
-            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMADATA) & ~ (dmawrand * d_i_DMADATA0);
-            uint16_t dmawdata = ((dmadatain ? dmawrand : dmardata) + dmameminc) & 07777;  // what processor should send us to write back to memory
             printf ("  BRK:%o%04o / %04o => %04o", dmafield, dmaaddr, dmardata, dmawdata);
             memorycycle (g_lbBRK, dmafield, dmaaddr, dmardata, dmawdata);
 
@@ -666,6 +658,7 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
 {
     memorycyclx (state, field, addr, rdata, rdata, wdata, (field << 12) | addr, wdata);
 }
+
 // - rdbkdata = data sent to processor as result of read
 // - wtbkdata = data received back from processor
 // - vfywaddr = address in extmem[] to verify the write happened
@@ -692,8 +685,7 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     verify12 (Z_RI, i_oMA, addr, "MA bad at beginning of mem cycle");
     uint8_t actualfield = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
     if (actualfield != field) {
-        printf ("\nactual memory field %o expected %o", actualfield, field);
-        fatalerr ("mismatch memory field\n");
+        fatalerr ("actual memory field %o expected %o", actualfield, field);
     }
 
     // should now be fully transitioned to the major state
@@ -710,16 +702,25 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
 
     // maybe request dma or interrupt
     // processor samples it at end of TS3
-    // don't do interrupt if we are about to execute an HLT instruction or it will puque
     if ((state == g_lbWC) || (state == g_lbCA) || (state == g_lbBRK)) brkrequest = false;
     else if (! brkrequest) {
         brkrequest = xrandbits (8) == 0;
         if (brkrequest) {
-            dmaaddr = randbits (12);
-            threecycle = randbits (2) == 0;
-            printf ("  <<brkreq=1 3cycle=%o>>  ", threecycle);
-            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_BRK_RQST & ~ a_iTHREECYCLE) | (threecycle ? a_iTHREECYCLE : 0);
-            pdpat[Z_RD] = zrdwrite = (zrdwrite | d_i_DMAADDR) & ~ (dmaaddr * d_i_DMAADDR0);
+            dmafield  = randbits (3);
+            dmaaddr   = randbits (12);
+            dmadatain = randbits (1);
+            dmawdata  = randbits (12);
+            dma3cycle = randbits (2) == 0;
+            dmacainc  = dma3cycle && randbits (1);
+            printf ("  <<brkreq=1 3cycle=%o addr=%o%04o>>  ", dma3cycle, dmafield, dmaaddr);
+            if (cmemat[1] & CM_BUSY) {
+                fatalerr ("CM_BUSY set when about to request dma cycle");
+            }
+            cmemat[2] = (dma3cycle ? CM2_3CYCL : 0) | (dmacainc ? CM2_CAINC : 0);
+            cmemat[1] = CM_ENAB | dmawdata * CM_DATA0 | (dmadatain ? CM_WRITE : 0) | (dmafield * 4096 + dmaaddr) * CM_ADDR0;
+            if (! (cmemat[1] & CM_BUSY)) {
+                fatalerr ("CM_BUSY clear just after requested dma cycle");
+            }
         }
     }
     if (! brkrequest) pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
