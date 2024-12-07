@@ -117,13 +117,13 @@ int main (int argc, char **argv)
                 pagedirty = true;
             }
             if ((i % NWORDSPERPAGE == NWORDSPERPAGE - 1) && pagedirty) {
-                int ofs = i / NWORDSPERPAGE * NBYTESPERPAGE;
-                rc = pwrite (corefd, localcopy + ofs, NBYTESPERPAGE, ofs);
+                int page = i / NWORDSPERPAGE;
+                rc = pwrite (corefd, localcopy + page * NWORDSPERPAGE, NBYTESPERPAGE, page * NBYTESPERPAGE);
                 if (rc != NBYTESPERPAGE) {
                     if (rc < 0) {
-                        fprintf (stderr, "z8lcore: error writing %s at %d: %m\n", corefn, ofs);
+                        fprintf (stderr, "z8lcore: error writing %s page %d: %m\n", corefn, page);
                     } else {
-                        fprintf (stderr, "z8lcore: only wrote %d of %d bytes to %s at %d\n", rc, NBYTESPERPAGE, corefn, ofs);
+                        fprintf (stderr, "z8lcore: only wrote %d of %d bytes to %s page %d\n", rc, NBYTESPERPAGE, corefn, page);
                     }
                     return 1;
                 }
