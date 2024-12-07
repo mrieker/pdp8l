@@ -225,7 +225,14 @@ static void tclloop (char const *progname, Tcl_Interp *interp)
         line = readprompt (prompt);
         ctrlcflag = false;
         if (line == NULL) break;
+
         int rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
+
+        Tcl_EvalEx (interp, "flush stdout", -1, TCL_EVAL_GLOBAL);
+        Tcl_EvalEx (interp, "flush stderr", -1, TCL_EVAL_GLOBAL);
+        fflush (stdout);
+        fflush (stderr);
+
         char const *res = Tcl_GetStringResult (interp);
         if (rc != TCL_OK) {
             if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "%s: error %d evaluating command\n", progname, rc);
