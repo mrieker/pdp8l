@@ -178,7 +178,9 @@ It does UDP to the pipan8l program to read the panel state as fast as it can.
 There is a simple memory test script, testmem.tcl.
 To use it:
 
-    ./pipan8l testmem.tcl
+    ./pipan8l
+
+    source testmem.tcl
 
     testzeroes 0 077            ;# test writing zeroes to memory 0000..0077
                                 ;# writes then verifies
@@ -202,17 +204,17 @@ Note:
     doing it by hand!
 
 
-$ ./pipan8l testmem.tcl
+$ ./pipan8l
 
-          ST=E  AC=0.1314 MA=0.0030 MB=0000 IR=2  ISZ  SR=0030 DFLD IFLD MPRT
+TCL scripting, do 'help' for pipan8l-specific commands
+  do 'exit' to exit pipan8l
+pipan8l> source testmem.tcl
 
   looptest - wrap one of the below test to run continuously
   testzeroes [beg [end]] - writes zeroes to all memory then verifies
   testones [beg [end]] - writes ones to all memory then verifies
   testrands [beg [end]] - writes randoms to all memory then verifies
 
-TCL scripting, do 'help' for pipan8l-specific commands
-  do 'exit' to exit pipan8l
 pipan8l> looptest testrands
 
 PASS 1
