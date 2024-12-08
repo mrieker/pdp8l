@@ -220,7 +220,7 @@ int main (int argc, char **argv)
             for (xmemrange = xmemranges; xmemrange != NULL; xmemrange = xmemrange->next) {
                 uint16_t loaddr = xmemrange->loaddr;
                 uint16_t hiaddr = xmemrange->hiaddr;
-                printf (eol);
+                fputs (eol, stdout);
                 for (uint16_t lnaddr = loaddr & -16; lnaddr <= hiaddr; lnaddr += 16) {
                     printf (" %05o :", lnaddr);
                     for (uint16_t i = 0; i < 16; i ++) {
@@ -231,7 +231,7 @@ int main (int argc, char **argv)
                             printf (" %04o", extmem[addr]);
                         }
                     }
-                    printf (eol);
+                    fputs (eol, stdout);
                 }
             }
         }
