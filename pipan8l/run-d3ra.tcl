@@ -26,6 +26,7 @@ if {([getreg state] != "") || ([getreg ma] != 00207)} {
 setsw sr 00000
 flicksw cont
 set nmin 3
+if {[llength $argv] > 0} {set nmin [lindex $argv 0]}
 puts "run-d3ra: running for $nmin minutes (control-C to stop)..."
 set ttpid [exec ./z8ltty -killit -nokb &]
 atexit "exec kill $ttpid"
