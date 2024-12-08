@@ -1222,7 +1222,7 @@ static int showstatus (int argc, char **argv)
             udppkt.status_b);
 
         // display line for each drive with a tape file loaded
-        char rwfc = "  rRwWW "[func];
+        char rwfc = (func != 0) ? "  rRwWW "[func] : (rev ? '<' : '>');
         for (int i = 0; i < MAXDRIVES; i ++) {
             Drive *drive = &udppkt.drives[i];
             if (drive->dtfd >= 0) {
