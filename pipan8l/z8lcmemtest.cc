@@ -23,7 +23,10 @@
 // The test writes random numbers to the 4K and reads them back and verifies
 // It also tests the same interface with the extended 28K memory
 
-//  ./z8lcmemtest.armv7l
+//  ./z8lcmemtest.armv7l [-3cycle] [-coreonly] [-sim]
+//    -3cycle = occasionally test 3-cycle DMAs
+//    -extmem = test extended memory (otherwise just core memory)
+//    -sim = use simulator (pdp8lsim.v) instead of real PDP-8/L
 
 #include <signal.h>
 #include <stdint.h>
@@ -35,34 +38,58 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-static bool brkwhenhltd = false;
-static bool externlow4k = false;
-static bool manualclock = false;
+#define DOTJMPDOT 05252U
+
+static bool externlow4k;
+static bool manualclock;
 
 static bool volatile exitflag;
+static uint16_t idwc, idca;
+static uint16_t shadow[32768];
 static uint32_t volatile *cmemat;
 static uint32_t volatile *extmem;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *xmemat;
 
-static void ldad (uint16_t addr);
-static void depos (uint16_t data);
+static void siginthand (int signum);
+static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc);
+static uint16_t readmem (uint16_t xaddr, bool do3cyc, bool cainc);
+static void waitcmemidle ();
+static bool getcmemwcovf ();
+static uint16_t waitcmemread ();
 static void clockit (int n);
-static void printstate ();
 
-static void siginthand (int signum)
-{
-    exitflag = true;
-}
+
 
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
+    bool testxmem = false;
+    bool simulate = false;
+    bool test3cyc = false;
+    for (int i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-3cycle") == 0) {
+            test3cyc = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-extmem") == 0) {
+            testxmem = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-sim") == 0) {
+            simulate = true;
+            continue;
+        }
+        fprintf (stderr, "unknown argument %s\n", argv[i]);
+        return 1;
+    }
+
     Z8LPage z8p;
     pdpat  = z8p.findev ("8L", NULL, NULL, true);
     cmemat = z8p.findev ("CM", NULL, NULL, true);
     xmemat = z8p.findev ("XM", NULL, NULL, true);
+    extmem = z8p.extmem ();
 
     printf ("8L VERSION=%08X\n", pdpat[0]);
     printf ("CM VERSION=%08X\n", cmemat[0]);
@@ -70,23 +97,71 @@ int main (int argc, char **argv)
 
     cmemat[2] = 0;
 
-    extmem = z8p.extmem ();
-
-    // select simulator and reset it
+    // select simulator and reset it or select real pdp and leave sim reset
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = 0;
     pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RE] = e_simit | e_softreset;
+    pdpat[Z_RE] = simulate ? (e_simit | e_softreset) : 0;
     xmemat[1]   = 0;
     manualclock = 1;
     clockit (1000);
-    pdpat[Z_RE] = e_simit;
+    pdpat[Z_RE] = simulate ? e_simit : 0;   // e_simit off leaves sim in reset
     clockit (1000);
 
     // range of addresses to test
     uint16_t startat = 000000;
-    uint16_t stopat  = 077777;
+    uint16_t stopat  = testxmem ? 077777 : 007777;
+
+    // a real PDP needs to be running so we can do DMA
+    // tell user to put a JMP . at 5252 and start it
+    // also put 5252 in external memory low 4K so we can test that too
+    extmem[DOTJMPDOT] = 01234;
+
+    if (simulate) {
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swDEP;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swSTART;
+        clockit (1000);
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+        clockit (1000);
+    } else {
+        printf ("\n");
+        printf ("  set dfld,ifld,mem prot,step to 0\n");
+        printf ("  set sr to %04o\n", DOTJMPDOT);
+        printf ("  load address\n");
+        printf ("  deposit\n");
+        printf ("  load address\n");
+        printf ("  start\n");
+        printf ("> ");
+        fflush (stdout);
+        char temp[8];
+        if (fgets (temp, sizeof temp, stdin) == NULL) {
+            printf ("\n");
+            return 0;
+        }
+    }
+
+    // the deposit should have gone to real core stack, not extmem
+    if (extmem[DOTJMPDOT] != 01234) {
+        fprintf (stderr, "extmem changed\n");
+        ABORT ();
+    }
+
+    // put JMP . in extmem so we can switch to it seamlessly
+    extmem[DOTJMPDOT] = DOTJMPDOT;
 
     signal (SIGINT, siginthand);
 
@@ -94,170 +169,292 @@ int main (int argc, char **argv)
 
     uint32_t errors = 0;
     uint32_t pass = 0;
-    uint16_t shadow[32768];
+    shadow[DOTJMPDOT] = DOTJMPDOT;
     while (true) {
 
         if (pass % 3 == 0) {
             printf ("- - - - - - - - - - - - - - - -\n");
-            brkwhenhltd = (pass & 1) != 0;
-            externlow4k = (pass & 2) != 0;
-            manualclock = (pass & 4) != 0;
-            printf (brkwhenhltd ? "halted while breaking\n" : "running while breaking\n");
-            printf (externlow4k ? "use external block ram for low 4K\n" : "use pdp8lsim.v localcore 4K memory\n");
-            printf (manualclock ? "use software clocking\n" : "use FPGA 100MHz clocking\n");
+            externlow4k = ((pass & 1) != 0) && testxmem;
+            manualclock = ((pass & 2) != 0) && simulate;
+            if (testxmem) printf (externlow4k ? "use external block ram for low 4K\n" : (simulate ? "use pdp8lsim.v localcore 4K memory\n" : "use PDP-8/L 4K core stack\n"));
+            if (simulate) printf (manualclock ? "use software clocking\n" : "use FPGA 100MHz clocking\n");
 
-            uint32_t re = e_simit;
-            if (! manualclock) re |= e_nanocontin;
-            if (brkwhenhltd) re |= e_brkwhenhltd;
-            pdpat[Z_RE] = re;
-            clockit (1000);
-
-            pdpat[Z_RB] = b_swSTOP;
-            clockit (1000);
+            if (simulate) {
+                uint32_t re = e_simit;
+                if (! manualclock) re |= e_nanocontin;
+                pdpat[Z_RE] = re;
+                clockit (1000);
+            }
 
             xmemat[1] = externlow4k ? XM_ENLO4K : 0;
             clockit (1000);
-
-            if (brkwhenhltd) {
-                startat = 0;
-            } else {
-                ldad (0); depos (02003);    //  ISZ  3
-                ldad (1); depos (05000);    //  JMP  0
-                ldad (2); depos (05000);    //  JMP  0
-                ldad (3); depos (0);        // .WORD 0
-                startat = 4;
-
-                ldad (0);
-                pdpat[Z_RB] = b_swSTART;
-                clockit (1000);
-                pdpat[Z_RB] = 0;
-                clockit (1000);
-            }
         }
 
         ++ pass;
 
+        // pick random location in first 4K for wordcount/currentaddress locations
+        // don't overlap DOTJMPDOT
+        if (test3cyc) {
+            do {
+                idwc = randbits (12);
+                idca = (idwc + 1) & 07777;
+            } while ((idwc == DOTJMPDOT) || (idca == DOTJMPDOT));
+        } else {
+            idwc = 0xFFFFU;
+            idca = 0xFFFFU;
+        }
+
         // write memory using cmem interface (break cycles)
         for (int i = startat; i <= stopat; i ++) {
-            uint16_t wdata = randbits (12);
-            shadow[i] = wdata;
-            for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
-                clockit (1);
-                if (i >= 010000) printstate ();
-                if (j > 10000) {
-                    printf ("timed out waiting for write done at %05o\n", i);
-                    exit (0);
-                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
-                    errors ++;
-                    break;
-                }
-            }
             if (exitflag) goto done;
-            cmemat[1] = CM_ENAB | (wdata * CM_DATA0) | CM_WRITE | (i * CM_ADDR0);
+
+            // don't overwrite the DOTJMPDOT instruction
+            if (i == DOTJMPDOT) continue;
+
+            // don't work on the idwc/idca words
+            if (i == idwc) continue;
+            if (i == idca) continue;
+
+            // get a random number and tell cmem interface to write it to memory via dma cycle
+            bool do3cycls = test3cyc && randbits (1);
+            bool docaincr = do3cycls && randbits (1);
+            writemem (i, randbits (12), do3cycls, docaincr);
         }
 
         // finish clocking write to 077777 (stopat) so readback via extmem[] will work
-        for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
-            clockit (1);
-            printstate ();
-        }
+        waitcmemidle ();
 
-        // readback memory using exemem interface (direct mapped memory)
-        for (int i = startat; i <= stopat; i ++) {
-            if (externlow4k || (i >= 010000)) {
-                uint16_t wdata = shadow[i];
-                uint16_t rdata = extmem[i];
-                if (rdata != wdata) {
-                    printf ("extmem error %05o was %04o should be %04o\n", i, rdata, wdata);
-                    errors ++;
-                }
-            }
-        }
-
-        // readback memory using cmem interface (break cycles)
-        for (int i = stopat; i < stopat; i ++) {
-            for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
-                clockit (1);
-                printstate ();
-                if (j > 1000000) {
-                    printf ("timed out waiting for read done at %05o\n", i);
-                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
-                    errors ++;
-                    break;
-                }
-            }
-            if (exitflag) goto done;
-            cmemat[1] = CM_ENAB | i * CM_ADDR0;
-            for (int j = 0; ! (cmemat[1] & CM_DONE); j ++) {
-                clockit (1);
-                printstate ();
-                if (j > 1000000) {
-                    printf ("timed out waiting for read ready at %05o\n", i);
-                    if (! brkwhenhltd && (pdpat[Z_RF] & f_o_B_RUN)) goto halted;
-                    errors ++;
-                    break;
-                }
-            }
+        // readback memory using extmem interface (direct mapped memory)
+        // if externlow4k, we used externmem for low 4K so we can check it here
+        // otherwise, low 4K used core stack which we can't access directly
+        for (int i = externlow4k ? startat : 010000; i <= stopat; i ++) {
             uint16_t wdata = shadow[i];
-            uint16_t rdata = (cmemat[1] & CM_DATA) / CM_DATA0;
+            uint16_t rdata = extmem[i];
+            if (rdata != wdata) {
+                printf ("extmem error %05o was %04o should be %04o\n", i, rdata, wdata);
+                errors ++;
+            }
+        }
+
+        // readback memory using cmem interface (break cycles) which can access all memory
+        for (int i = startat; i <= stopat; i ++) {
+            if (exitflag) goto done;
+
+            // don't work on the idwc/idca words
+            if (i == idwc) continue;
+            if (i == idca) continue;
+
+            // read memory via DMA cycle
+            bool do3cycls = test3cyc && randbits (1);
+            bool docaincr = do3cycls && randbits (1);
+            uint16_t rdata = readmem (i, do3cycls, docaincr);
+
+            // verify value read vs value written
+            uint16_t wdata = shadow[i];
             if (rdata != wdata) {
                 printf ("cmem error %05o was %04o should be %04o\n", i, rdata, wdata);
                 errors ++;
             }
         }
 
-        printf ("\npass %u complete  %u errors\n\n", pass, errors);
+        printf ("\npass %u complete %u errors\n\n", pass, errors);
     }
 done:;
     putchar ('\n');
     return 0;
-
-halted:;
-    printf ("processor halted > ");
-    fflush (stdout);
-    char temp[8];
-    return (fgets (temp, sizeof temp, stdin) == NULL);
 }
 
-// do LOAD ADDRESS with zero in switch register
-static void ldad (uint16_t addr)
+static void siginthand (int signum)
 {
-    pdpat[Z_RB] = addr * b_swSR0 | b_swLDAD;
-    clockit (1000);
-    pdpat[Z_RB] = addr * b_swSR0;
-    clockit (1000);
+    exitflag = true;
 }
 
-// do DEPOSIT with 5000 in switch register (JMP 0)
-static void depos (uint16_t data)
+
+
+// write data to memory via DMA cycle
+//  input:
+//   xaddr = 15-bit address to write to
+//   wdata = 12-bit data to write to that location
+//   do3cyc = false: do 1-cycle DMA
+//             true: do 3-cycle DMA
+//   cainc = ignored if not d3cyc
+//           else false: use ca pointer directly
+//                 true: start with ca pointer decremented so it supposedly gets incremented to correct value
+//  output:
+//   value written to memory
+//   value written to shadow[]
+static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
 {
-    pdpat[Z_RB] = data * b_swSR0 | b_swDEP;
-    clockit (1000);
-    pdpat[Z_RB] = data * b_swSR0;
-    clockit (1000);
+    // maybe use 3-cycle dma to write the location
+    if (do3cyc) {
+
+        // pick a random value for wordcount, it always gets incremented
+        uint16_t oldwordcount = randbits (6);
+        if (oldwordcount & 00040) oldwordcount |= 07700;
+        uint16_t newwordcount = (oldwordcount + 1) & 07777;
+        writemem (idwc, oldwordcount, false, false);
+
+        // use the called-with address for the currentaddress value
+        // decrement it if we are going to tell processor to increment it
+        uint16_t oldcurraddrs = (xaddr - cainc) & 07777;
+        uint16_t newcurraddrs =  xaddr          & 07777;
+        writemem (idca, oldcurraddrs, false, false);
+
+        // tell pdp8lcmem.v to start writing the value to memory
+        shadow[idwc] = newwordcount;                        // 3-cycle DMA writes these values to memory
+        shadow[idca] = newcurraddrs;
+        shadow[xaddr] = wdata;                              // ...as well as writing the data word
+        waitcmemidle ();
+        cmemat[2] = CM2_3CYCL | (cainc ? CM2_CAINC : 0);    // select 3-cycle DMA, possibly with CA increment
+        cmemat[1] = CM_ENAB | (wdata * CM_DATA0) | CM_WRITE | ((xaddr & 070000) + idwc) * CM_ADDR0;
+
+        // get wordcount overflow status
+        bool wcovf = getcmemwcovf ();
+
+        // verify the possibly updated idwc and idca values
+        uint16_t finalwc = readmem (idwc, false, false);
+        if (finalwc != newwordcount) {
+            printf ("idwc %04o / %04o => %04o sb %04o\n", idwc, oldwordcount, finalwc, newwordcount);
+            ABORT ();
+        }
+        if ((newwordcount == 0) ^ wcovf) {
+            printf ("idwc %04o / %04o => %04o got overflow %d\n", idwc, oldwordcount, newwordcount, wcovf);
+            ABORT ();
+        }
+        uint16_t finalca = readmem (idca, false, false);
+        if (finalca != newcurraddrs) {
+            printf ("idca %04o / %04o => %04o sb %04o\n", idca, oldcurraddrs, finalca, newcurraddrs);
+            ABORT ();
+        }
+    }
+
+    // tell cmem interface to start writing data to memory via dma cycle
+    else {
+        ASSERT (xaddr != DOTJMPDOT);
+        shadow[xaddr] = wdata;
+        waitcmemidle ();
+        cmemat[2] = 0;
+        cmemat[1] = CM_ENAB | wdata * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
+    }
 }
 
-// gate through one fpga clock cycle
+// read data from memory via DMA cycle
+//  input:
+//   xaddr = 15-bit address to write to
+//   do3cyc = false: do 1-cycle DMA
+//             true: do 3-cycle DMA
+//   cainc = ignored if not d3cyc
+//           else false: use ca pointer directly
+//                 true: start with ca pointer decremented so it supposedly gets incremented to correct value
+//  output:
+//   returns value read from memory
+static uint16_t readmem (uint16_t xaddr, bool do3cyc, bool cainc)
+{
+    uint16_t rdata;
+
+    // maybe use 3-cycle dma to write the location
+    if (do3cyc) {
+
+        // pick a random value for wordcount, it always gets incremented
+        uint16_t oldwordcount = randbits (6);
+        if (oldwordcount & 00040) oldwordcount |= 07700;
+        uint16_t newwordcount = (oldwordcount + 1) & 07777;
+        writemem (idwc, oldwordcount, false, false);
+
+        // use the called-with address for the currentaddress value
+        // decrement it if we are going to tell processor to increment it
+        uint16_t oldcurraddrs = (xaddr - cainc) & 07777;
+        uint16_t newcurraddrs =  xaddr          & 07777;
+        writemem (idca, oldcurraddrs, false, false);
+
+        // tell pdp8lcmem.v to start reading the value from memory
+        shadow[idwc] = newwordcount;                        // 3-cycle DMA writes these values to memory
+        shadow[idca] = newcurraddrs;
+        waitcmemidle ();
+        cmemat[2] = CM2_3CYCL | (cainc ? CM2_CAINC : 0);    // select 3-cycle DMA, possibly with CA increment
+        cmemat[1] = CM_ENAB | ((xaddr & 070000) + idwc) * CM_ADDR0;
+
+        // get wordcount overflow status
+        bool wcovf = getcmemwcovf ();
+
+        // wait for it to arrive and retrieve it
+        rdata = waitcmemread ();
+
+        // verify the possibly updated idwc and idca values
+        uint16_t finalwc = readmem (idwc, false, false);
+        if (finalwc != newwordcount) {
+            printf ("idwc %04o / %04o => %04o sb %04o\n", idwc, oldwordcount, finalwc, newwordcount);
+            ABORT ();
+        }
+        if ((newwordcount == 0) ^ wcovf) {
+            printf ("idwc %04o / %04o => %04o got overflow %d\n", idwc, oldwordcount, newwordcount, wcovf);
+            ABORT ();
+        }
+        uint16_t finalca = readmem (idca, false, false);
+        if (finalca != newcurraddrs) {
+            printf ("idca %04o / %04o => %04o sb %04o\n", idca, oldcurraddrs, finalca, newcurraddrs);
+            ABORT ();
+        }
+    }
+
+    // tell cmem interface to start reading data from memory via dma cycle
+    // then wait for it to arrive and retrieve it
+    else {
+        waitcmemidle ();
+        cmemat[2] = 0;
+        cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
+        rdata = waitcmemread ();
+    }
+
+    return rdata;
+}
+
+// wait for pdp8lcmem.v interface able to accept new command
+static void waitcmemidle ()
+{
+    for (int j = 0; cmemat[1] & CM_BUSY; j ++) {
+        clockit (1);
+        if (j > 10000) {
+            fprintf (stderr, "timed out waiting for cmem ready\n");
+            ABORT ();
+        }
+    }
+}
+
+// wait for pdp8lcmem.v wordcount overflow status
+static bool getcmemwcovf ()
+{
+    uint32_t cm1;
+    for (int j = 0; ! ((cm1 = cmemat[1]) & CM_DONE); j ++) {
+        clockit (1);
+        if (j > 10000) {
+            fprintf (stderr, "timed out waiting for cmem ready\n");
+            ABORT ();
+        }
+    }
+    return (cm1 & CM_WCOVF) != 0;
+}
+
+// wait for pdp8lcmem.v read data ready
+static uint16_t waitcmemread ()
+{
+    uint32_t cm1;
+    for (int j = 0; ! ((cm1 = cmemat[1]) & CM_DONE); j ++) {
+        clockit (1);
+        if (j > 10000) {
+            fprintf (stderr, "timed out waiting for cmem ready\n");
+            ABORT ();
+        }
+    }
+    return (cm1 & CM_DATA) / CM_DATA0;
+}
+
+// gate through at least n fpga clock cycles
 static void clockit (int n)
 {
     if (manualclock) {
         while (-- n >= 0) pdpat[Z_RE] |= e_nanotrigger;
     } else {
-        usleep (n);
+        usleep (n / 100 + 1);
     }
-}
-
-#define F(idx,fld) ((pdpat[idx] & fld) / (fld & - fld))
-static char const *const timestatenames[] = { TS_NAMES };
-
-static void printstate ()
-{
-#if 000
-    printf ("iDATA_IN=%o i_BRK_RQST=%o i_EA=%o i_MEMDONE=%o i_STROBE=%o i_DMAADDR=%04o i_DMADATA=%04o oMEMSTART=%o oBMB=%04o oMA=%04o timestate=%-7s "
-            "cmrrdy=%o cmbusy=%o cmdata=%04o cmwrite=%o cmaddr=%05o cmstep=%o\n",
-        F(Z_RA,a_iDATA_IN), F(Z_RA,a_i_BRK_RQST), F(Z_RA,a_i_EA), F(Z_RA,a_i_MEMDONE), F(Z_RA,a_i_STROBE), F(Z_RD,d_i_DMAADDR), F(Z_RD,d_i_DMADATA),
-        F(Z_RF,f_oMEMSTART), F(Z_RH,h_oBMB), F(Z_RI,i_oMA), timestatenames[F(Z_RK,k_timestate)],
-        (cmemat[1] & CM_RRDY) / CM_RRDY, (cmemat[1] & CM_BUSY) / CM_BUSY, (cmemat[1] & CM_DATA) / CM_DATA0, (cmemat[1] & CM_WRITE) / CM_WRITE,
-        (cmemat[1] & CM_ADDR) / CM_ADDR, cmemat[2] & 7);
-#endif
 }
