@@ -94,6 +94,7 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
             if ((entry == NULL) || entry (param, dev)) {
                 if (lockit) {
                     struct flock flockit;
+                    int kills = killit ? 3 : 0;
                 trylk:;
                     memset (&flockit, 0, sizeof flockit);
                     flockit.l_type   = F_WRLCK;
@@ -105,11 +106,10 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
                             if (flockit.l_type == F_UNLCK) goto trylk;
                             fprintf (stderr, "Z8LPage::findev: %c%c locked by pid %d\n",
                                 *dev >> 24, *dev >> 16, (int) flockit.l_pid);
-                            if (killit) {
+                            if (-- kills >= 0) {
                                 fprintf (stderr, "Z8LPage::findev: killing pid %d\n", (int) flockit.l_pid);
                                 kill ((int) flockit.l_pid, SIGTERM);
-                                usleep (1000);
-                                killit = false;
+                                usleep (100000);
                                 goto trylk;
                             }
                         } else {
