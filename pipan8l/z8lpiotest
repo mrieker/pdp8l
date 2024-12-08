@@ -1,0 +1,10 @@
+#!/bin/bash
+dd=`dirname $0`
+$dd/loadmod.sh
+dbg=
+if [ "$1" == "-gdb" ]
+then
+    dbg='-gdb'
+    shift
+fi
+exec $0.`uname -m` $dbg "$@"

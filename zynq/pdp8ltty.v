@@ -52,7 +52,7 @@ module pdp8ltty
     reg enable, intenab, kbflag, prflag, prfull;
     reg[11:00] kbchar, prchar;
 
-    assign armrdata = (armraddr == 0) ? 32'h54541008 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h54541009 : // [31:16] = 'TT'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { kbflag, enable, 18'b0, kbchar } :
                       (armraddr == 2) ? { prflag, prfull, 18'b0, prchar } :
                       { 23'b0, intenab, 2'b0, KBDEV };
@@ -76,7 +76,7 @@ module pdp8ltty
 
                 // arm processor is sending a keyboard char for the PDP-8/L code to read
                 // - typically sets kbflag = 1 indicating kbchar has something in it
-                1: begin kbflag <= armwdata[31]; enable <= armwdata[30]; kbchar <= armwdata[07:00]; end
+                1: begin kbflag <= armwdata[31]; enable <= armwdata[30]; kbchar <= armwdata[11:00]; end
 
                 // arm processor is telling PDP-8/L that it has finished printing char
                 // - typically sets prflag = 1 meaning it has finished printing char
@@ -89,16 +89,16 @@ module pdp8ltty
             // ...but leave output signals to PDP-8/L in place until given the all clear
             if (iopstart & enable) begin
                 case (ioopcode)
-                    kbio+1: begin IO_SKIP <= kbflag; end                                    // skip if kb char ready
-                    kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                           // clear accum, clear flag
-                    kbio+4: begin devtocpu <= { 4'b0, kbchar }; end                         // read kb char
-                    kbio+5: begin intenab <= cputodev[00]; end                              // enable/disable interrupts
-                    kbio+6: begin AC_CLEAR <= 1; devtocpu <= kbchar; kbflag <= 0; end       // read kb char, clear flag
-                    ttio+1: begin IO_SKIP <= prflag; end                                    // skip if done printing
-                    ttio+2: begin prflag <= 0; end                                          // stop saying done printing
-                    ttio+4: begin prchar <= cputodev; prfull <= 1; end                      // start printing char
-                    ttio+5: begin IO_SKIP <= INT_RQST; end                                  // skip if requesting interrupt
-                    ttio+6: begin prchar <= cputodev[07:00]; prflag <= 0; prfull <= 1; end  // start printing char, clear done flag
+                    kbio+1: begin IO_SKIP <= kbflag; end                                // skip if kb char ready
+                    kbio+2: begin AC_CLEAR <= 1; kbflag <= 0; end                       // clear accum, clear flag
+                    kbio+4: begin devtocpu <= kbchar; end                               // read kb char
+                    kbio+5: begin intenab <= cputodev[00]; end                          // enable/disable interrupts
+                    kbio+6: begin devtocpu <= kbchar; AC_CLEAR <= 1; kbflag <= 0; end   // read kb char, clear flag
+                    ttio+1: begin IO_SKIP <= prflag; end                                // skip if done printing
+                    ttio+2: begin prflag <= 0; end                                      // stop saying done printing
+                    ttio+4: begin prchar <= cputodev; prfull <= 1; end                  // start printing char
+                    ttio+5: begin IO_SKIP <= INT_RQST; end                              // skip if requesting interrupt
+                    ttio+6: begin prchar <= cputodev; prfull <= 1; prflag <= 0; end     // start printing char, clear done flag
                 endcase
             end
 

@@ -23,7 +23,7 @@
 // The test writes random numbers to the 4K and reads them back and verifies
 // It also tests the same interface with the extended 28K memory
 
-//  ./z8lcmemtest.armv7l [-3cycle] [-coreonly] [-sim]
+//  ./z8lcmemtest.armv7l [-3cycle] [-extmem] [-sim]
 //    -3cycle = occasionally test 3-cycle DMAs
 //    -extmem = test extended memory (otherwise just core memory)
 //    -sim = use simulator (pdp8lsim.v) instead of real PDP-8/L

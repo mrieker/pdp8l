@@ -3,8 +3,12 @@ Z8L programs run on Zynq with PDP-8/L code loaded (contains device code and 8/L 
 
 automated test programs:
 
-    ./z8lcmemtest.armv7l        test 8L sim (holds simit on, varies brwhenhltd, varies manualclock),
-                                    CM (reads & writes), XM (varies enlo4k)
+    ./z8lcmemtest               test DMA circuits - tests 4K core memory and extended memory
+                                    runs on real PDP and simulator
+                                    test MEM circuits if extended memory testing enabled
+
+    ./z8lpiotest                test PIO circuits - uses DMA circuits to write program to PDP's memory
+                                    runs on real PDP and simulator
 
     ./z8lsimtest                test 8L sim (hold simit on, pulse softreset, pulse nanotrigger),
                                     CM (always clears enable, set dma field), XM (always sets enable, enlo4k; all IOs tested)
