@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405D;
+    localparam VERSION = 32'h384C405E;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -418,6 +418,10 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
+    reg[11:00] ilaarray[4096:0], ilardata;
+    reg[11:00] ilaafter, ilaindex;
+    reg ilaarmed;
+
     /////////////////////////////////////
     // send register being read to ARM //
     /////////////////////////////////////
@@ -445,6 +449,8 @@ module Zynq (
             bMEMBUSA, bMEMBUSB, bMEMBUSC, bMEMBUSD, bMEMBUSE, bMEMBUSF, bMEMBUSH, bMEMBUSJ, bMEMBUSK, bMEMBUSL, bMEMBUSM, bMEMBUSN,
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
+        (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
+        (readaddr        == 10'b0000010010) ? { 20'b0, ilardata } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -1544,4 +1550,43 @@ module Zynq (
         .viddatab (viddatab)
     );
 
+    // integrated logic analyzer
+    //  ilaarmed = 0: trigger condition satisfied
+    //             1: waiting for trigger condition
+    //  ilaafter = number of cycles to record after trigger condition satisfied
+    //  ilaindex = next entry in ilaarray to write
+    always @(posedge CLOCK) begin
+        if (~ RESET_N) begin
+            ilaarmed <= 0;
+            ilaafter <= 0;
+        end else if (ilaarmed | (ilaafter != 0)) begin
+
+            // capture signals
+            ilaarray[ilaindex] <= {
+                i_BRK_RQST,
+                i_EA,
+                iCA_INCREMENT,
+                iDATA_IN,
+                iTHREECYCLE,
+                o_ADDR_ACCEPT,
+                o_B_RUN,
+                o_BF_ENABLE,
+                o_SP_CYC_NEXT,
+                oB_BREAK,
+                oBTS_1,
+                oBTS_3
+            };
+
+            ilaindex <= ilaindex + 1;
+            if (~ ilaarmed) ilaafter <= ilaafter - 1;
+
+            // check trigger condition
+            else if (~ i_BRK_RQST) ilaarmed <= 0;
+        end else if (armwrite & (writeaddr == 10'b0000010001)) begin
+            ilaarmed <= saxi_WDATA[31];
+            ilaafter <= saxi_WDATA[27:16];
+            ilaindex <= saxi_WDATA[11:00];
+            ilardata <= ilaarray[saxi_WDATA[11:00]];
+        end
+    end
 endmodule
