@@ -52,7 +52,7 @@ module pdp8lsim (
     output oBTS_3,              // D36-S2,p15 D-2,J12-22,,,
     output oBUSINIT,            // D36-V2,p15 D-1,,,,redundant bus init
     output reg oBWC_OVERFLOW,   // C35-P2,p15 A-2,J11-16,,C33,
-    output oB_BREAK,            // C36-P2,p15 B-2,J11-26,,,
+    output o_B_BREAK,           // C36-P2,p15 B-2,J11-26,,,
     output oE_SET_F_SET,        // B36-D2,p22 C-3,J12-72,,,
     output oJMP_JMS,            // B36-E2,p22 C-3,J11-63,,,
     output oLINE_LOW,           // B36-V2,p18 B-7,J12-43,,,?? op amp output maybe needs clipping diodes
@@ -195,15 +195,17 @@ module pdp8lsim (
     // IR holds an IO opcode (including extended arithmetic)
     reg iopea;
 
+    // currently in BREAK state
+    assign o_B_BREAK = majstate != MS_BRK;
+
     // these signals are valid from beginning of TS3 to beginning of next TS3
-    // before TS3, the describe the current state
+    // before TS3, they describe the current state
     // but at one clock cycle into TS3, they describe the next state
-    assign oB_BREAK      = (nextmajst == MS_BRK) | (nextmajst == MS_BRKWH);     //?? not sure if active high or low??
     assign oE_SET_F_SET  = (nextmajst == MS_EXEC) | (nextmajst == MS_INTAK) | (nextmajst == MS_FETCH);  // mem cycles is EXEC or FETCH
     assign o_DF_ENABLE   = ~ ((nextmajst == MS_EXEC) & irusedf);                // next mem cycle uses DF (p22 C-7)
     assign o_SP_CYC_NEXT = ~ ((nextmajst == MS_WC) | (nextmajst == MS_CA));     // next mem cycle is MS_WC or MS_CA, use field 0 (p22 C-6, p5 C-3, also p5 B-2)
-    assign o_BF_ENABLE   = ~ oB_BREAK;                                          // next mem cycle is MS_BRK[WH], use break field (dma extended address bits) for next mem access (p5 D-2)
-    assign o_LOAD_SF     = ~ (nextmajst == MS_INTAK);                           // next mem cycle is exec of JMS 0 used for interrupt cycle
+    assign o_BF_ENABLE   = ~  (nextmajst == MS_BRK);                            // next mem cycle is MS_BRK[WH], use break field (dma extended address bits) for next mem access (p5 D-2)
+    assign o_LOAD_SF     = ~  (nextmajst == MS_INTAK);                          // next mem cycle is exec of JMS 0 used for interrupt cycle
 
     // local memory (presumably inferred block memory)
     reg[11:00] localcore[4095:0000];

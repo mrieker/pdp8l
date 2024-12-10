@@ -98,7 +98,7 @@
 #define f_oBTS_3        (1U <<  6)
 #define f_oC36B2        (1U <<  7)
 #define f_oBWC_OVERFLOW (1U <<  8)
-#define f_oB_BREAK      (1U <<  9)
+#define f_o_B_BREAK     (1U <<  9)
 #define f_oE_SET_F_SET  (1U << 10)
 #define f_oJMP_JMS      (1U << 11)
 #define f_oLINE_LOW     (1U << 12)

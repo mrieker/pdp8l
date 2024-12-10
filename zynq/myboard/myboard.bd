@@ -461,9 +461,6 @@
           "oBWC_OVERFLOW": {
             "direction": "I"
           },
-          "oB_BREAK": {
-            "direction": "I"
-          },
           "oC36B2": {
             "direction": "I"
           },
@@ -489,6 +486,9 @@
             "direction": "I"
           },
           "o_BUSINIT": {
+            "direction": "I"
+          },
+          "o_B_BREAK": {
             "direction": "I"
           },
           "o_B_RUN": {
@@ -2326,7 +2326,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0xD35EAD55482BDD5F",
+      "boundary_crc": "0x3AAA76B1E8F3E392",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2981,12 +2981,6 @@
           "Zynq_0/oBWC_OVERFLOW"
         ]
       },
-      "oB_BREAK_0_1": {
-        "ports": [
-          "oB_BREAK_0",
-          "Zynq_0/oB_BREAK"
-        ]
-      },
       "oC36B2_0_1": {
         "ports": [
           "oC36B2_0",
@@ -3039,6 +3033,12 @@
         "ports": [
           "o_BUSINIT_0",
           "Zynq_0/o_BUSINIT"
+        ]
+      },
+      "o_B_BREAK_0_1": {
+        "ports": [
+          "o_B_BREAK_0",
+          "Zynq_0/o_B_BREAK"
         ]
       },
       "o_B_RUN_0_1": {
@@ -3347,9 +3347,6 @@
       "oBWC_OVERFLOW_0": {
         "direction": "I"
       },
-      "oB_BREAK_0": {
-        "direction": "I"
-      },
       "oC36B2_0": {
         "direction": "I"
       },
@@ -3375,6 +3372,9 @@
         "direction": "I"
       },
       "o_BUSINIT_0": {
+        "direction": "I"
+      },
+      "o_B_BREAK_0": {
         "direction": "I"
       },
       "o_B_RUN_0": {

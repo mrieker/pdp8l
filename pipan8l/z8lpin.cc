@@ -155,7 +155,7 @@ static PinDef const pindefs[] = {
     { "oBTS_3",          DEV_8L, Z_RF, f_oBTS_3,           false },
     { "oC36B2",          DEV_8L, Z_RF, f_oC36B2,           false },
     { "oBWC_OVERFLOW",   DEV_8L, Z_RF, f_oBWC_OVERFLOW,    false },
-    { "oB_BREAK",        DEV_8L, Z_RF, f_oB_BREAK,         false },
+    { "o_B_BREAK",       DEV_8L, Z_RF, f_o_B_BREAK,        false },
     { "oE_SET_F_SET",    DEV_8L, Z_RF, f_oE_SET_F_SET,     false },
     { "oJMP_JMS",        DEV_8L, Z_RF, f_oJMP_JMS,         false },
     { "oLINE_LOW",       DEV_8L, Z_RF, f_oLINE_LOW,        false },

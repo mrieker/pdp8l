@@ -63,8 +63,7 @@ module pdp8lcmem (
     input brkcycle,
     input brkts1,
     input brkts3,
-    input brkwcovf,
-    input _brkdone
+    input brkwcovf
 );
 
     reg ctlwrite, ctldone;
@@ -75,9 +74,9 @@ module pdp8lcmem (
     reg ctlenab, ctlwcovf;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D100B :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D100C :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctlwcovf, ctldone, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { brk3cycl, brkcainc, 22'b0, brkcycle, brkts1, brkts3, _brkdone, 1'b0, busyonarm } :
+                      (armraddr == 2) ? { brk3cycl, brkcainc, 22'b0, brkcycle, brkts1, brkts3, 2'b0, busyonarm } :
                       armlock;
 
     assign brkema   = ctladdr[14:12];
@@ -156,6 +155,7 @@ module pdp8lcmem (
                 end
 
                 // wait for TS1 with B_BREAK indicating this cycle is for us
+                // B_BREAK is the output of the BREAK state flipflop, so is this actual cycle
                 // if this is a write request, flag it done because ctlwcovf is valid by now
                 4: begin
                     if (brkcycle & brkts1) begin
@@ -178,16 +178,9 @@ module pdp8lcmem (
                     end
                 end
 
-                // wait for ADDR_ACCEPTED asserted (occurs at TP4)
+                // wait for TS3 negated
                 6: begin
-                    if (~ _brkdone) begin
-                        busyonarm <= 7;
-                    end
-                end
-
-                // wait for ADDR_ACCEPTED negated before accepting another request from arm
-                7: begin
-                    if (_brkdone) begin
+                    if (~ brkts3) begin
                         busyonarm <= 0;
                     end
                 end

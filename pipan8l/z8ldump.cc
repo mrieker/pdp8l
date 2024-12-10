@@ -165,7 +165,7 @@ int main (int argc, char **argv)
             printf ("  oBWC_OVERFLOW=%o      lbEA=%o                               ",   FIELD(Z_RF,f_oBWC_OVERFLOW),  FIELD(Z_RG,g_lbEA));
             printf ("  i_BRK_RQST=%o         swEXAM=%o            debounced=%o%s",    FIELD(Z_RA,a_i_BRK_RQST),     FIELD(Z_RB,b_swEXAM),     FIELD(Z_RG,g_debounced), eol);
 
-            printf ("  oB_BREAK=%o           lbEXE=%o             bDMABUS=%04o     ",   FIELD(Z_RF,f_oB_BREAK),       FIELD(Z_RG,g_lbEXE),          FIELD(Z_RO,o_bDMABUS));
+            printf ("  o_B_BREAK=%o          lbEXE=%o             bDMABUS=%04o     ",   FIELD(Z_RF,f_o_B_BREAK),      FIELD(Z_RG,g_lbEXE),          FIELD(Z_RO,o_bDMABUS));
             printf ("  i_EA=%o               swIFLD=%o            lastswLDAD=%o%s",   FIELD(Z_RA,a_i_EA),           FIELD(Z_RB,b_swIFLD),     FIELD(Z_RG,g_lastswLDAD), eol);
 
             printf ("  oE_SET_F_SET=%o       lbFET=%o               x_DMAADDR=%o    ",  FIELD(Z_RF,f_oE_SET_F_SET),   FIELD(Z_RG,g_lbFET),          FIELD(Z_RO,o_x_DMAADDR));

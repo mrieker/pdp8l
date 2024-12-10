@@ -101,7 +101,7 @@ module Zynq (
     input  o_KEY_LOAD,
     input  o_LOAD_SF,
     input  o_SP_CYC_NEXT,
-    input  oB_BREAK,
+    input  o_B_BREAK,
     input  oBIOP1,
     input  oBIOP2,
     input  oBIOP4,
@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405E;
+    localparam VERSION = 32'h384C405F;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -202,7 +202,7 @@ module Zynq (
     wire sim_oBTS_1;
     wire sim_oBTS_3;
     wire sim_oBWC_OVERFLOW;
-    wire sim_oB_BREAK;
+    wire sim_o_B_BREAK;
     wire sim_oE_SET_F_SET;
     wire sim_oJMP_JMS;
     wire sim_oLINE_LOW;
@@ -264,7 +264,7 @@ module Zynq (
     wire dev_oBTS_1;
     wire dev_oBTS_3;
     wire dev_oBWC_OVERFLOW;
-    wire dev_oB_BREAK;
+    wire dev_o_B_BREAK;
     wire dev_oE_SET_F_SET;
     wire dev_oJMP_JMS;
     wire dev_oLINE_LOW;
@@ -313,7 +313,7 @@ module Zynq (
     wire q_KEY_LOAD;
     wire q_LOAD_SF;
     wire q_SP_CYC_NEXT;
-    wire qB_BREAK;
+    wire q_B_BREAK;
     wire qBIOP1;
     wire qBIOP2;
     wire qBIOP4;
@@ -624,7 +624,7 @@ module Zynq (
     synk synkkl (CLOCK, q_KEY_LOAD,    o_KEY_LOAD);
     synk synkls (CLOCK, q_LOAD_SF,     o_LOAD_SF);
     synk synksc (CLOCK, q_SP_CYC_NEXT, o_SP_CYC_NEXT);
-    synk synkbb (CLOCK, qB_BREAK,      oB_BREAK);
+    synk synkbb (CLOCK, q_B_BREAK,     o_B_BREAK);
     synk synkp1 (CLOCK, qBIOP1,        oBIOP1);
     synk synkp2 (CLOCK, qBIOP2,        oBIOP2);
     synk synkp4 (CLOCK, qBIOP4,        oBIOP4);
@@ -721,7 +721,7 @@ module Zynq (
     assign dev_oBTS_1         = simit ? sim_oBTS_1         : qBTS_1;
     assign dev_oBTS_3         = simit ? sim_oBTS_3         : qBTS_3;
     assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : qBWC_OVERFLOW;
-    assign dev_oB_BREAK       = simit ? sim_oB_BREAK       : qB_BREAK;
+    assign dev_o_B_BREAK      = simit ? sim_o_B_BREAK      : q_B_BREAK;
     assign dev_oE_SET_F_SET   = simit ? sim_oE_SET_F_SET   : qE_SET_F_SET;
     assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : qJMP_JMS;
     assign dev_oLINE_LOW      = simit ? sim_oLINE_LOW      : qLINE_LOW;
@@ -798,7 +798,7 @@ module Zynq (
     assign regctlf[06] = dev_oBTS_3;
     assign regctlf[07] = oC36B2;
     assign regctlf[08] = dev_oBWC_OVERFLOW;
-    assign regctlf[09] = dev_oB_BREAK;
+    assign regctlf[09] = dev_o_B_BREAK;
     assign regctlf[10] = dev_oE_SET_F_SET;
     assign regctlf[11] = dev_oJMP_JMS;
     assign regctlf[12] = dev_oLINE_LOW;
@@ -1129,7 +1129,7 @@ module Zynq (
         .oBTS_1        (sim_oBTS_1),
         .oBTS_3        (sim_oBTS_3),
         .oBWC_OVERFLOW (sim_oBWC_OVERFLOW),
-        .oB_BREAK      (sim_oB_BREAK),
+        .o_B_BREAK     (sim_o_B_BREAK),
         .oE_SET_F_SET  (sim_oE_SET_F_SET),
         .oJMP_JMS      (sim_oJMP_JMS),
         .oLINE_LOW     (sim_oLINE_LOW),
@@ -1461,11 +1461,10 @@ module Zynq (
         .brkaddr  (cmbrkaddr),                  //> lower address bits
         .brkwdat  (cmbrkwdat),                  //> data to write to memory
         .brkrdat  (dev_oBMB),                   //< data read from memory
-        .brkcycle (dev_oB_BREAK),               //< next mem cycle is for the break
+        .brkcycle (~ dev_o_B_BREAK),            //< this is the BREAK cycle
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
-        .brkwcovf (dev_oBWC_OVERFLOW),          //< wordcount overflow for 3-cycle
-        ._brkdone (dev_o_ADDR_ACCEPT)           //< cycle complete (TP4 in break cycle)
+        .brkwcovf (dev_oBWC_OVERFLOW)           //< wordcount overflow for 3-cycle
     );
 
     // extended arithmetic
@@ -1559,6 +1558,13 @@ module Zynq (
         if (~ RESET_N) begin
             ilaarmed <= 0;
             ilaafter <= 0;
+        end else if (armwrite & (writeaddr == 10'b0000010001)) begin
+
+            // arm processor is writing control register
+            ilaarmed <= saxi_WDATA[31];
+            ilaafter <= saxi_WDATA[27:16];
+            ilaindex <= saxi_WDATA[11:00];
+            ilardata <= ilaarray[saxi_WDATA[11:00]];
         end else if (ilaarmed | (ilaafter != 0)) begin
 
             // capture signals
@@ -1572,7 +1578,7 @@ module Zynq (
                 o_B_RUN,
                 o_BF_ENABLE,
                 o_SP_CYC_NEXT,
-                oB_BREAK,
+                o_B_BREAK,
                 oBTS_1,
                 oBTS_3
             };
@@ -1582,11 +1588,6 @@ module Zynq (
 
             // check trigger condition
             else if (~ i_BRK_RQST) ilaarmed <= 0;
-        end else if (armwrite & (writeaddr == 10'b0000010001)) begin
-            ilaarmed <= saxi_WDATA[31];
-            ilaafter <= saxi_WDATA[27:16];
-            ilaindex <= saxi_WDATA[11:00];
-            ilardata <= ilaarray[saxi_WDATA[11:00]];
         end
     end
 endmodule
