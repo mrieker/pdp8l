@@ -216,6 +216,7 @@ int tclmain (
     return 0;
 }
 
+// loop processing TCL commands read from stdin until eof
 static void tclloop (char const *progname, Tcl_Interp *interp)
 {
     char prompt[strlen(progname)+4];
@@ -228,18 +229,27 @@ static void tclloop (char const *progname, Tcl_Interp *interp)
 
         int rc = Tcl_EvalEx (interp, line, -1, TCL_EVAL_GLOBAL);
 
+        char const *res = Tcl_GetStringResult (interp);
+        int rel = (res == NULL) ? 0 : strlen (res);
+        char rer[rel+1];
+        memcpy (rer, res, rel);
+        rer[rel] = 0;
+
+        char const *eri = Tcl_GetVar (interp, "::errorInfo", TCL_GLOBAL_ONLY);
+        int erl = (eri == NULL) ? 0 : strlen (eri);
+        char err[erl+1];
+        memcpy (err, eri, erl);
+        err[erl] = 0;
+
         Tcl_EvalEx (interp, "flush stdout", -1, TCL_EVAL_GLOBAL);
         Tcl_EvalEx (interp, "flush stderr", -1, TCL_EVAL_GLOBAL);
-        fflush (stdout);
-        fflush (stderr);
 
-        char const *res = Tcl_GetStringResult (interp);
         if (rc != TCL_OK) {
-            if ((res == NULL) || (res[0] == 0)) fprintf (stderr, "%s: error %d evaluating command\n", progname, rc);
-                                  else fprintf (stderr, "%s: error %d evaluating command: %s\n", progname, rc, res);
-            Tcl_EvalEx (interp, "puts $::errorInfo", -1, TCL_EVAL_GLOBAL);
+            if (rer[0] == 0) fprintf (stderr, "%s: error %d evaluating command\n", progname, rc);
+               else fprintf (stderr, "%s: error %d evaluating command: %s\n", progname, rc, rer);
+            if (err[0] != 0) fprintf (stderr, "%s\n", err);
         }
-        else if ((res != NULL) && (res[0] != 0)) puts (res);
+        else if (rer[0] != 0) puts (rer);
     }
 }
 
