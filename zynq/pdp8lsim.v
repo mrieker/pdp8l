@@ -29,7 +29,7 @@ module pdp8lsim (
     input iMEMINCR,             // C36-T2,p15 B-1,J11-18,,,
     input[11:00] iMEM,          // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
     input iMEM_P,               // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
-    input iTHREECYCLE,          // C35-K2,p15 A-3,J11-38,,C22,
+    input i_3CYCLE,             // C35-K2,p15 A-3,J11-38,,C22,
     input i_AC_CLEAR,           // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
     input i_BRK_RQST,           // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
     input[11:00] i_DMAADDR,     // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
@@ -265,7 +265,7 @@ module pdp8lsim (
         else if ((majstate == MS_FETCH) & ((mbuf & 12'o7403) == 12'o7402)) hltbrkintfet <= MS_HALT;
 
         // if there is a dma request pending, start doing the dma
-        else if (~ i_BRK_RQST) hltbrkintfet <= iTHREECYCLE ? MS_WC : MS_BRK;
+        else if (~ i_BRK_RQST) hltbrkintfet <= i_3CYCLE ? MS_BRK : MS_WC;
 
         // if interrupt requested, interrupts are enabled via 6001 (ION),
         // and they aren't inhibited via 62x2/62x3 (CIF), next is int ack

@@ -157,7 +157,7 @@ int main (int argc, char **argv)
             printf ("  iMEM_P=%o             swCONT=%o            cyclectr=%04o%s",   FIELD(Z_RA,a_iMEM_P),         FIELD(Z_RB,b_swCONT),     FIELD(Z_RK,k_cyclectr), eol);
 
             printf ("  oBTS_1=%o             lbCA=%o              simit=%o          ",  FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit));
-            printf ("  iTHREECYCLE=%o        swDEP=%o             memcycctr=%08X%s",  FIELD(Z_RA,a_iTHREECYCLE),    FIELD(Z_RB,b_swDEP),      z8ls[Z_RN], eol);
+            printf ("  i_3CYCLE=%o           swDEP=%o             memcycctr=%08X%s",  FIELD(Z_RA,a_i_3CYCLE),       FIELD(Z_RB,b_swDEP),      z8ls[Z_RN], eol);
 
             printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o         ",  FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit));
             printf ("  i_AC_CLEAR=%o         swDFLD=%o%s",                            FIELD(Z_RA,a_i_AC_CLEAR),     FIELD(Z_RB,b_swDFLD), eol);

@@ -407,7 +407,7 @@
           "iMEM_07": {
             "direction": "O"
           },
-          "iTHREECYCLE": {
+          "i_3CYCLE": {
             "direction": "O"
           },
           "i_AC_CLEAR": {
@@ -2326,7 +2326,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0x3AAA76B1E8F3E392",
+      "boundary_crc": "0xA7BE00324F556945",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2729,10 +2729,10 @@
           "iMEM_07_0"
         ]
       },
-      "Zynq_0_iTHREECYCLE": {
+      "Zynq_0_i_3CYCLE": {
         "ports": [
-          "Zynq_0/iTHREECYCLE",
-          "iTHREECYCLE_0"
+          "Zynq_0/i_3CYCLE",
+          "i_3CYCLE_0"
         ]
       },
       "Zynq_0_i_AC_CLEAR": {
@@ -3293,7 +3293,7 @@
       "iMEM_07_0": {
         "direction": "O"
       },
-      "iTHREECYCLE_0": {
+      "i_3CYCLE_0": {
         "direction": "O"
       },
       "i_AC_CLEAR_0": {

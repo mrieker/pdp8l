@@ -76,7 +76,7 @@ static PinDef const pindefs[] = {
     { "iDATA_IN",        DEV_8L, Z_RA, a_iDATA_IN,         true  },
     { "iMEMINCR",        DEV_8L, Z_RA, a_iMEMINCR,         true  },
     { "iMEM_P",          DEV_8L, Z_RA, a_iMEM_P,           true  },
-    { "iTHREECYCLE",     DEV_8L, Z_RA, a_iTHREECYCLE,      true  },
+    { "i_3CYCLE",        DEV_8L, Z_RA, a_i_3CYCLE,         true  },
     { "i_AC_CLEAR",      DEV_8L, Z_RA, a_i_AC_CLEAR,       true  },
     { "i_BRK_RQST",      DEV_8L, Z_RA, a_i_BRK_RQST,       true  },
     { "i_EA",            DEV_8L, Z_RA, a_i_EA,             true  },

@@ -89,7 +89,7 @@ module Zynq (
     output iDATA_IN,
     output iMEM_07,
     output iMEMINCR,
-    output iTHREECYCLE,
+    output i_3CYCLE,
     input  o_ADDR_ACCEPT,
     input  o_B_RUN,
     input  o_BF_ENABLE,
@@ -180,7 +180,7 @@ module Zynq (
     wire sim_iMEMINCR;
     wire[11:00] sim_iMEM;
     wire sim_iMEM_P;
-    wire sim_iTHREECYCLE;
+    wire sim_i_3CYCLE;
     wire sim_i_AC_CLEAR;
     wire sim_i_BRK_RQST;
     wire[11:00] sim_i_DMAADDR;
@@ -242,7 +242,7 @@ module Zynq (
     wire dev_iMEMINCR;
     wire[11:00] dev_iMEM;
     wire dev_iMEM_P;
-    wire dev_iTHREECYCLE;
+    wire dev_i_3CYCLE;
     wire dev_i_AC_CLEAR;
     wire dev_i_BRK_RQST;
     wire[11:00] dev_i_DMAADDR;
@@ -335,7 +335,7 @@ module Zynq (
     reg arm_iDATA_IN;
     reg arm_iMEMINCR;
     reg arm_iMEM_P;
-    reg arm_iTHREECYCLE;
+    reg arm_i_3CYCLE;
     reg arm_i_AC_CLEAR;
     reg arm_i_BRK_RQST;
     reg arm_i_EA;
@@ -533,7 +533,7 @@ module Zynq (
                         arm_iDATA_IN      <= saxi_WDATA[02];
                         arm_iMEMINCR      <= saxi_WDATA[03];
                         arm_iMEM_P        <= saxi_WDATA[04];
-                        arm_iTHREECYCLE   <= saxi_WDATA[05];
+                        arm_i_3CYCLE      <= saxi_WDATA[05];
                         arm_i_AC_CLEAR    <= saxi_WDATA[06];
                         arm_i_BRK_RQST    <= saxi_WDATA[07];
                         arm_i_EA          <= saxi_WDATA[08];
@@ -675,7 +675,7 @@ module Zynq (
     assign sim_iMEMINCR       = simit ? dev_iMEMINCR       : 0;
     assign sim_iMEM           = simit ? dev_iMEM           : 0;
     assign sim_iMEM_P         = simit ? dev_iMEM_P         : 0;
-    assign sim_iTHREECYCLE    = simit ? dev_iTHREECYCLE    : 0;
+    assign sim_i_3CYCLE       = simit ? dev_i_3CYCLE       : 1;
     assign sim_i_AC_CLEAR     = simit ? dev_i_AC_CLEAR     : 1;
     assign sim_i_BRK_RQST     = simit ? dev_i_BRK_RQST     : 1;
     assign sim_i_DMAADDR      = simit ? dev_i_DMAADDR      : 12'hFFF;
@@ -695,7 +695,7 @@ module Zynq (
     assign     iMEMINCR       = simit ? 0       : dev_iMEMINCR;
     assign     iMEM           = simit ? 0       : dev_iMEM;
     assign     iMEM_P         = simit ? 0       : dev_iMEM_P;
-    assign     iTHREECYCLE    = simit ? 0       : dev_iTHREECYCLE;
+    assign     i_3CYCLE       = simit ? 1       : dev_i_3CYCLE;
     assign     i_AC_CLEAR     = simit ? 1       : dev_i_AC_CLEAR;
     assign     i_BRK_RQST     = simit ? 1       : dev_i_BRK_RQST;
     assign     i_DMAADDR      = simit ? 12'hFFF : dev_i_DMAADDR;
@@ -748,7 +748,7 @@ module Zynq (
     assign regctla[02] = dev_iDATA_IN;
     assign regctla[03] = dev_iMEMINCR;
     assign regctla[04] = dev_iMEM_P;
-    assign regctla[05] = dev_iTHREECYCLE;
+    assign regctla[05] = dev_i_3CYCLE;
     assign regctla[06] = dev_i_AC_CLEAR;
     assign regctla[07] = dev_i_BRK_RQST;
     assign regctla[08] = dev_i_EA;
@@ -1055,7 +1055,7 @@ module Zynq (
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
-    assign dev_iTHREECYCLE   =      arm_iTHREECYCLE   | ~ bareit & cmbrk3cycl;
+    assign dev_i_3CYCLE      = ~ (~ arm_i_3CYCLE      | ~ bareit & cmbrk3cycl);
     assign dev_i_AC_CLEAR    = ~ (~ arm_i_AC_CLEAR    | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | eaacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr));
     assign dev_i_BRK_RQST    = ~ (~ arm_i_BRK_RQST    | ~ bareit & cmbrkrqst);
     assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR     | ~ bare12 & cmbrkaddr);
@@ -1107,7 +1107,7 @@ module Zynq (
         .iMEMINCR      (sim_iMEMINCR),
         .iMEM          (sim_iMEM),
         .iMEM_P        (sim_iMEM_P),
-        .iTHREECYCLE   (sim_iTHREECYCLE),
+        .i_3CYCLE      (sim_i_3CYCLE),
         .i_AC_CLEAR    (sim_i_AC_CLEAR),
         .i_BRK_RQST    (sim_i_BRK_RQST),
         .i_DMAADDR     (sim_i_DMAADDR),
@@ -1573,7 +1573,7 @@ module Zynq (
                 i_EA,
                 iCA_INCREMENT,
                 iDATA_IN,
-                iTHREECYCLE,
+                i_3CYCLE,
                 o_ADDR_ACCEPT,
                 o_B_RUN,
                 o_BF_ENABLE,

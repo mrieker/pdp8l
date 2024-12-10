@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Tue Dec 10 16:52:46 2024
+--Date        : Tue Dec 10 17:42:41 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -81,7 +81,7 @@ entity myboard_wrapper is
     iINT_RQST_0 : out STD_LOGIC;
     iMEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
-    iTHREECYCLE_0 : out STD_LOGIC;
+    i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
     i_BRK_RQST_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
@@ -177,7 +177,7 @@ architecture STRUCTURE of myboard_wrapper is
     iINT_RQST_0 : out STD_LOGIC;
     iMEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
-    iTHREECYCLE_0 : out STD_LOGIC;
+    i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
     i_BRK_RQST_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
@@ -314,7 +314,7 @@ myboard_i: component myboard
       iINT_RQST_0 => iINT_RQST_0,
       iMEMINCR_0 => iMEMINCR_0,
       iMEM_07_0 => iMEM_07_0,
-      iTHREECYCLE_0 => iTHREECYCLE_0,
+      i_3CYCLE_0 => i_3CYCLE_0,
       i_AC_CLEAR_0 => i_AC_CLEAR_0,
       i_BRK_RQST_0 => i_BRK_RQST_0,
       i_EA_0 => i_EA_0,
