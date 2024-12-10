@@ -17,6 +17,7 @@ proc helpini {} {
     puts "  inttochar               - convert integer to character"
     puts "  loadbin <filename>      - load bin file, verify, return start address"
     puts "  loadrim <filename>      - load rim file, verify"
+    puts "  loop52                  - set up and start 5252: jmp 5252"
     puts "  octal <val>             - convert value to 4-digit octal string"
     puts "  openttypipes            - access tty device pipes"
     puts "  postinc <var>           - increment var but return its previous value"
@@ -582,6 +583,16 @@ proc loadverify {verify retifok} {
     puts ""
     puts "loadverify: verify ok"
     return $retifok
+}
+
+# set up 5252: jmp 5252 and start it
+proc loop52 {} {
+    stopandreset
+    setsw sr 05252
+    flicksw ldad
+    flicksw dep
+    flicksw ldad
+    flicksw start
 }
 
 # convert integer to 4-digit octal string
