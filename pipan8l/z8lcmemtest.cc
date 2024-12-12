@@ -102,11 +102,11 @@ int main (int argc, char **argv)
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = 0;
     pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RE] = simulate ? (e_simit | e_softreset) : 0;
+    pdpat[Z_RE] = (simulate ? e_simit : e_nanocontin) | e_softreset;
     xmemat[1]   = 0;
     manualclock = 1;
     clockit (1000);
-    pdpat[Z_RE] = simulate ? e_simit : 0;   // e_simit off leaves sim in reset
+    pdpat[Z_RE] = simulate ? e_simit : e_nanocontin;   // e_simit off leaves sim in reset
     clockit (1000);
 
     // range of addresses to test
@@ -335,6 +335,7 @@ static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
         waitcmemidle ();
         cmemat[2] = 0;
         cmemat[1] = CM_ENAB | wdata * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
+        getcmemwcovf ();
     }
 }
 
@@ -428,7 +429,7 @@ static bool getcmemwcovf ()
     for (int j = 0; ! ((cm1 = cmemat[1]) & CM_DONE); j ++) {
         clockit (1);
         if (j > 10000) {
-            fprintf (stderr, "timed out waiting for cmem ready\n");
+            fprintf (stderr, "timed out waiting for cmem done\n");
             ABORT ();
         }
     }

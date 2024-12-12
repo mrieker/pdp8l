@@ -33,18 +33,17 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-#define WIDTH 12
-#define DEPTH 4096
-#define AFTER 4000
+#define DEPTH 4096  // total number of elements in ilaarray
+#define AFTER 4000  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
 
 #define CTL_ARMED  0x80000000U
-#define CTL_AFTER  0x0FFF0000U
-#define CTL_INDEX  0x00000FFFU
 #define CTL_AFTER0 0x00010000U
 #define CTL_INDEX0 0x00000001U
+#define CTL_AFTER  (CTL_AFTER0 * (DEPTH - 1))
+#define CTL_INDEX  (CTL_INDEX0 * (DEPTH - 1))
 
 int main (int argc, char **argv)
 {
@@ -53,35 +52,54 @@ int main (int argc, char **argv)
     Z8LPage z8p;
     uint32_t volatile *pdpat = z8p.findev ("8L", NULL, NULL, false);
 
-    if ((pdpat[ILACTL] & (CTL_ARMED | CTL_AFTER)) != 0) {
-        printf ("already armed\n");
-    } else {
-        pdpat[ILACTL] = CTL_ARMED | AFTER * CTL_AFTER0;
-        printf ("newly armed\n");
-    }
+    // tell zynq.v to start collecting samples
+    // tell it to stop when collected trigger sample plus AFTER thereafter
+    pdpat[ILACTL] = CTL_ARMED | AFTER * CTL_AFTER0;
+    printf ("armed\n");
 
+    // wait for sampling to stop
     uint32_t ctl;
     while (((ctl = pdpat[ILACTL]) & (CTL_ARMED | CTL_AFTER)) != 0) sleep (1);
 
-    bool indotdotdot = false;
-    uint32_t lastentry = 0xFFFFFFFFU;
+    // read array[index] = next entry to be overwritten = oldest entry
     pdpat[ILACTL] = ctl & CTL_INDEX;
-    uint32_t thisentry = pdpat[ILADAT];
+    uint64_t thisentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
+
+    // loop through all entries in the array
+    bool indotdotdot = false;
+    uint64_t preventry = 0;
     for (int i = 0; i < DEPTH; i ++) {
+
+        // read array[index+i+1] = array entry after thisentry
         pdpat[ILACTL] = (ctl + i * CTL_INDEX0 + CTL_INDEX0) & CTL_INDEX;
-        uint32_t nextentry = pdpat[ILADAT];
-        if ((thisentry != lastentry) || (thisentry != nextentry)) {
-            printf ("%6.2f ", (i - DEPTH + AFTER + 1) / 100.0);
-            for (int j = 0; j < WIDTH; j ++) {
-                printf (" %o", (thisentry >> (WIDTH - 1 - j)) & 1);
-            }
-            printf ("\n");
+        uint64_t nextentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
+
+        // print thisentry - but use ... if same as prev and next
+        if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
+            printf ("%6.2f  %o %o %o %o  %o %o %o  %o %o %o %o %o  %04o  %04o\n",
+                (i - DEPTH + AFTER + 1) / 100.0,    // trigger shows as 0.00uS
+                (unsigned) (thisentry >> 35) & 1,
+                (unsigned) (thisentry >> 34) & 1,
+                (unsigned) (thisentry >> 33) & 1,
+                (unsigned) (thisentry >> 32) & 1,
+                (unsigned) (thisentry >> 31) & 1,
+                (unsigned) (thisentry >> 30) & 1,
+                (unsigned) (thisentry >> 29) & 1,
+                (unsigned) (thisentry >> 28) & 1,
+                (unsigned) (thisentry >> 27) & 1,
+                (unsigned) (thisentry >> 26) & 1,
+                (unsigned) (thisentry >> 25) & 1,
+                (unsigned) (thisentry >> 24) & 1,
+                (unsigned) (thisentry >> 12) & 07777,
+                (unsigned)  thisentry & 07777);
             indotdotdot = false;
         } else if (! indotdotdot) {
             printf ("    ...\n");
             indotdotdot = true;
         }
-        lastentry = thisentry;
+
+        // shuffle entries for next time through
+        preventry = thisentry;
         thisentry = nextentry;
     }
     return 0;

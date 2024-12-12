@@ -88,7 +88,7 @@ module Zynq (
     output reg iD36B2,
     output iDATA_IN,
     output iMEM_07,
-    output iMEMINCR,
+    output i_MEMINCR,
     output i_3CYCLE,
     input  o_ADDR_ACCEPT,
     input  o_B_RUN,
@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C405F;
+    localparam VERSION = 32'h384C4063;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -177,7 +177,7 @@ module Zynq (
     wire sim_iCA_INCREMENT;
     wire sim_iDATA_IN;
     wire[11:00] sim_iINPUTBUS;
-    wire sim_iMEMINCR;
+    wire sim_i_MEMINCR;
     wire[11:00] sim_iMEM;
     wire sim_iMEM_P;
     wire sim_i_3CYCLE;
@@ -239,7 +239,7 @@ module Zynq (
     wire dev_iCA_INCREMENT;
     wire dev_iDATA_IN;
     wire[11:00] dev_iINPUTBUS;
-    wire dev_iMEMINCR;
+    wire dev_i_MEMINCR;
     wire[11:00] dev_iMEM;
     wire dev_iMEM_P;
     wire dev_i_3CYCLE;
@@ -308,12 +308,9 @@ module Zynq (
     wire q_BUSINIT;
     wire q_DF_ENABLE;
     wire q_KEY_CLEAR;
-    wire q_KEY_DF;
-    wire q_KEY_IF;
     wire q_KEY_LOAD;
     wire q_LOAD_SF;
     wire q_SP_CYC_NEXT;
-    wire q_B_BREAK;
     wire qBIOP1;
     wire qBIOP2;
     wire qBIOP4;
@@ -321,11 +318,9 @@ module Zynq (
     wire qBTP3;
     wire qBTS_1;
     wire qBTS_3;
-    wire qBWC_OVERFLOW;
     wire qC36B2;
     wire qD35B2;
     wire qE_SET_F_SET;
-    wire qJMP_JMS;
     wire qLINE_LOW;
     wire qMEMSTART;
 
@@ -333,7 +328,7 @@ module Zynq (
     reg arm_iBEMA;
     reg arm_iCA_INCREMENT;
     reg arm_iDATA_IN;
-    reg arm_iMEMINCR;
+    reg arm_i_MEMINCR;
     reg arm_iMEM_P;
     reg arm_i_3CYCLE;
     reg arm_i_AC_CLEAR;
@@ -418,7 +413,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[11:00] ilaarray[4096:0], ilardata;
+    reg[35:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -450,7 +445,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 20'b0, ilardata } :
+        (readaddr        == 10'b0000010010) ? { ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { 28'b0, ilardata[35:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -531,7 +527,7 @@ module Zynq (
                         arm_iBEMA         <= saxi_WDATA[00];
                         arm_iCA_INCREMENT <= saxi_WDATA[01];
                         arm_iDATA_IN      <= saxi_WDATA[02];
-                        arm_iMEMINCR      <= saxi_WDATA[03];
+                        arm_i_MEMINCR     <= saxi_WDATA[03];
                         arm_iMEM_P        <= saxi_WDATA[04];
                         arm_i_3CYCLE      <= saxi_WDATA[05];
                         arm_i_AC_CLEAR    <= saxi_WDATA[06];
@@ -619,12 +615,9 @@ module Zynq (
     synk synkbi (CLOCK, q_BUSINIT,     o_BUSINIT);
     synk synkde (CLOCK, q_DF_ENABLE,   o_DF_ENABLE);
     synk synkkc (CLOCK, q_KEY_CLEAR,   o_KEY_CLEAR);
-    synk synkkd (CLOCK, q_KEY_DF,      o_KEY_DF);
-    synk synkki (CLOCK, q_KEY_IF,      o_KEY_IF);
     synk synkkl (CLOCK, q_KEY_LOAD,    o_KEY_LOAD);
     synk synkls (CLOCK, q_LOAD_SF,     o_LOAD_SF);
     synk synksc (CLOCK, q_SP_CYC_NEXT, o_SP_CYC_NEXT);
-    synk synkbb (CLOCK, q_B_BREAK,     o_B_BREAK);
     synk synkp1 (CLOCK, qBIOP1,        oBIOP1);
     synk synkp2 (CLOCK, qBIOP2,        oBIOP2);
     synk synkp4 (CLOCK, qBIOP4,        oBIOP4);
@@ -632,11 +625,9 @@ module Zynq (
     synk synkp3 (CLOCK, qBTP3,         oBTP3);
     synk synkt1 (CLOCK, qBTS_1,        oBTS_1);
     synk synkt3 (CLOCK, qBTS_3,        oBTS_3);
-    synk synkbo (CLOCK, qBWC_OVERFLOW, oBWC_OVERFLOW);
     synk synkc3 (CLOCK, qC36B2,        oC36B2);
     synk synkd3 (CLOCK, qD35B2,        oD35B2);
     synk synkef (CLOCK, qE_SET_F_SET,  oE_SET_F_SET);
-    synk synkjj (CLOCK, qJMP_JMS,      oJMP_JMS);
     synk synkll (CLOCK, qLINE_LOW,     oLINE_LOW);
     synk synkms (CLOCK, qMEMSTART,     oMEMSTART);
 
@@ -672,7 +663,7 @@ module Zynq (
     assign sim_iCA_INCREMENT  = simit ? dev_iCA_INCREMENT  : 0;
     assign sim_iDATA_IN       = simit ? dev_iDATA_IN       : 0;
     assign sim_iINPUTBUS      = simit ? dev_iINPUTBUS      : 0;
-    assign sim_iMEMINCR       = simit ? dev_iMEMINCR       : 0;
+    assign sim_i_MEMINCR      = simit ? dev_i_MEMINCR      : 1;
     assign sim_iMEM           = simit ? dev_iMEM           : 0;
     assign sim_iMEM_P         = simit ? dev_iMEM_P         : 0;
     assign sim_i_3CYCLE       = simit ? dev_i_3CYCLE       : 1;
@@ -692,7 +683,7 @@ module Zynq (
     assign     iCA_INCREMENT  = simit ? 0       : dev_iCA_INCREMENT;
     assign     iDATA_IN       = simit ? 0       : dev_iDATA_IN;
     assign     iINPUTBUS      = simit ? 0       : dev_iINPUTBUS;
-    assign     iMEMINCR       = simit ? 0       : dev_iMEMINCR;
+    assign     i_MEMINCR      = simit ? 1       : dev_i_MEMINCR;
     assign     iMEM           = simit ? 0       : dev_iMEM;
     assign     iMEM_P         = simit ? 0       : dev_iMEM_P;
     assign     i_3CYCLE       = simit ? 1       : dev_i_3CYCLE;
@@ -720,10 +711,10 @@ module Zynq (
     assign dev_oBTP3          = simit ? sim_oBTP3          : qBTP3;
     assign dev_oBTS_1         = simit ? sim_oBTS_1         : qBTS_1;
     assign dev_oBTS_3         = simit ? sim_oBTS_3         : qBTS_3;
-    assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : qBWC_OVERFLOW;
-    assign dev_o_B_BREAK      = simit ? sim_o_B_BREAK      : q_B_BREAK;
+    assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : oBWC_OVERFLOW;
+    assign dev_o_B_BREAK      = simit ? sim_o_B_BREAK      : o_B_BREAK;
     assign dev_oE_SET_F_SET   = simit ? sim_oE_SET_F_SET   : qE_SET_F_SET;
-    assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : qJMP_JMS;
+    assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : oJMP_JMS;
     assign dev_oLINE_LOW      = simit ? sim_oLINE_LOW      : qLINE_LOW;
     assign dev_oMA            = simit ? sim_oMA            : oMA;
     assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART;
@@ -733,8 +724,8 @@ module Zynq (
     assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN;
     assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE;
     assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR;
-    assign dev_o_KEY_DF       = simit ? sim_o_KEY_DF       : q_KEY_DF;
-    assign dev_o_KEY_IF       = simit ? sim_o_KEY_IF       : q_KEY_IF;
+    assign dev_o_KEY_DF       = simit ? sim_o_KEY_DF       : o_KEY_DF;
+    assign dev_o_KEY_IF       = simit ? sim_o_KEY_IF       : o_KEY_IF;
     assign dev_o_KEY_LOAD     = simit ? sim_o_KEY_LOAD     : q_KEY_LOAD;
     assign dev_o_LOAD_SF      = simit ? sim_o_LOAD_SF      : q_LOAD_SF;
     assign dev_o_SP_CYC_NEXT  = simit ? sim_o_SP_CYC_NEXT  : q_SP_CYC_NEXT;
@@ -746,7 +737,7 @@ module Zynq (
     assign regctla[00] = dev_iBEMA;
     assign regctla[01] = dev_iCA_INCREMENT;
     assign regctla[02] = dev_iDATA_IN;
-    assign regctla[03] = dev_iMEMINCR;
+    assign regctla[03] = dev_i_MEMINCR;
     assign regctla[04] = dev_iMEM_P;
     assign regctla[05] = dev_i_3CYCLE;
     assign regctla[06] = dev_i_AC_CLEAR;
@@ -871,12 +862,14 @@ module Zynq (
         end else if (nanocstep) begin
 
             // on falling edge of TS1, start sending write data to PDP
+            // PDP gates DMADATA into reg gates during TS2 (see vol 2 p6 B-6,C-7)
             if (lastts1 & ~ dev_oBTS_1) begin
                 dev_x_DMAADDR <= 1;
                 dev_x_DMADATA <= 0;
             end
 
             // on falling edge of TS3, start sending address to PDP for next cycle
+            // PDP gates DMAADDR into reg gates during TS4 (see vol 2 p6 B-5)
             else if (lastts3 & ~ dev_oBTS_3) begin
                 dev_x_DMAADDR <= 0;
                 dev_x_DMADATA <= 1;
@@ -1006,7 +999,7 @@ module Zynq (
 
     // latch MB contents from piobus when not in io pulse
     // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
-    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory)
+    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory or reading core memory)
     always @(posedge CLOCK) begin
         if (pwronreset) begin
             dev_r_BAC <= 1;
@@ -1052,7 +1045,7 @@ module Zynq (
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT | ~ bareit & cmbrkcainc;
     assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
     assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus);
-    assign dev_iMEMINCR      =      arm_iMEMINCR;
+    assign dev_i_MEMINCR     =      arm_i_MEMINCR;
     assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
     assign dev_i_3CYCLE      = ~ (~ arm_i_3CYCLE      | ~ bareit & cmbrk3cycl);
@@ -1104,7 +1097,7 @@ module Zynq (
         .iCA_INCREMENT (sim_iCA_INCREMENT),
         .iDATA_IN      (sim_iDATA_IN),
         .iINPUTBUS     (sim_iINPUTBUS),
-        .iMEMINCR      (sim_iMEMINCR),
+        .i_MEMINCR     (sim_i_MEMINCR),
         .iMEM          (sim_iMEM),
         .iMEM_P        (sim_iMEM_P),
         .i_3CYCLE      (sim_i_3CYCLE),
@@ -1571,16 +1564,40 @@ module Zynq (
             ilaarray[ilaindex] <= {
                 i_BRK_RQST,
                 i_EA,
-                iCA_INCREMENT,
-                iDATA_IN,
                 i_3CYCLE,
-                o_ADDR_ACCEPT,
-                o_B_RUN,
-                o_BF_ENABLE,
-                o_SP_CYC_NEXT,
+                i_MEMINCR,
                 o_B_BREAK,
                 oBTS_1,
-                oBTS_3
+                oBTS_3,
+                x_DMAADDR,
+                x_DMADATA,
+                x_INPUTBUS,
+                r_BAC,
+                r_BMB,
+                bDMABUSB,   // ~addr (msb)
+                bDMABUSJ,
+                bDMABUSC,
+                bDMABUSK,
+                bDMABUSD,
+                bDMABUSL,
+                bDMABUSE,
+                bDMABUSM,
+                bDMABUSN,
+                bDMABUSA,
+                bDMABUSH,
+                bDMABUSF,   // ~addr (lsb)
+                bPIOBUSH,   // data (msb)
+                bPIOBUSA,
+                bPIOBUSB,
+                bPIOBUSK,
+                bPIOBUSL,
+                bPIOBUSD,
+                bPIOBUSJ,
+                bPIOBUSC,
+                bPIOBUSE,
+                bPIOBUSM,
+                bPIOBUSN,
+                bPIOBUSF    // data (lsb)
             };
 
             ilaindex <= ilaindex + 1;

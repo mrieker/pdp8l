@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Tue Dec 10 17:42:41 2024
+--Date        : Wed Dec 11 22:18:51 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -79,7 +79,6 @@ entity myboard_wrapper is
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
-    iMEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
     i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
@@ -90,6 +89,7 @@ entity myboard_wrapper is
     i_INT_INHIBIT_0 : out STD_LOGIC;
     i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
     oBIOP2_0 : in STD_LOGIC;
@@ -175,7 +175,7 @@ architecture STRUCTURE of myboard_wrapper is
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
-    iMEMINCR_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
     i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
@@ -220,6 +220,12 @@ architecture STRUCTURE of myboard_wrapper is
     x_DMADATA_0 : out STD_LOGIC;
     x_INPUTBUS_0 : out STD_LOGIC;
     x_MEM_0 : out STD_LOGIC;
+    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
+    FIXED_IO_ddr_vrn : inout STD_LOGIC;
+    FIXED_IO_ddr_vrp : inout STD_LOGIC;
+    FIXED_IO_ps_srstb : inout STD_LOGIC;
+    FIXED_IO_ps_clk : inout STD_LOGIC;
+    FIXED_IO_ps_porb : inout STD_LOGIC;
     DDR_cas_n : inout STD_LOGIC;
     DDR_cke : inout STD_LOGIC;
     DDR_ck_n : inout STD_LOGIC;
@@ -234,13 +240,7 @@ architecture STRUCTURE of myboard_wrapper is
     DDR_dm : inout STD_LOGIC_VECTOR ( 3 downto 0 );
     DDR_dq : inout STD_LOGIC_VECTOR ( 31 downto 0 );
     DDR_dqs_n : inout STD_LOGIC_VECTOR ( 3 downto 0 );
-    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 );
-    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
-    FIXED_IO_ddr_vrn : inout STD_LOGIC;
-    FIXED_IO_ddr_vrp : inout STD_LOGIC;
-    FIXED_IO_ps_srstb : inout STD_LOGIC;
-    FIXED_IO_ps_clk : inout STD_LOGIC;
-    FIXED_IO_ps_porb : inout STD_LOGIC
+    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 )
   );
   end component myboard;
 begin
@@ -312,7 +312,6 @@ myboard_i: component myboard
       iD36B2_0 => iD36B2_0,
       iDATA_IN_0 => iDATA_IN_0,
       iINT_RQST_0 => iINT_RQST_0,
-      iMEMINCR_0 => iMEMINCR_0,
       iMEM_07_0 => iMEM_07_0,
       i_3CYCLE_0 => i_3CYCLE_0,
       i_AC_CLEAR_0 => i_AC_CLEAR_0,
@@ -323,6 +322,7 @@ myboard_i: component myboard
       i_INT_INHIBIT_0 => i_INT_INHIBIT_0,
       i_IO_SKIP_0 => i_IO_SKIP_0,
       i_MEMDONE_0 => i_MEMDONE_0,
+      i_MEMINCR_0 => i_MEMINCR_0,
       i_STROBE_0 => i_STROBE_0,
       oBIOP1_0 => oBIOP1_0,
       oBIOP2_0 => oBIOP2_0,
