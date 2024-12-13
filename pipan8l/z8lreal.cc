@@ -80,7 +80,7 @@ int main (int argc, char **argv)
     usleep (10);
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = 0;
+    pdpat[Z_RC] = ZZ_RC;
     pdpat[Z_RD] = ZZ_RD;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;

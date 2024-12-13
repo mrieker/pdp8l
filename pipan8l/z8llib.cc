@@ -123,7 +123,7 @@ static uint32_t ztop[] = {
 
 // e_simit = use pdp8lsim.v instead of real pdp-8/l so we can operate switches & lights
 // e_nanocontin = pdp8lsim.v clocks continuously from fpga clock
-static uint32_t const forceons[Z_N] = { 0, ZZ_RA, 0, 0, ZZ_RD, e_simit | e_nanocontin };
+static uint32_t const forceons[Z_N] = { 0, ZZ_RA, 0, ZZ_RC, ZZ_RD, e_simit | e_nanocontin };
 static char const *const msnames[] = { MS_NAMES };
 
 

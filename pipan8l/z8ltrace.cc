@@ -39,7 +39,7 @@ static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
 
 static uint32_t clockno;
-static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
+static uint32_t zrawrite, zrewrite;
 static uint32_t volatile *cmemat;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *xmemat;
@@ -63,8 +63,8 @@ int main (int argc, char **argv)
     // select simulator with manual clocking
     pdpat[Z_RA] = zrawrite = ZZ_RA;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = zrcwrite = 0;
-    pdpat[Z_RD] = zrdwrite = ZZ_RD;
+    pdpat[Z_RC] = ZZ_RC;
+    pdpat[Z_RD] = ZZ_RD;
     pdpat[Z_RE] = zrewrite = e_simit;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;

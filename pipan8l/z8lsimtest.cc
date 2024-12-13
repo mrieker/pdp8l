@@ -127,7 +127,7 @@ int main (int argc, char **argv)
     // select simulator with manual clocking and reset the pdp8lsim.v processor
     pdpat[Z_RA] = zrawrite = ZZ_RA;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = zrcwrite = 0;
+    pdpat[Z_RC] = zrcwrite = ZZ_RC;
     pdpat[Z_RD] = zrdwrite = ZZ_RD;
     pdpat[Z_RE] = zrewrite = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
@@ -453,7 +453,7 @@ int main (int argc, char **argv)
 
                             // send resultant random bits to the processor cuz there's no device sending them
                             pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
-                            pdpat[Z_RC] = zrcwrite = (zrcwrite & ~ c_iINPUTBUS) | (acbits * c_iINPUTBUS0);
+                            pdpat[Z_RC] = zrcwrite = (zrcwrite | c_i_INPUTBUS) & ~ (acbits * c_i_INPUTBUS0);
 
                         norand:;
                             printf (" => IOP%o => %c%c%04o", m, (acclear ? 'C' : ' '), (ioskip ? 'S' : ' '), acbits);
@@ -466,7 +466,7 @@ int main (int argc, char **argv)
 
                             // clear the random bits so it won't clock them again during nulled-out io pulses
                             pdpat[Z_RA] = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                            pdpat[Z_RC] = zrcwrite &= ~ c_iINPUTBUS;
+                            pdpat[Z_RC] = zrcwrite |= c_i_INPUTBUS;
 
                             // update our shadow registers
                             if (acclear) acum = 0;

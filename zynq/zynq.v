@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4063;
+    localparam VERSION = 32'h384C4067;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -176,7 +176,7 @@ module Zynq (
     wire sim_iBEMA;
     wire sim_iCA_INCREMENT;
     wire sim_iDATA_IN;
-    wire[11:00] sim_iINPUTBUS;
+    wire[11:00] sim_i_INPUTBUS;
     wire sim_i_MEMINCR;
     wire[11:00] sim_iMEM;
     wire sim_iMEM_P;
@@ -238,7 +238,7 @@ module Zynq (
     wire dev_iBEMA;
     wire dev_iCA_INCREMENT;
     wire dev_iDATA_IN;
-    wire[11:00] dev_iINPUTBUS;
+    wire[11:00] dev_i_INPUTBUS;
     wire dev_i_MEMINCR;
     wire[11:00] dev_iMEM;
     wire dev_iMEM_P;
@@ -284,7 +284,7 @@ module Zynq (
 
     wire[11:00] i_DMAADDR, i_DMADATA;    // dma address, data going out to real PDP-8/L via our DMABUS
                                          // ...used to access real PDP-8/L 4K core memory
-    wire[11:00] iINPUTBUS;               // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
+    wire[11:00] i_INPUTBUS;              // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
     wire[11:00] iMEM;                    // extended memory data going to real PDP-8/L MEM via our MEMBUS
     wire iMEM_P;                         // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
     wire[11:00] oBAC;                    // real PDP-8/L AC contents, valid only during first half of io pulse
@@ -350,7 +350,7 @@ module Zynq (
     reg arm_swSTEP;
     reg arm_swSTOP;
     reg arm_swSTART;
-    reg[11:00] arm_iINPUTBUS;
+    reg[11:00] arm_i_INPUTBUS;
     reg[11:00] arm_iMEM;
     reg[11:00] arm_i_DMAADDR;
     reg[11:00] arm_i_DMADATA;
@@ -413,7 +413,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[35:00] ilaarray[4095:0], ilardata;
+    reg[24:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -445,8 +445,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { 28'b0, ilardata[35:32] } :
+        (readaddr        == 10'b0000010010) ? { 7'b0, ilardata[24:00] } :
+        (readaddr        == 10'b0000010011) ? { 32'b0 } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -558,7 +558,7 @@ module Zynq (
                     end
 
                     10'b0000000011: begin
-                        arm_iINPUTBUS     <= saxi_WDATA[11:00];
+                        arm_i_INPUTBUS    <= saxi_WDATA[11:00];
                         arm_iMEM          <= saxi_WDATA[27:16];
                     end
 
@@ -662,7 +662,7 @@ module Zynq (
     assign sim_iBEMA          = simit ? dev_iBEMA          : 0;
     assign sim_iCA_INCREMENT  = simit ? dev_iCA_INCREMENT  : 0;
     assign sim_iDATA_IN       = simit ? dev_iDATA_IN       : 0;
-    assign sim_iINPUTBUS      = simit ? dev_iINPUTBUS      : 0;
+    assign sim_i_INPUTBUS     = simit ? dev_i_INPUTBUS     : 12'hFFF;
     assign sim_i_MEMINCR      = simit ? dev_i_MEMINCR      : 1;
     assign sim_iMEM           = simit ? dev_iMEM           : 0;
     assign sim_iMEM_P         = simit ? dev_iMEM_P         : 0;
@@ -682,7 +682,7 @@ module Zynq (
     assign     iBEMA          = simit ? 0       : dev_iBEMA;
     assign     iCA_INCREMENT  = simit ? 0       : dev_iCA_INCREMENT;
     assign     iDATA_IN       = simit ? 0       : dev_iDATA_IN;
-    assign     iINPUTBUS      = simit ? 0       : dev_iINPUTBUS;
+    assign     i_INPUTBUS     = simit ? 12'hFFF : dev_i_INPUTBUS;
     assign     i_MEMINCR      = simit ? 1       : dev_i_MEMINCR;
     assign     iMEM           = simit ? 0       : dev_iMEM;
     assign     iMEM_P         = simit ? 0       : dev_iMEM_P;
@@ -720,7 +720,7 @@ module Zynq (
     assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART;
     assign dev_o_ADDR_ACCEPT  = simit ? sim_o_ADDR_ACCEPT  : q_ADDR_ACCEPT;
     assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : q_BF_ENABLE;
-    assign dev_o_BUSINIT      = simit ? sim_o_BUSINIT      : q_BUSINIT;
+    assign dev_o_BUSINIT      = simit ? sim_o_BUSINIT      : 1; ////TODO//// q_BUSINIT;
     assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN;
     assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE;
     assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR;
@@ -766,10 +766,10 @@ module Zynq (
     assign regctlb[19:10] = 0;
     assign regctlb[31:20] = arm_swSR;
 
-    assign regctlc[15:00] = { 4'b0, dev_iINPUTBUS };
-    assign regctlc[31:16] = { 4'b0, dev_iMEM      };
-    assign regctld[15:00] = { 4'b0, dev_i_DMAADDR };
-    assign regctld[31:16] = { 4'b0, dev_i_DMADATA };
+    assign regctlc[15:00] = { 4'b0, dev_i_INPUTBUS };
+    assign regctlc[31:16] = { 4'b0, dev_iMEM       };
+    assign regctld[15:00] = { 4'b0, dev_i_DMAADDR  };
+    assign regctld[31:16] = { 4'b0, dev_i_DMADATA  };
 
     assign regctle[00] = simit;
     assign regctle[01] = softreset;
@@ -984,18 +984,18 @@ module Zynq (
         bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
 
     // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
-    assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
-    assign bPIOBUSH = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-01];
-    assign bPIOBUSB = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-02];
-    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-03];
-    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-04];
-    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-05];
-    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-06];
-    assign bPIOBUSF = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-07];
-    assign bPIOBUSN = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-08];
-    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-09];
-    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-10];
-    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-11];
+    assign bPIOBUSA = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-00];
+    assign bPIOBUSH = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-01];
+    assign bPIOBUSB = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-02];
+    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-03];
+    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-04];
+    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-05];
+    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-06];
+    assign bPIOBUSF = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-07];
+    assign bPIOBUSN = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-08];
+    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-09];
+    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-10];
+    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : i_INPUTBUS[11-11];
 
     // latch MB contents from piobus when not in io pulse
     // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
@@ -1044,7 +1044,7 @@ module Zynq (
     assign dev_iBEMA         =      arm_iBEMA;
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT | ~ bareit & cmbrkcainc;
     assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
-    assign dev_iINPUTBUS     =      arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus);
+    assign dev_i_INPUTBUS    = ~ (~ arm_i_INPUTBUS    | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus));
     assign dev_i_MEMINCR     =      arm_i_MEMINCR;
     assign dev_iMEM          =      arm_iMEM          | ~ bare12 & xmmem;
     assign dev_iMEM_P        =      arm_iMEM_P;
@@ -1096,7 +1096,7 @@ module Zynq (
         .iBEMA         (sim_iBEMA),
         .iCA_INCREMENT (sim_iCA_INCREMENT),
         .iDATA_IN      (sim_iDATA_IN),
-        .iINPUTBUS     (sim_iINPUTBUS),
+        .i_INPUTBUS    (sim_i_INPUTBUS),
         .i_MEMINCR     (sim_i_MEMINCR),
         .iMEM          (sim_iMEM),
         .iMEM_P        (sim_iMEM_P),
@@ -1562,30 +1562,19 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                i_BRK_RQST,
-                i_EA,
-                i_3CYCLE,
-                i_MEMINCR,
-                o_B_BREAK,
                 oBTS_1,
                 oBTS_3,
-                x_DMAADDR,
-                x_DMADATA,
+                oBIOP1,
+                oBIOP2,
+                oBIOP4,
+                iopstart,
+                iopstop,
+                iINT_RQST,
+                i_AC_CLEAR,
+                i_IO_SKIP,
                 x_INPUTBUS,
                 r_BAC,
                 r_BMB,
-                bDMABUSB,   // ~addr (msb)
-                bDMABUSJ,
-                bDMABUSC,
-                bDMABUSK,
-                bDMABUSD,
-                bDMABUSL,
-                bDMABUSE,
-                bDMABUSM,
-                bDMABUSN,
-                bDMABUSA,
-                bDMABUSH,
-                bDMABUSF,   // ~addr (lsb)
                 bPIOBUSH,   // data (msb)
                 bPIOBUSA,
                 bPIOBUSB,
@@ -1604,7 +1593,7 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (~ i_BRK_RQST) ilaarmed <= 0;
+            else if (oBIOP1 | oBIOP2 | oBIOP4) ilaarmed <= 0;
         end
     end
 endmodule

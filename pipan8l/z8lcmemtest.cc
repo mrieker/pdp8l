@@ -100,7 +100,7 @@ int main (int argc, char **argv)
     // select simulator and reset it or select real pdp and leave sim reset
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = 0;
+    pdpat[Z_RC] = ZZ_RC;
     pdpat[Z_RD] = ZZ_RD;
     pdpat[Z_RE] = (simulate ? e_simit : e_nanocontin) | e_softreset;
     xmemat[1]   = 0;

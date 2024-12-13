@@ -76,21 +76,21 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o %o %o  %o %o %o  %o %o %o %o %o  %04o  %04o\n",
+            printf ("%6.2f  %o %o  %o %o %o  %o %o  %o %o %o  %o %o %o  %04o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,    // trigger shows as 0.00uS
-                (unsigned) (thisentry >> 35) & 1,
-                (unsigned) (thisentry >> 34) & 1,
-                (unsigned) (thisentry >> 33) & 1,
-                (unsigned) (thisentry >> 32) & 1,
-                (unsigned) (thisentry >> 31) & 1,
-                (unsigned) (thisentry >> 30) & 1,
-                (unsigned) (thisentry >> 29) & 1,
-                (unsigned) (thisentry >> 28) & 1,
-                (unsigned) (thisentry >> 27) & 1,
-                (unsigned) (thisentry >> 26) & 1,
-                (unsigned) (thisentry >> 25) & 1,
                 (unsigned) (thisentry >> 24) & 1,
-                (unsigned) (thisentry >> 12) & 07777,
+                (unsigned) (thisentry >> 23) & 1,
+                (unsigned) (thisentry >> 22) & 1,
+                (unsigned) (thisentry >> 21) & 1,
+                (unsigned) (thisentry >> 20) & 1,
+                (unsigned) (thisentry >> 19) & 1,
+                (unsigned) (thisentry >> 18) & 1,
+                (unsigned) (thisentry >> 17) & 1,
+                (unsigned) (thisentry >> 16) & 1,
+                (unsigned) (thisentry >> 15) & 1,
+                (unsigned) (thisentry >> 14) & 1,
+                (unsigned) (thisentry >> 13) & 1,
+                (unsigned) (thisentry >> 12) & 1,
                 (unsigned)  thisentry & 07777);
             indotdotdot = false;
         } else if (! indotdotdot) {

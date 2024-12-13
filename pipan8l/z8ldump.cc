@@ -148,7 +148,7 @@ int main (int argc, char **argv)
             printf ("  iCA_INCREMENT=%o      i_DMADATA=%04o      nextmajst=%s%s",     FIELD(Z_RA,a_iCA_INCREMENT),  FIELD(Z_RD,d_i_DMADATA),  majstatenames[FIELD(Z_RK,k_nextmajst)], eol);
 
             printf ("  oBIOP4=%o             oMA=%04o            nanotrigger=%o    ",   FIELD(Z_RF,f_oBIOP4),         FIELD(Z_RI,i_oMA),            FIELD(Z_RE,e_nanotrigger));
-            printf ("  iDATA_IN=%o           iINPUTBUS=%04o      timedelay=%o0%s",    FIELD(Z_RA,a_iDATA_IN),       FIELD(Z_RC,c_iINPUTBUS),  FIELD(Z_RK,k_timedelay), eol);
+            printf ("  iDATA_IN=%o           i_INPUTBUS=%04o     timedelay=%o0%s",    FIELD(Z_RA,a_iDATA_IN),       FIELD(Z_RC,c_i_INPUTBUS), FIELD(Z_RK,k_timedelay), eol);
 
             printf ("  oBTP2=%o                                  nanocontin=%o     ",   FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin));
             printf ("  i_MEMINCR=%o          iMEM=%04o           timestate=%s%s",     FIELD(Z_RA,a_i_MEMINCR),      FIELD(Z_RC,c_iMEM),       timestatenames[FIELD(Z_RK,k_timestate)], eol);

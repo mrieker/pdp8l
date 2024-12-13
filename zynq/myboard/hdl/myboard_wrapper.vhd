@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Wed Dec 11 22:18:51 2024
+--Date        : Thu Dec 12 20:37:57 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -175,7 +175,6 @@ architecture STRUCTURE of myboard_wrapper is
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
-    i_MEMINCR_0 : out STD_LOGIC;
     iMEM_07_0 : out STD_LOGIC;
     i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
@@ -186,6 +185,7 @@ architecture STRUCTURE of myboard_wrapper is
     i_INT_INHIBIT_0 : out STD_LOGIC;
     i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
     oBIOP2_0 : in STD_LOGIC;
@@ -220,12 +220,6 @@ architecture STRUCTURE of myboard_wrapper is
     x_DMADATA_0 : out STD_LOGIC;
     x_INPUTBUS_0 : out STD_LOGIC;
     x_MEM_0 : out STD_LOGIC;
-    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
-    FIXED_IO_ddr_vrn : inout STD_LOGIC;
-    FIXED_IO_ddr_vrp : inout STD_LOGIC;
-    FIXED_IO_ps_srstb : inout STD_LOGIC;
-    FIXED_IO_ps_clk : inout STD_LOGIC;
-    FIXED_IO_ps_porb : inout STD_LOGIC;
     DDR_cas_n : inout STD_LOGIC;
     DDR_cke : inout STD_LOGIC;
     DDR_ck_n : inout STD_LOGIC;
@@ -240,7 +234,13 @@ architecture STRUCTURE of myboard_wrapper is
     DDR_dm : inout STD_LOGIC_VECTOR ( 3 downto 0 );
     DDR_dq : inout STD_LOGIC_VECTOR ( 31 downto 0 );
     DDR_dqs_n : inout STD_LOGIC_VECTOR ( 3 downto 0 );
-    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 )
+    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 );
+    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
+    FIXED_IO_ddr_vrn : inout STD_LOGIC;
+    FIXED_IO_ddr_vrp : inout STD_LOGIC;
+    FIXED_IO_ps_srstb : inout STD_LOGIC;
+    FIXED_IO_ps_clk : inout STD_LOGIC;
+    FIXED_IO_ps_porb : inout STD_LOGIC
   );
   end component myboard;
 begin

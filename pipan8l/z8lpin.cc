@@ -99,7 +99,7 @@ static PinDef const pindefs[] = {
     { "swSTOP",          DEV_8L, Z_RB, b_swSTOP,           true  },
     { "swSTART",         DEV_8L, Z_RB, b_swSTART,          true  },
     { "swSR",            DEV_8L, Z_RB, b_swSR,             true  },
-    { "iINPUTBUS",       DEV_8L, Z_RC, c_iINPUTBUS,        true  },
+    { "i_INPUTBUS",      DEV_8L, Z_RC, c_i_INPUTBUS,       true  },
     { "iMEM",            DEV_8L, Z_RC, c_iMEM,             true  },
     { "iMEM_00",         DEV_8L, Z_RC, c_iMEM0 << 11,      true  },
     { "iMEM_01",         DEV_8L, Z_RC, c_iMEM0 << 10,      true  },

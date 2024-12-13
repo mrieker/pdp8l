@@ -41,7 +41,7 @@ int main ()
     uint32_t volatile *pdpat = z8lpage.findev ("8L", NULL, NULL, true);
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = 0;
+    pdpat[Z_RC] = ZZ_RC;
     pdpat[Z_RD] = ZZ_RD;
     pdpat[Z_RE] = e_simit | e_softreset;
     pdpat[Z_RF] = 0;
