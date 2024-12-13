@@ -50,7 +50,6 @@ module pdp8lsim (
     output oBTP3,               // B36-H1,p4 C-4,J12-73,,,
     output oBTS_1,              // D36-T2,p15 D-1,J12-25,,,
     output oBTS_3,              // D36-S2,p15 D-2,J12-22,,,
-    output oBUSINIT,            // D36-V2,p15 D-1,,,,redundant bus init
     output reg oBWC_OVERFLOW,   // C35-P2,p15 A-2,J11-16,,C33,
     output o_B_BREAK,           // C36-P2,p15 B-2,J11-26,,,
     output oE_SET_F_SET,        // B36-D2,p22 C-3,J12-72,,,
@@ -60,7 +59,7 @@ module pdp8lsim (
     output oMEMSTART,           // B34-P2,p4 D-8,J11-57,,B33,
     output reg o_ADDR_ACCEPT,   // C36-S2,p15 S-2,J11-22,,,
     output o_BF_ENABLE,         // B36-E1,p22 C-6,J12-69,,,
-    output o_BUSINIT,           // C36-V2,p15 B-1,J11-9,,,?? active low bus init
+    output oBUSINIT,            // C36-V2,p15 B-1,J11-9,,,active high bus init
     output o_B_RUN,             // D34-S2,p15 C-1,J12-29,,D36,run flipflop on p4 B-2
     output o_DF_ENABLE,         // B36-B1,p22 C-7,J12-65,,,
     output o_KEY_CLEAR,         // B36-J1,p22 C-5,J12-68,,,
@@ -168,7 +167,6 @@ module pdp8lsim (
     assign oLINE_LOW   = RESET;
     assign oMA         = madr;
     assign oMEMSTART   = (timestate == TS_TS1BODY);
-    assign o_BUSINIT   = ~ oBUSINIT;
     assign o_B_RUN     = ~ runff;
     assign o_KEY_DF    = ~ swDFLD;
     assign o_KEY_IF    = ~ swIFLD;

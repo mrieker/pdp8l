@@ -11,3 +11,4 @@ rm -rf myboard/myboard.bxml
 rm -rf myboard/myboard_ooc.xdc
 rm -rf myboard/sim/
 rm -rf myboard/synth/
+rm -rf myboard/ui/

@@ -93,7 +93,7 @@ module Zynq (
     input  o_ADDR_ACCEPT,
     input  o_B_RUN,
     input  o_BF_ENABLE,
-    input  o_BUSINIT,
+    input  oBUSINIT,
     input  o_DF_ENABLE,
     input  o_KEY_CLEAR,
     input  o_KEY_DF,
@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4067;
+    localparam VERSION = 32'h384C4068;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -210,7 +210,7 @@ module Zynq (
     wire sim_oMEMSTART;
     wire sim_o_ADDR_ACCEPT;
     wire sim_o_BF_ENABLE;
-    wire sim_o_BUSINIT;
+    wire sim_oBUSINIT;
     wire sim_o_B_RUN;
     wire sim_o_DF_ENABLE;
     wire sim_o_KEY_CLEAR;
@@ -272,7 +272,7 @@ module Zynq (
     wire dev_oMEMSTART;
     wire dev_o_ADDR_ACCEPT;
     wire dev_o_BF_ENABLE;
-    wire dev_o_BUSINIT;
+    wire dev_oBUSINIT;
     wire dev_o_B_RUN;
     wire dev_o_DF_ENABLE;
     wire dev_o_KEY_CLEAR;
@@ -305,7 +305,7 @@ module Zynq (
     wire q_ADDR_ACCEPT;
     wire q_B_RUN;
     wire q_BF_ENABLE;
-    wire q_BUSINIT;
+    wire qBUSINIT;
     wire q_DF_ENABLE;
     wire q_KEY_CLEAR;
     wire q_KEY_LOAD;
@@ -612,7 +612,7 @@ module Zynq (
     synk synkaa (CLOCK, q_ADDR_ACCEPT, o_ADDR_ACCEPT);
     synk synkbr (CLOCK, q_B_RUN,       o_B_RUN);
     synk synkbe (CLOCK, q_BF_ENABLE,   o_BF_ENABLE);
-    synk synkbi (CLOCK, q_BUSINIT,     o_BUSINIT);
+    synk synkbi (CLOCK, qBUSINIT,      oBUSINIT);
     synk synkde (CLOCK, q_DF_ENABLE,   o_DF_ENABLE);
     synk synkkc (CLOCK, q_KEY_CLEAR,   o_KEY_CLEAR);
     synk synkkl (CLOCK, q_KEY_LOAD,    o_KEY_LOAD);
@@ -720,7 +720,7 @@ module Zynq (
     assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART;
     assign dev_o_ADDR_ACCEPT  = simit ? sim_o_ADDR_ACCEPT  : q_ADDR_ACCEPT;
     assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : q_BF_ENABLE;
-    assign dev_o_BUSINIT      = simit ? sim_o_BUSINIT      : 1; ////TODO//// q_BUSINIT;
+    assign dev_oBUSINIT       = simit ? sim_oBUSINIT       : qBUSINIT;
     assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN;
     assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE;
     assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR;
@@ -796,7 +796,7 @@ module Zynq (
     assign regctlf[13] = dev_oMEMSTART;
     assign regctlf[14] = dev_o_ADDR_ACCEPT;
     assign regctlf[15] = dev_o_BF_ENABLE;
-    assign regctlf[16] = dev_o_BUSINIT;
+    assign regctlf[16] = dev_oBUSINIT;
     assign regctlf[17] = dev_o_B_RUN;
     assign regctlf[18] = dev_o_DF_ENABLE;
     assign regctlf[19] = dev_o_KEY_CLEAR;
@@ -1130,7 +1130,7 @@ module Zynq (
         .oMEMSTART     (sim_oMEMSTART),
         .o_ADDR_ACCEPT (sim_o_ADDR_ACCEPT),
         .o_BF_ENABLE   (sim_o_BF_ENABLE),
-        .o_BUSINIT     (sim_o_BUSINIT),
+        .oBUSINIT      (sim_oBUSINIT),
         .o_B_RUN       (sim_o_B_RUN),
         .o_DF_ENABLE   (sim_o_DF_ENABLE),
         .o_KEY_CLEAR   (sim_o_KEY_CLEAR),
@@ -1182,8 +1182,7 @@ module Zynq (
     //  io interfaces  //
     /////////////////////
 
-    wire iobusreset = pwronreset | ~ dev_o_BUSINIT;     // power on reset or start switch
-                                                        // device does not disconnect itself from piobus
+    wire iobusreset = pwronreset | dev_oBUSINIT;    // power on reset or start switch
 
     // generate iopstart pulse for an io instruction followed by iopstop
     //  iopstart is pulsed 130nS after the first iop for an instruction and lasts a single CSTEP clock cycle
