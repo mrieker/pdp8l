@@ -197,11 +197,11 @@ int main (int argc, char **argv)
             kbchar = randbits (12);
             summed = (kbchar + counter) & 07777;
         } while (summed == 0);
-        printf ("main*: sending %04o to keyboard\n", kbchar);
+        ////printf ("main*: sending %04o to keyboard\n", kbchar);
         tt40at[Z_TTYKB] = KB_ENAB | KB_FLAG | kbchar;
 
         // now wait for pdp to echo the character plus counter
-        printf ("main*: waiting for echo to printer\n");
+        ////printf ("main*: waiting for echo to printer\n");
         uint32_t prreg;
         for (int j = 0; ! ((prreg = tt40at[Z_TTYPR]) & PR_FULL); j ++) {
             if (j > 10000) {
@@ -210,13 +210,13 @@ int main (int argc, char **argv)
             }
             clockit (1);
         }
-        printf ("main*: got %04o from printer\n", prreg & 07777);
+        ////printf ("main*: got %04o from printer\n", prreg & 07777);
 
         // make sure it echoed the correct value
         uint16_t prchar = prreg & 07777;
         if (prchar != summed) {
             fprintf (stderr, "sent %04o, counter %04o, received %04o, should be %04o\n", kbchar, counter, prchar, summed);
-            ////TODO////ABORT ();
+            ABORT ();
         }
 
         // sometimes we request an interrupt which causes the pdp's counter to increment
@@ -226,7 +226,7 @@ int main (int argc, char **argv)
             pdpat[Z_RA] = ZZ_RA & ~ a_i_INT_RQST;
             counter = (counter + 1) & 07777;
             if (counter == 0) counter = 1;
-            printf ("main*: incremented counter to %04o\n", counter);
+            ////printf ("main*: incremented counter to %04o\n", counter);
         } else {
             pdpat[Z_RA] = ZZ_RA;
         }
