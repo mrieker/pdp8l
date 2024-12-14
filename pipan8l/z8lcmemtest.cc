@@ -25,6 +25,7 @@
 
 //  ./z8lcmemtest.armv7l [-3cycle] [-extmem] [-sim]
 //    -3cycle = occasionally test 3-cycle DMAs
+//    -cainc = occasionally test ca-increment 3-cycle DMAs
 //    -extmem = test extended memory (otherwise just core memory)
 //    -sim = use simulator (pdp8lsim.v) instead of real PDP-8/L
 
@@ -68,9 +69,14 @@ int main (int argc, char **argv)
     bool testxmem = false;
     bool simulate = false;
     bool test3cyc = false;
+    bool testcain = false;
     for (int i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-3cycle") == 0) {
             test3cyc = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-cainc") == 0) {
+            testcain = true;
             continue;
         }
         if (strcasecmp (argv[i], "-extmem") == 0) {
@@ -210,6 +216,7 @@ int main (int argc, char **argv)
 
             // don't overwrite the DOTJMPDOT instruction
             if (i == DOTJMPDOT) continue;
+            if (i == DOTJMPDOT+1) continue;
 
             // don't work on the idwc/idca words
             if (i == idwc) continue;
@@ -217,8 +224,11 @@ int main (int argc, char **argv)
 
             // get a random number and tell cmem interface to write it to memory via dma cycle
             bool do3cycls = test3cyc && randbits (1);
-            bool docaincr = do3cycls && randbits (1);
-            writemem (i, randbits (12), do3cycls, docaincr);
+            bool docaincr = do3cycls && testcain && randbits (1);
+            uint16_t randata;
+            do randata = randbits (12);
+            while (randata == DOTJMPDOT);
+            writemem (i, randata, do3cycls, docaincr);
         }
 
         // finish clocking write to 077777 (stopat) so readback via extmem[] will work
@@ -228,6 +238,7 @@ int main (int argc, char **argv)
         // if externlow4k, we used externmem for low 4K so we can check it here
         // otherwise, low 4K used core stack which we can't access directly
         for (int i = externlow4k ? startat : 010000; i <= stopat; i ++) {
+            if (i == DOTJMPDOT) continue;
             uint16_t wdata = shadow[i];
             uint16_t rdata = extmem[i];
             if (rdata != wdata) {
@@ -240,13 +251,16 @@ int main (int argc, char **argv)
         for (int i = startat; i <= stopat; i ++) {
             if (exitflag) goto done;
 
+            if (i == DOTJMPDOT) continue;
+            if (i == DOTJMPDOT+1) continue;
+
             // don't work on the idwc/idca words
             if (i == idwc) continue;
             if (i == idca) continue;
 
             // read memory via DMA cycle
             bool do3cycls = test3cyc && randbits (1);
-            bool docaincr = do3cycls && randbits (1);
+            bool docaincr = do3cycls && testcain && randbits (1);
             uint16_t rdata = readmem (i, do3cycls, docaincr);
 
             // verify value read vs value written
@@ -285,6 +299,9 @@ static void siginthand (int signum)
 //   value written to shadow[]
 static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
 {
+    ASSERT (xaddr != DOTJMPDOT);
+    ASSERT (wdata != DOTJMPDOT);
+
     // maybe use 3-cycle dma to write the location
     if (do3cyc) {
 
@@ -330,7 +347,6 @@ static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
 
     // tell cmem interface to start writing data to memory via dma cycle
     else {
-        ASSERT (xaddr != DOTJMPDOT);
         shadow[xaddr] = wdata;
         waitcmemidle ();
         cmemat[2] = 0;
