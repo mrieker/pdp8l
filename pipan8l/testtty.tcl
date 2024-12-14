@@ -1,13 +1,17 @@
 
 ;# continuously read char from keyboard into accumulator and echo, inc top bits
-proc testecho {} {
+proc testecho {{port 03}} {
     flicksw stop
-    assem 0200 iot 06036    ;# KRB - read char clear flag
+    set KSF [expr {06031 - 030 + 8 * $port}]
+    set KRB [expr {06036 - 030 + 8 * $port}]
+    set TSF [expr {06041 - 030 + 8 * $port}]
+    set TLS [expr {06046 - 030 + 8 * $port}]
+    assem 0200 iot $KRB     ;# KRB - read char clear flag
     assem 0201 tad 0222     ;# restore AC top bits
-    assem 0202 iot 06046    ;# start printing char, clear flag
-    assem 0203 iot 06041    ;# TSF - skip if printer ready
+    assem 0202 iot $TLS     ;# start printing char, clear flag
+    assem 0203 iot $TSF     ;# TSF - skip if printer ready
     assem 0204 jmp 0203
-    assem 0205 iot 06031    ;# KSF - skip if keyboard ready
+    assem 0205 iot $KSF     ;# KSF - skip if keyboard ready
     assem 0206 jmp 0205
     assem 0207 and 0220     ;# wipe old char from AC
     assem 0210 tad 0221     ;# increment top AC bits
@@ -21,11 +25,13 @@ proc testecho {} {
 }
 
 ;# continuously read char from keyboard into accumulator, inc top bits
-proc testkb {} {
+proc testkb {{port 03}} {
     flicksw stop
-    assem 0200 iot 06036    ;# KRB - read char clear flag
+    set KSF [expr {06031 - 030 + 8 * $port}]
+    set KRB [expr {06036 - 030 + 8 * $port}]
+    assem 0200 iot $KRB     ;# KRB - read char clear flag
     assem 0201 tad 0222     ;# restore AC top bits
-    assem 0202 iot 06031    ;# KSF - skip if keyboard ready
+    assem 0202 iot $KSF     ;# KSF - skip if keyboard ready
     assem 0203 jmp 0202
     assem 0204 and 0220     ;# wipe old char from AC
     assem 0205 tad 0221     ;# increment top AC bits
@@ -39,14 +45,16 @@ proc testkb {} {
 }
 
 ;# continuously print char in sr
-proc testtt {} {
+proc testtt {{port 03}} {
     flicksw stop
+    set TSF [expr {06041 - 030 + 8 * $port}]
+    set TLS [expr {06046 - 030 + 8 * $port}]
     assem 0220 cla osr      ;# get char to print
     assem 0221 and 0243     ;# just 8 bits
-    assem 0222 iot 06046    ;# clear flag, start printing
+    assem 0222 iot $TLS     ;# clear flag, start printing
     assem 0223 tad 0240     ;# get some top bits while waiting
     assem 0224 tad 0241     ;# increment before waiting
-    assem 0225 iot 06041    ;# TSF - skip if printer ready
+    assem 0225 iot $TSF     ;# TSF - skip if printer ready
     assem 0226 jmp 0225
     assem 0227 and 0242     ;# clear bottom bits before saving
     assem 0230 dca 0240     ;# save top bits before reading sr
@@ -61,10 +69,12 @@ proc testtt {} {
 }
 
 ;# continuously print incrementing characters
-proc testttinc {} {
+proc testttinc {{port 03}} {
     flicksw stop
-    assem 0260 iot 06046    ;# clear flag, start printing
-    assem 0261 iot 06041    ;# TSF - skip if printer ready
+    set TSF [expr {06041 - 030 + 8 * $port}]
+    set TLS [expr {06046 - 030 + 8 * $port}]
+    assem 0260 iot $TLS     ;# clear flag, start printing
+    assem 0261 iot $TSF     ;# TSF - skip if printer ready
     assem 0262 jmp 0261
     assem 0263 iac          ;# increment to next character
     assem 0264 jmp 0260
