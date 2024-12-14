@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Fri Dec 13 09:59:43 2024
+--Date        : Sat Dec 14 15:11:27 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -99,7 +99,6 @@ entity myboard_wrapper is
     oBTS_1_0 : in STD_LOGIC;
     oBTS_3_0 : in STD_LOGIC;
     oBUSINIT_0 : in STD_LOGIC;
-    oBWC_OVERFLOW_0 : in STD_LOGIC;
     oC36B2_0 : in STD_LOGIC;
     oD35B2_0 : in STD_LOGIC;
     oE_SET_F_SET_0 : in STD_LOGIC;
@@ -108,6 +107,7 @@ entity myboard_wrapper is
     oMEMSTART_0 : in STD_LOGIC;
     o_ADDR_ACCEPT_0 : in STD_LOGIC;
     o_BF_ENABLE_0 : in STD_LOGIC;
+    o_BWC_OVERFLOW_0 : in STD_LOGIC;
     o_B_BREAK_0 : in STD_LOGIC;
     o_B_RUN_0 : in STD_LOGIC;
     o_DF_ENABLE_0 : in STD_LOGIC;
@@ -194,7 +194,7 @@ architecture STRUCTURE of myboard_wrapper is
     oBTP3_0 : in STD_LOGIC;
     oBTS_1_0 : in STD_LOGIC;
     oBTS_3_0 : in STD_LOGIC;
-    oBWC_OVERFLOW_0 : in STD_LOGIC;
+    oBUSINIT_0 : in STD_LOGIC;
     oC36B2_0 : in STD_LOGIC;
     oD35B2_0 : in STD_LOGIC;
     oE_SET_F_SET_0 : in STD_LOGIC;
@@ -203,7 +203,7 @@ architecture STRUCTURE of myboard_wrapper is
     oMEMSTART_0 : in STD_LOGIC;
     o_ADDR_ACCEPT_0 : in STD_LOGIC;
     o_BF_ENABLE_0 : in STD_LOGIC;
-    oBUSINIT_0 : in STD_LOGIC;
+    o_BWC_OVERFLOW_0 : in STD_LOGIC;
     o_B_BREAK_0 : in STD_LOGIC;
     o_B_RUN_0 : in STD_LOGIC;
     o_DF_ENABLE_0 : in STD_LOGIC;
@@ -332,7 +332,6 @@ myboard_i: component myboard
       oBTS_1_0 => oBTS_1_0,
       oBTS_3_0 => oBTS_3_0,
       oBUSINIT_0 => oBUSINIT_0,
-      oBWC_OVERFLOW_0 => oBWC_OVERFLOW_0,
       oC36B2_0 => oC36B2_0,
       oD35B2_0 => oD35B2_0,
       oE_SET_F_SET_0 => oE_SET_F_SET_0,
@@ -341,6 +340,7 @@ myboard_i: component myboard
       oMEMSTART_0 => oMEMSTART_0,
       o_ADDR_ACCEPT_0 => o_ADDR_ACCEPT_0,
       o_BF_ENABLE_0 => o_BF_ENABLE_0,
+      o_BWC_OVERFLOW_0 => o_BWC_OVERFLOW_0,
       o_B_BREAK_0 => o_B_BREAK_0,
       o_B_RUN_0 => o_B_RUN_0,
       o_DF_ENABLE_0 => o_DF_ENABLE_0,

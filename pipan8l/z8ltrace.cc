@@ -163,7 +163,7 @@ static void clockit ()
     pdpat[Z_RE] = zrewrite | e_nanotrigger;
     clockno ++;
     ////printf ("clockit: %10u bts_3=%o bwc_overflow=%o => ctlwcovf=%o\n",
-    ////    clockno, FIELD (Z_RF, f_oBTS_3), FIELD (Z_RF, f_oBWC_OVERFLOW), (cmemat[1] / CM_WCOVF) & 1);
+    ////    clockno, FIELD (Z_RF, f_oBTS_3), FIELD (Z_RF, f_o_BWC_OVERFLOW), (cmemat[1] / CM_WCOVF) & 1);
 }
 
 static void fatalerr (char const *fmt, ...)

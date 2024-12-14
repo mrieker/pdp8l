@@ -50,7 +50,7 @@ module pdp8lsim (
     output oBTP3,               // B36-H1,p4 C-4,J12-73,,,
     output oBTS_1,              // D36-T2,p15 D-1,J12-25,,,
     output oBTS_3,              // D36-S2,p15 D-2,J12-22,,,
-    output reg oBWC_OVERFLOW,   // C35-P2,p15 A-2,J11-16,,C33,
+    output reg o_BWC_OVERFLOW,  // C35-P2,p15 A-2,J11-16,,C33,
     output o_B_BREAK,           // C36-P2,p15 B-2,J11-26,,,
     output oE_SET_F_SET,        // B36-D2,p22 C-3,J12-72,,,
     output oJMP_JMS,            // B36-E2,p22 C-3,J11-63,,,
@@ -314,8 +314,8 @@ module pdp8lsim (
             memen       <= 0;
             nextmajst   <= MS_HALT;
 
-            oBWC_OVERFLOW <= 0;
-            o_ADDR_ACCEPT <= 1;
+            o_BWC_OVERFLOW <= 1;
+            o_ADDR_ACCEPT  <= 1;
 
             cyclectr      <= 0;
         end else if (CSTEP) begin
@@ -457,7 +457,7 @@ module pdp8lsim (
                                 mbuf <= mbuf + 1;
                                 // middle of wc with count just read, detect count overflow
                                 // PDP-8/L clocks it with TP2 (vol 2, p5 D-5)
-                                oBWC_OVERFLOW <= (mbuf == 12'o7777);
+                                o_BWC_OVERFLOW <= (mbuf != 12'o7777);
                             end
                             MS_CA: begin
                                 mbuf <= mbuf + iCA_INCREMENT;
@@ -556,7 +556,7 @@ module pdp8lsim (
                 end
 
                 TS_TP3BEG: begin
-                    oBWC_OVERFLOW <= 0;     // PDP-8/L clears BWC_OVERFLOW at end of TS3 (vol 2, p9 D-5)
+                    o_BWC_OVERFLOW <= 1;    // PDP-8/L clears BWC_OVERFLOW at end of TS3 (vol 2, p9 D-5)
                     if (timedelay != 2) timedelay <= timedelay + 1;
                     else timestate <= TS_TP3END;
                 end

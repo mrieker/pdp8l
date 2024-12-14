@@ -109,7 +109,7 @@ module Zynq (
     input  oBTP3,
     input  oBTS_1,
     input  oBTS_3,
-    input  oBWC_OVERFLOW,
+    input  o_BWC_OVERFLOW,
     input  oC36B2,
     input  oD35B2,
     input  oE_SET_F_SET,
@@ -201,7 +201,7 @@ module Zynq (
     wire sim_oBTP3;
     wire sim_oBTS_1;
     wire sim_oBTS_3;
-    wire sim_oBWC_OVERFLOW;
+    wire sim_o_BWC_OVERFLOW;
     wire sim_o_B_BREAK;
     wire sim_oE_SET_F_SET;
     wire sim_oJMP_JMS;
@@ -263,7 +263,7 @@ module Zynq (
     wire dev_oBTP3;
     wire dev_oBTS_1;
     wire dev_oBTS_3;
-    wire dev_oBWC_OVERFLOW;
+    wire dev_o_BWC_OVERFLOW;
     wire dev_o_B_BREAK;
     wire dev_oE_SET_F_SET;
     wire dev_oJMP_JMS;
@@ -711,7 +711,7 @@ module Zynq (
     assign dev_oBTP3          = simit ? sim_oBTP3          : qBTP3;
     assign dev_oBTS_1         = simit ? sim_oBTS_1         : qBTS_1;
     assign dev_oBTS_3         = simit ? sim_oBTS_3         : qBTS_3;
-    assign dev_oBWC_OVERFLOW  = simit ? sim_oBWC_OVERFLOW  : oBWC_OVERFLOW;
+    assign dev_o_BWC_OVERFLOW = simit ? sim_o_BWC_OVERFLOW : o_BWC_OVERFLOW;
     assign dev_o_B_BREAK      = simit ? sim_o_B_BREAK      : o_B_BREAK;
     assign dev_oE_SET_F_SET   = simit ? sim_oE_SET_F_SET   : qE_SET_F_SET;
     assign dev_oJMP_JMS       = simit ? sim_oJMP_JMS       : oJMP_JMS;
@@ -788,7 +788,7 @@ module Zynq (
     assign regctlf[05] = dev_oBTS_1;
     assign regctlf[06] = dev_oBTS_3;
     assign regctlf[07] = oC36B2;
-    assign regctlf[08] = dev_oBWC_OVERFLOW;
+    assign regctlf[08] = dev_o_BWC_OVERFLOW;
     assign regctlf[09] = dev_o_B_BREAK;
     assign regctlf[10] = dev_oE_SET_F_SET;
     assign regctlf[11] = dev_oJMP_JMS;
@@ -1090,90 +1090,90 @@ module Zynq (
     assign LEDoutB = 1;
 
     pdp8lsim siminst (
-        .CLOCK         (CLOCK),
-        .CSTEP         (nanocstep),
-        .RESET         (pwronreset | ~ simit),
-        .iBEMA         (sim_iBEMA),
-        .iCA_INCREMENT (sim_iCA_INCREMENT),
-        .iDATA_IN      (sim_iDATA_IN),
-        .i_INPUTBUS    (sim_i_INPUTBUS),
-        .i_MEMINCR     (sim_i_MEMINCR),
-        .iMEM          (sim_iMEM),
-        .iMEM_P        (sim_iMEM_P),
-        .i_3CYCLE      (sim_i_3CYCLE),
-        .i_AC_CLEAR    (sim_i_AC_CLEAR),
-        .i_BRK_RQST    (sim_i_BRK_RQST),
-        .i_DMAADDR     (sim_i_DMAADDR),
-        .i_DMADATA     (sim_i_DMADATA),
-        .i_EA          (sim_i_EA),
-        .i_EMA         (sim_i_EMA),
-        .i_INT_INHIBIT (sim_i_INT_INHIBIT),
-        .i_INT_RQST    (sim_i_INT_RQST),
-        .i_IO_SKIP     (sim_i_IO_SKIP),
-        .i_MEMDONE     (sim_i_MEMDONE),
-        .i_STROBE      (sim_i_STROBE),
-        .oBAC          (sim_oBAC),
-        .oBIOP1        (sim_oBIOP1),
-        .oBIOP2        (sim_oBIOP2),
-        .oBIOP4        (sim_oBIOP4),
-        .oBMB          (sim_oBMB),
-        .oBTP2         (sim_oBTP2),
-        .oBTP3         (sim_oBTP3),
-        .oBTS_1        (sim_oBTS_1),
-        .oBTS_3        (sim_oBTS_3),
-        .oBWC_OVERFLOW (sim_oBWC_OVERFLOW),
-        .o_B_BREAK     (sim_o_B_BREAK),
-        .oE_SET_F_SET  (sim_oE_SET_F_SET),
-        .oJMP_JMS      (sim_oJMP_JMS),
-        .oLINE_LOW     (sim_oLINE_LOW),
-        .oMA           (sim_oMA),
-        .oMEMSTART     (sim_oMEMSTART),
-        .o_ADDR_ACCEPT (sim_o_ADDR_ACCEPT),
-        .o_BF_ENABLE   (sim_o_BF_ENABLE),
-        .oBUSINIT      (sim_oBUSINIT),
-        .o_B_RUN       (sim_o_B_RUN),
-        .o_DF_ENABLE   (sim_o_DF_ENABLE),
-        .o_KEY_CLEAR   (sim_o_KEY_CLEAR),
-        .o_KEY_DF      (sim_o_KEY_DF),
-        .o_KEY_IF      (sim_o_KEY_IF),
-        .o_KEY_LOAD    (sim_o_KEY_LOAD),
-        .o_LOAD_SF     (sim_o_LOAD_SF),
-        .o_SP_CYC_NEXT (sim_o_SP_CYC_NEXT),
-        .lbAC          (sim_lbAC),
-        .lbBRK         (sim_lbBRK),
-        .lbCA          (sim_lbCA),
-        .lbDEF         (sim_lbDEF),
-        .lbEA          (sim_lbEA),
-        .lbEXE         (sim_lbEXE),
-        .lbFET         (sim_lbFET),
-        .lbION         (sim_lbION),
-        .lbIR          (sim_lbIR),
-        .lbLINK        (sim_lbLINK),
-        .lbMA          (sim_lbMA),
-        .lbMB          (sim_lbMB),
-        .lbRUN         (sim_lbRUN),
-        .lbWC          (sim_lbWC),
-        .swCONT        (arm_swCONT),
-        .swDEP         (arm_swDEP),
-        .swDFLD        (arm_swDFLD),
-        .swEXAM        (arm_swEXAM),
-        .swIFLD        (arm_swIFLD),
-        .swLDAD        (arm_swLDAD),
-        .swMPRT        (arm_swMPRT),
-        .swSTEP        (arm_swSTEP),
-        .swSTOP        (arm_swSTOP),
-        .swSR          (arm_swSR),
-        .swSTART       (arm_swSTART),
+        .CLOCK          (CLOCK),
+        .CSTEP          (nanocstep),
+        .RESET          (pwronreset | ~ simit),
+        .iBEMA          (sim_iBEMA),
+        .iCA_INCREMENT  (sim_iCA_INCREMENT),
+        .iDATA_IN       (sim_iDATA_IN),
+        .i_INPUTBUS     (sim_i_INPUTBUS),
+        .i_MEMINCR      (sim_i_MEMINCR),
+        .iMEM           (sim_iMEM),
+        .iMEM_P         (sim_iMEM_P),
+        .i_3CYCLE       (sim_i_3CYCLE),
+        .i_AC_CLEAR     (sim_i_AC_CLEAR),
+        .i_BRK_RQST     (sim_i_BRK_RQST),
+        .i_DMAADDR      (sim_i_DMAADDR),
+        .i_DMADATA      (sim_i_DMADATA),
+        .i_EA           (sim_i_EA),
+        .i_EMA          (sim_i_EMA),
+        .i_INT_INHIBIT  (sim_i_INT_INHIBIT),
+        .i_INT_RQST     (sim_i_INT_RQST),
+        .i_IO_SKIP      (sim_i_IO_SKIP),
+        .i_MEMDONE      (sim_i_MEMDONE),
+        .i_STROBE       (sim_i_STROBE),
+        .oBAC           (sim_oBAC),
+        .oBIOP1         (sim_oBIOP1),
+        .oBIOP2         (sim_oBIOP2),
+        .oBIOP4         (sim_oBIOP4),
+        .oBMB           (sim_oBMB),
+        .oBTP2          (sim_oBTP2),
+        .oBTP3          (sim_oBTP3),
+        .oBTS_1         (sim_oBTS_1),
+        .oBTS_3         (sim_oBTS_3),
+        .o_BWC_OVERFLOW (sim_o_BWC_OVERFLOW),
+        .o_B_BREAK      (sim_o_B_BREAK),
+        .oE_SET_F_SET   (sim_oE_SET_F_SET),
+        .oJMP_JMS       (sim_oJMP_JMS),
+        .oLINE_LOW      (sim_oLINE_LOW),
+        .oMA            (sim_oMA),
+        .oMEMSTART      (sim_oMEMSTART),
+        .o_ADDR_ACCEPT  (sim_o_ADDR_ACCEPT),
+        .o_BF_ENABLE    (sim_o_BF_ENABLE),
+        .oBUSINIT       (sim_oBUSINIT),
+        .o_B_RUN        (sim_o_B_RUN),
+        .o_DF_ENABLE    (sim_o_DF_ENABLE),
+        .o_KEY_CLEAR    (sim_o_KEY_CLEAR),
+        .o_KEY_DF       (sim_o_KEY_DF),
+        .o_KEY_IF       (sim_o_KEY_IF),
+        .o_KEY_LOAD     (sim_o_KEY_LOAD),
+        .o_LOAD_SF      (sim_o_LOAD_SF),
+        .o_SP_CYC_NEXT  (sim_o_SP_CYC_NEXT),
+        .lbAC           (sim_lbAC),
+        .lbBRK          (sim_lbBRK),
+        .lbCA           (sim_lbCA),
+        .lbDEF          (sim_lbDEF),
+        .lbEA           (sim_lbEA),
+        .lbEXE          (sim_lbEXE),
+        .lbFET          (sim_lbFET),
+        .lbION          (sim_lbION),
+        .lbIR           (sim_lbIR),
+        .lbLINK         (sim_lbLINK),
+        .lbMA           (sim_lbMA),
+        .lbMB           (sim_lbMB),
+        .lbRUN          (sim_lbRUN),
+        .lbWC           (sim_lbWC),
+        .swCONT         (arm_swCONT),
+        .swDEP          (arm_swDEP),
+        .swDFLD         (arm_swDFLD),
+        .swEXAM         (arm_swEXAM),
+        .swIFLD         (arm_swIFLD),
+        .swLDAD         (arm_swLDAD),
+        .swMPRT         (arm_swMPRT),
+        .swSTEP         (arm_swSTEP),
+        .swSTOP         (arm_swSTOP),
+        .swSR           (arm_swSR),
+        .swSTART        (arm_swSTART),
 
-        .majstate      (regctlk[03:00]),
-        .timedelay     (regctlk[09:04]),
-        .timestate     (regctlk[14:10]),
-        .cyclectr      (regctlk[24:15]),
-        .nextmajst     (regctlk[28:25]),
-        .debounced     (debounced),
-        .lastswLDAD    (lastswLDAD),
-        .lastswSTART   (lastswSTART),
-        .brkwhenhltd   (brkwhenhltd)
+        .majstate       (regctlk[03:00]),
+        .timedelay      (regctlk[09:04]),
+        .timestate      (regctlk[14:10]),
+        .cyclectr       (regctlk[24:15]),
+        .nextmajst      (regctlk[28:25]),
+        .debounced      (debounced),
+        .lastswLDAD     (lastswLDAD),
+        .lastswSTART    (lastswSTART),
+        .brkwhenhltd    (brkwhenhltd)
     );
 
     assign regctlk[31:29] = 0;
@@ -1456,7 +1456,7 @@ module Zynq (
         .brkcycle (~ dev_o_B_BREAK),            //< this is the BREAK cycle
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
-        .brkwcovf (dev_oBWC_OVERFLOW)           //< wordcount overflow for 3-cycle
+        .brkwcovf (~ dev_o_BWC_OVERFLOW)        //< wordcount overflow for 3-cycle
     );
 
     // extended arithmetic

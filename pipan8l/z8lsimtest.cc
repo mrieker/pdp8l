@@ -645,7 +645,7 @@ static void docont ()
 //   processor could possibly be somewhere near end of previous memory cycle
 //  output:
 //   returns with processor just exited TS3
-//   memcycwcover = processor's oBWC_OVERFLOW at beg of TS3
+//   memcycwcover = processor's ! o_BWC_OVERFLOW at beg of TS3
 //
 // steps through:
 //   TS1 = reading memory location
@@ -745,7 +745,7 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     // BWC_OVERFLOW is valid
     // - clocked with TP2 (vol 2, p5 D-5)
     // - cleared with TP3
-    memcycwcover = FIELD (Z_RF, f_oBWC_OVERFLOW);
+    memcycwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
 
     // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
     for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
@@ -787,7 +787,7 @@ static void clockit ()
     if (perclock) {
 #if 111
         uint32_t timestate = FIELD (Z_RK, k_timestate);
-        bool bwcover = FIELD (Z_RF, f_oBWC_OVERFLOW);
+        bool bwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
         //uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
         //uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
         //uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;

@@ -69,12 +69,12 @@ module pdp8lcmem (
     reg ctlwrite, ctldone;
     reg[14:00] ctladdr;
     reg[11:00] ctldata;
-    reg[3:0] busyonarm;
+    reg[3:0] busyonarm, ts3count;
     reg[31:00] armlock;
-    reg ctlenab, ctlwcovf;
+    reg ctlenab, ctlwcovf, last1wcovf, last2wcovf;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D100E :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h434D100F :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctlwcovf, ctldone, ctlbusy, ctldata, ctlwrite, ctladdr } :
                       (armraddr == 2) ? { brk3cycl, brkcainc, 22'b0, brkcycle, brkts1, brkts3, 1'b0, busyonarm } :
                       armlock;
@@ -152,12 +152,14 @@ module pdp8lcmem (
 
                 // wait for TS1 with B_BREAK indicating this cycle is for us
                 // B_BREAK is the output of the BREAK state flipflop, so is this actual cycle
-                // if this is a write request, flag it done because ctlwcovf is valid by now
+                // if this is a write request, flag it done because ctlwcovf is valid now
+                //  last2wcovf has wc overflow from 2 cycles ago, ie, WC
                 4: begin
                     if (brkcycle & brkts1) begin
                         brkrqst   <= 0;
                         busyonarm <= busyonarm + 1;
                         ctldone   <= ctlwrite;
+                        ctlwcovf  <= last2wcovf;
                     end
                 end
 
@@ -190,6 +192,20 @@ module pdp8lcmem (
                     busyonarm <= busyonarm + 1;
                 end
             endcase
+
+            // BWC_OVERFLOW is triggered by TP2, ie, near beginning of TS3
+            // it is cleared by MEM_DONE, ie, near end of TS3 (see vol 2, p9 D-5)
+            // it is set only during WC TP2 if count increments to zero
+            // also during BRK TP2 if MEMINCR and increments to zero
+            // we sample it 150nS into TS3 (TS3 is over 200nS wide)
+            // set up a shift register chain:
+            //   last2wcovf <= last1wcovf <= brkwcovf
+            if (~ brkts3) ts3count <= 0;
+            else if (ts3count != 15) ts3count <= ts3count + 1;
+            if (ts3count == 14) begin
+                last2wcovf <= last1wcovf;
+                last1wcovf <= brkwcovf;
+            end
         end
     end
 endmodule

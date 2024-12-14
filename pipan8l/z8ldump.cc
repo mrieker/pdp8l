@@ -162,7 +162,7 @@ int main (int argc, char **argv)
             printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o         ",  FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit));
             printf ("  i_AC_CLEAR=%o         swDFLD=%o%s",                            FIELD(Z_RA,a_i_AC_CLEAR),     FIELD(Z_RB,b_swDFLD), eol);
 
-            printf ("  oBWC_OVERFLOW=%o      lbEA=%o                               ",   FIELD(Z_RF,f_oBWC_OVERFLOW),  FIELD(Z_RG,g_lbEA));
+            printf ("  o_BWC_OVERFLOW=%o     lbEA=%o                               ",   FIELD(Z_RF,f_o_BWC_OVERFLOW), FIELD(Z_RG,g_lbEA));
             printf ("  i_BRK_RQST=%o         swEXAM=%o            debounced=%o%s",    FIELD(Z_RA,a_i_BRK_RQST),     FIELD(Z_RB,b_swEXAM),     FIELD(Z_RG,g_debounced), eol);
 
             printf ("  o_B_BREAK=%o          lbEXE=%o             bDMABUS=%04o     ",   FIELD(Z_RF,f_o_B_BREAK),      FIELD(Z_RG,g_lbEXE),          FIELD(Z_RO,o_bDMABUS));
