@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4068;
+    localparam VERSION = 32'h384C406A;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -1434,6 +1434,9 @@ module Zynq (
     // pdp must be running for this to work
     // does not process any pdp io instructions
 
+    wire cmtriggre;
+    wire[3:0] cmbusy;
+
     pdp8lcmem cminst (
         .CLOCK (CLOCK),
         .CSTEP (nanocstep),
@@ -1457,6 +1460,9 @@ module Zynq (
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
         .brkwcovf (~ dev_o_BWC_OVERFLOW)        //< wordcount overflow for 3-cycle
+
+        ,.triggre (cmtriggre)
+        ,.busyonarm (cmbusy)
     );
 
     // extended arithmetic
@@ -1561,38 +1567,24 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                oBTS_1,
-                oBTS_3,
-                oBIOP1,
-                oBIOP2,
-                oBIOP4,
-                iopstart,
-                iopstop,
-                iINT_RQST,
-                i_AC_CLEAR,
-                i_IO_SKIP,
-                x_INPUTBUS,
-                r_BAC,
-                r_BMB,
-                bPIOBUSH,   // data (msb)
-                bPIOBUSA,
-                bPIOBUSB,
-                bPIOBUSK,
-                bPIOBUSL,
-                bPIOBUSD,
-                bPIOBUSJ,
-                bPIOBUSC,
-                bPIOBUSE,
-                bPIOBUSM,
-                bPIOBUSN,
-                bPIOBUSF    // data (lsb)
+                cmtriggre,              // ctldata == 5252
+                cmawrite,               // arm is writing regs
+                i_BRK_RQST,             // brk cycle being requested
+                cmbrkwrite,             // - write cycle
+                cmbrk3cycl,             // - 3 cycle
+                cmbrkcainc,             // - ca inc
+                o_B_BREAK,              // break cycle in progress
+                oBTS_1,                 // time state 1
+                oBTS_3,                 // time state 3
+                cmbusy,
+                oBMB
             };
 
             ilaindex <= ilaindex + 1;
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (oBIOP1 | oBIOP2 | oBIOP4) ilaarmed <= 0;
+            else if (cmtriggre) ilaarmed <= 0;
         end
     end
 endmodule
