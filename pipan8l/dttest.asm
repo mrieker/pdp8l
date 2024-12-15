@@ -1,7 +1,26 @@
 
-; ../asm/assemble dttest.asm dttest.obj > dttest.lis
-; ../asm/link -o dttest.oct dttest.obj > dttest.map
-; ../driver/raspictl -csrclib -script dttest.tcl
+; single-drive dectape test program
+; - uses only low 4K memory
+; - tests interrupts, reverse reading
+
+; pdp8v/asm/assemble dttest.asm dttest.obj > dttest.lis
+; pdp8v/asm/link -o dttest.oct dttest.obj > dttest.map
+; pdp8v/asm/octtobin < dttest.oct > dttest.bin
+
+; on zturn:
+;  ./z8ltc08 -loadro 0 ~/dttest.tu56
+
+; on another zturn terminal (if not using pdp-8/l built-in tty):
+;  ./z8ltty -cps 120
+
+; on pipan8l:
+;  ./pipan8l dttest.tcl
+
+; optional (on pc, pipan8l or zturn):
+;  ./pipan8l -status pipan8l-ip-hostname
+
+; optional (on pc, pipan8l or zturn):
+;  ./z8ltc08 -status zturn-ip-hostname
 
 	ion   = 06001
 	iof   = 06002
@@ -11,13 +30,12 @@
 	tfl   = 06040
 	tsf   = 06041
 	tls   = 06046
-	pioff = 06310	; printinstr off
-	pion  = 06311	; printinstr on
 	dtra  = 06761
 	dtxa  = 06764
 	dtla  = 06766
 	dtsf  = 06771
 	dtrb  = 06772
+
 	idwc  = 07754	; 2s comp dma word count
 	idca  = 07755	; dma address minus one
 

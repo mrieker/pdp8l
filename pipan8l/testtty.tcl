@@ -1,4 +1,11 @@
 
+# Various simple TTY test programs
+
+#   ./pipan8l  (or z8lsim)
+#   pipan8l> source testtty.tcl
+#   pipan8l> <name-of-test> [<port-number>]
+#     port number defaults to 3, other values typically 040, 042, 044, 046
+
 ;# continuously read char from keyboard into accumulator and echo, inc top bits
 proc testecho {{port 03}} {
     flicksw stop
@@ -82,7 +89,10 @@ proc testttinc {{port 03}} {
 }
 
 puts ""
-puts "  testtt - continuously print char in sr"
-puts "  testkb - continuously read char from kb into ac"
-puts "  testecho - continuously read from kb and echo to tt"
-puts "             ...and increment top ac bits"
+puts "  testecho  - continuously read from kb and echo to tt"
+puts "              ...and increment top ac bits"
+puts "  testkb    - continuously read char from kb into ac"
+puts "              ...and increment top ac bits"
+puts "  testtt    - continuously print char in sr"
+puts "              ...and increment top ac bits"
+puts "  testttinc - continuously print incrementing characters"
