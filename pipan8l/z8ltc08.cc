@@ -480,6 +480,11 @@ static void *thread (void *dummy)
 
                         // increment word count and write new tape position to memory
                         uint32_t tp = drive->tapepos / 4;
+                        if (debug >= 3) {
+                            uint16_t wc = (z8p->dmacycle (CM_ENAB | IDWC * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                            uint16_t ca = (z8p->dmacycle (CM_ENAB | IDCA * CM_ADDR0, 0) & CM_DATA) / CM_DATA0;
+                            DBGPR (3, "thread: skip writing tp=%04o to wc=%04o ca=%04o\n", tp, wc, ca);
+                        }
                         cm = z8p->dmacycle (CM_ENAB | tp * CM_DATA0 | CM_WRITE | (field | IDWC) * CM_ADDR0, CM2_3CYCL);
                         DBGPR (2, "thread: skip cm=%08X tp=%04o\n", cm, tp);
                     } while (CONTIN && ! (cm & CM_WCOVF));
@@ -700,7 +705,7 @@ static void *thread (void *dummy)
             //    failing with timing error if DTFLAG has not been cleared by the processor by then
             //  in our case, we process the next block when the processor clears DTFLAG because the tubes may take a while to clear DTFLAG
         finished:;
-            DBGPR (1, "thread: st_A=%04o st_B=%04o\n", status_a, status_b);
+            DBGPR (1, "thread: done st_A=%04o st_B=%04o\n", status_a, status_b);
             tcat[1] = (tcat[1] & ~ (07707 * TC_STATB0)) | ((status_b & 07707) * TC_STATB0);
 
             // drive can now be unloaded

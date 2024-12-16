@@ -32,6 +32,11 @@ lib.$(MACH).a: \
 	rm -f lib.$(MACH).a
 	ar rc $@ $^
 
+dttest.bin: dttest.asm
+	pdp8v/asm/assemble dttest.asm dttest.obj > dttest.lis
+	pdp8v/asm/link -o dttest.oct dttest.obj > dttest.map
+	pdp8v/asm/octtobin < dttest.oct > dttest.bin
+
 mcp23017.$(MACH): mcp23017.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
 

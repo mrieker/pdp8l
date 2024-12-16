@@ -347,6 +347,10 @@ _sbbm5:	.word	sbbm5
 ;
 scanendblk: .word .-.
 	cla cll
+	tad	_7777		; set up DMA word count
+	dcai	_idwc
+	tad	_dmabuff	; set up DMA memory addr
+	dcai	_idca
 	tad	blockno		; see if targeting 2701
 	tad	_5077
 	sza cla
@@ -359,10 +363,6 @@ scanendblk: .word .-.
 	jmsi	_waitforeot	; we should hit end-of-tape
 	jmp	seb_readrev
 seb_noteot:
-	tad	_7777		; set up DMA word count
-	dcai	_idwc
-	tad	_dmabuff	; set up DMA memory addr
-	dcai	_idca
 	tad	_sebm2
 	jmsi	_printstrz
 	tad	driveno		; 'scan reverse normal' to get next block number
