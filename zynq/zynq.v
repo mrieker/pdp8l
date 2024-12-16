@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C406A;
+    localparam VERSION = 32'h384C406B;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -299,7 +299,6 @@ module Zynq (
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
     reg[2:0] iopclrcount;               // count fpga cycles where no IOP is on
     reg[31:00] memcycctr;
-    reg lastmemstart;
 
     // synchroniSed input wires
     wire q_ADDR_ACCEPT;
@@ -498,6 +497,29 @@ module Zynq (
             arm_r_MA       <= 1;
             arm_r_BMB      <= 1;
             arm_r_BAC      <= 1;
+
+            arm_iBEMA         <= 0;
+            arm_iCA_INCREMENT <= 0;
+            arm_iDATA_IN      <= 0;
+            arm_i_MEMINCR     <= 1;
+            arm_iMEM_P        <= 0;
+            arm_i_3CYCLE      <= 1;
+            arm_i_AC_CLEAR    <= 1;
+            arm_i_BRK_RQST    <= 1;
+            arm_i_EA          <= 1;
+            arm_i_EMA         <= 1;
+            arm_i_INT_INHIBIT <= 1;
+            arm_i_INT_RQST    <= 1;
+            arm_i_IO_SKIP     <= 1;
+            arm_i_MEMDONE     <= 1;
+            arm_i_STROBE      <= 1;
+            iB36V1            <= 0;
+            iD36B2            <= 0;
+
+            arm_i_INPUTBUS    <= 12'o7777;
+            arm_iMEM          <= 12'o0000;
+            arm_i_DMAADDR     <= 12'o7777;
+            arm_i_DMADATA     <= 12'o7777;
         end else begin
 
             /////////////////////
@@ -837,15 +859,12 @@ module Zynq (
     wire pwronreset = softreset | ~ RESET_N;
 
     // count memory cycles
+    // dectape uses it for timing in z8ltc08.cc
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
             memcycctr <= 0;
-            lastmemstart <= 0;
-        end else begin
-            if (~ lastmemstart & dev_oMEMSTART) begin
-                memcycctr <= memcycctr + 1;
-            end
-            lastmemstart <= dev_oMEMSTART;
+        end else if (~ lastts3 & dev_oBTS_3) begin
+            memcycctr <= memcycctr + 1;
         end
     end
 
