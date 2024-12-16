@@ -10,7 +10,7 @@ PDP-8/L related projects
         provides TCL commands to access light & switch signals
 
 * expansion box replacement
-    zynq/zturn based circuit board set (3) plugs in rear slots
+    zynq/zturn-7020 based circuit board set (4) plugs in rear slots
     provides functionality of 28KW extended memory, rk05, tc08, ttys, vc8 i & e
     can run with real PDP-8/L or can simulate the PDP-8/L for development
 
@@ -33,8 +33,9 @@ PDP-8/L related projects
             z8lvc8 - access VC8 I & E
             z8lxmemtest - test extended memory
 
-    zturn/zturn{34,35,36} - circuit boards for rear slots
-    zturn/zturnic - interconnects the three boards
+    zturn/ztm906 - replacement for M906s with 1K resistors (4 needed)
+    zturn/zturn{34b,34d,35,36} - circuit boards for rear slots
+    zturn/zturnic - interconnects the three boards (3 needed)
     zynq - zynq fpga code
     zplin - zynq petalinux
 
