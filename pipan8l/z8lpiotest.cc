@@ -23,10 +23,6 @@
 // Writes program to PDP memory that reads keyboard, adds a number, then echoes to printer.
 // Interrupts are tested by incrementing the number added by 1 for each interrupt.
 
-//  ./z8lpiotest [-man] [-sim]
-//    -man = use manual clocking (only good for simulator mode)
-//    -sim = use simulator (pdp8lsim.v) instead of real PDP-8/L
-
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -66,6 +62,17 @@ int main (int argc, char **argv)
     setlinebuf (stdout);
 
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Test PIO circuitry");
+            puts ("     Assumes z8lcmemtest works");
+            puts ("");
+            puts ("  ./z8lpiotest [-man] [-sim]");
+            puts ("     -man : use manual clocking (only good for simulator mode)");
+            puts ("     -sim : use simulator (pdp8lsim.v) instead of real PDP-8/L");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-man") == 0) {
             manclock = true;
             continue;
@@ -124,8 +131,8 @@ int main (int argc, char **argv)
         clockit (1000);
     } else {
         printf ("\n");
-        printf ("  set dfld,ifld,mem prot,step to 0\n");
         printf ("  set sr to %04o\n", DOTJMPDOT);
+        printf ("  set all other switches to 0\n");
         printf ("  load address\n");
         printf ("  deposit\n");
         printf ("  load address\n");

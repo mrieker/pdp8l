@@ -111,6 +111,24 @@ int main (int argc, char **argv)
     bool loadit = false;
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Access RK8JE controller and drives");
+            puts ("");
+            puts ("  ./z8lrk8je [-killit] [-loadro/-loadrw <driveno> <file>]... | [<tclscriptfile> [<scriptargs>...]]");
+            puts ("     -killit : kill other process accessing RK8JE controller");
+            puts ("     -loadro/rw : load the given file in the given drive");
+            puts ("     <tclscriptfile> : execute script then exit");
+            puts ("                else : read and process commands from stdin");
+            puts ("");
+            puts ("     Use -loadro/-loadrw to statically load files in drives.");
+            puts ("     Any <tclscriptfile> given is ignored.");
+            puts ("");
+            puts ("     If no -loadro/rw options given, will use TCL commands to dynamically load");
+            puts ("     and unload drives.  If no <tclscriptfile> given, will read from stdin.");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
             continue;

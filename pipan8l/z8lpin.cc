@@ -20,13 +20,6 @@
 
 // direct access to z8l signals
 
-//  'o' pins : simit=0 : read PDP-8/L pins
-//             simit=1 : read simulator pins
-
-//  'i' pins : simit=0 : drives PDP-8/L pin from device & arm register
-
-//  ./z8lpin [tclscriptfile]
-
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -284,6 +277,24 @@ int main (int argc, char **argv)
 
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Provide direct access to FPGA pins to/from PDP");
+            puts ("");
+            puts ("  ./z8lpin [<tclscriptfile> [<scriptargs>...]]");
+            puts ("     <tclscriptfile> : execute script then exit");
+            puts ("                else : read and process commands from stdin");
+            puts ("");
+            puts ("  'o' pins : simit=0 : read PDP-8/L output pins");
+            puts ("             simit=1 : read simulator output pins");
+            puts ("");
+            puts ("  'i' pins : simit=0 : drives PDP-8/L inputs from device & arm register");
+            puts ("             simit=1 : drives simulator inputs from device & arm register");
+            puts ("            bareit=0 : logical OR of device and arm register");
+            puts ("            bareit=1 : just value of arm register");
+            puts ("");
+            return 0;
+        }
         if (argv[i][0] == '-') {
             fprintf (stderr, "usage: %s [<tclfilename> ...]\n", argv[0]);
             return 1;

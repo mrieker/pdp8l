@@ -1,5 +1,6 @@
 
-Z8L programs run on Zynq with PDP-8/L code loaded (contains device code and 8/L simulator)
+Z8L programs run on Zynq ZTurn-7020 with PDP-8/L code loaded (contains device code and 8/L simulator).
+You can pass the '-?' option to get them to print usage information.
 
 automated test programs:
 

@@ -18,9 +18,8 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// run via pipan8l shell script:
-//  ./pipan8l [-sim | -z8l] [<scriptfile.tcl>]
-//  ./pipan8l -status [<ip-address-of-pipan8l>]
+// access pdp-8/l front panel
+// see ./pipan8l -? for options
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -140,6 +139,37 @@ int main (int argc, char **argv)
     char const *logname = NULL;
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("  ./pipan8l [-log <logfile>] [-sim | -z8l] [<scriptfile.tcl>]");
+            puts ("     access pdp-8/l front panel");
+            puts ("     -log : record output to given log file");
+            puts ("     -sim : access c-module simulator");
+            puts ("            invoke via ./pipan8l script");
+            puts ("            runs on pc, raspi, zturn");
+            puts ("            only has internal tty");
+            puts ("            does not need to be plugged into pdp");
+            puts ("     -z8l : access zturn simulator front panel");
+            puts ("            invoke via ./z8lsim script");
+            puts ("            runs on zturn only");
+            puts ("            has all zturn devices");
+            puts ("            does not need to be plugged into pdp");
+            puts ("     ...otherwise access real pdp front panel");
+            puts ("            invoke via ./pipan8l script");
+            puts ("            runs on raspi only");
+            puts ("            has all devices that are in pdp, including zturn if plugged in");
+            puts ("            must be plugged into pdp via pipan8l pcb");
+            puts ("     <scriptfile.tcl> : execute script then exit");
+            puts ("                 else : read and process commands from stdin");
+            puts ("");
+            puts ("  ./pipan8l -status [<hostname-or-ip-address-of-pipan8l>]");
+            puts ("     display ascii-art front panel operated by one of the above pipan8l methods");
+            puts ("     invoke via ./pipan8l script");
+            puts ("     runs on pc, raspi, zturn");
+            puts ("     <hostname-or-ip-address-of-pipan8l> defaults to localhost");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-log") == 0) {
             if ((++ i >= argc) || (argv[i][0] == '-')) {
                 fprintf (stderr, "missing filename after -log\n");

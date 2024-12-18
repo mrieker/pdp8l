@@ -90,6 +90,15 @@ int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
+    if ((argc > 1) && (strcmp (argv[1], "-?") == 0)) {
+        puts ("");
+        puts ("     Test pdp8lcmem.v, pdp8lsim.v, pdp8lxmem.v, sim parts of zynq.v code");
+        puts ("");
+        puts ("  ./z8lsimtest");
+        puts ("");
+        return 0;
+    }
+
     // if numbers given on command line, use them instead of randoms
     // exit when the randoms are used up
     nseqs = -1;

@@ -20,9 +20,6 @@
 
 // Performs TC08 tape I/O for the PDP-8/L Zynq I/O board
 
-//  ./z8ltc08 [-killit] [-loadro/-loadrw <driveno> <file>]... [<tclscriptfile>]
-//  ./z8ltc08 -status [<ipaddress>]
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -175,6 +172,29 @@ int main (int argc, char **argv)
     bool loadit = false;
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Access TC08 controller and drives");
+            puts ("");
+            puts ("  ./z8ltc08 [-killit] [-loadro/-loadrw <driveno> <file>]... | [<tclscriptfile> [<scriptargs>...]]");
+            puts ("     -killit : kill other process accessing TC08 controller");
+            puts ("     -loadro/rw : load the given file in the given drive");
+            puts ("     <tclscriptfile> : execute script then exit");
+            puts ("                else : read and process commands from stdin");
+            puts ("");
+            puts ("     Use -loadro/-loadrw to statically load files in drives.");
+            puts ("     Any <tclscriptfile> given is ignored.");
+            puts ("");
+            puts ("     If no -loadro/rw options given, will use TCL commands to dynamically load");
+            puts ("     and unload drives.  If no <tclscriptfile> given, will read from stdin.");
+            puts ("");
+            puts ("  ./z8ltc08 -status [<hostname-or-ip-address-of-zturn>]");
+            puts ("     display ascii-art dectape status");
+            puts ("     runs on pc, raspi, zturn");
+            puts ("     <hostname-or-ip-address-of-zturn> defaults to localhost");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
             continue;

@@ -28,12 +28,23 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-int main ()
+int main (int argc, char **argv)
 {
+    if ((argc > 1) && (strcmp (argv[1], "-?") == 0)) {
+        puts ("");
+        puts ("     Test direct AXI--mapped access to 32K external memory (extmemmap.v)");
+        puts ("     Does not need to be plugged into PDP-8/L");
+        puts ("");
+        puts ("  ./z8lxmemtest");
+        puts ("");
+        return 0;
+    }
+
     uint32_t shadow[32768];
 
     Z8LPage z8lpage;

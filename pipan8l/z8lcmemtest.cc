@@ -23,12 +23,6 @@
 // The test writes random numbers to the 4K and reads them back and verifies
 // It also tests the same interface with the extended 28K memory
 
-//  ./z8lcmemtest.armv7l [-3cycle] [-extmem] [-sim]
-//    -3cycle = occasionally test 3-cycle DMAs
-//    -cainc = occasionally test ca-increment 3-cycle DMAs
-//    -extmem = test extended memory (otherwise just core memory)
-//    -sim = use simulator (pdp8lsim.v) instead of real PDP-8/L
-
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -71,6 +65,18 @@ int main (int argc, char **argv)
     bool test3cyc = false;
     bool testcain = false;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("    Test core memory and DMA circuitry");
+            puts ("");
+            puts ("  ./z8lcmemtest.armv7l [-3cycle] [-cainc] [-extmem] [-sim]");
+            puts ("    -3cycle : occasionally test 3-cycle DMAs");
+            puts ("     -cainc : occasionally test ca-increment 3-cycle DMAs");
+            puts ("    -extmem : test FPGA-provided extended as well as core memory (otherwise just core memory)");
+            puts ("       -sim : use simulator (pdp8lsim.v) instead of real PDP-8/L");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-3cycle") == 0) {
             test3cyc = true;
             continue;
@@ -145,8 +151,8 @@ int main (int argc, char **argv)
         clockit (1000);
     } else {
         printf ("\n");
-        printf ("  set dfld,ifld,mem prot,step to 0\n");
         printf ("  set sr to %04o\n", DOTJMPDOT);
+        printf ("  set all other switches to 0\n");
         printf ("  load address\n");
         printf ("  deposit\n");
         printf ("  load address\n");

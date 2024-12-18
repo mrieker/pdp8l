@@ -78,6 +78,21 @@ int main (int argc, char **argv)
     XMemRange **lxmemrange, *xmemrange, *xmemranges;
     lxmemrange = &xmemranges;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Dump ZTurn FPGA state");
+            puts ("     Does not alter the state");
+            puts ("");
+            puts ("  ./z8ldump.armv7l [-once | -step] [-xmem <lo>..<hi>]...");
+            puts ("     -once : just print the state once, else update continually");
+            puts ("     -step : prompt between updates");
+            puts ("     -xmem : dump the given extended memory range instead of register state");
+            puts ("             may be given more than once");
+            puts ("             Does not dump PDP-8/L core memory.  If need to dump low 4K memory,");
+            puts ("             restart everything with z8lreal giving it the -enlo4k option.");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-once") == 0) {
             eol = "\n";
             oncemode = true;

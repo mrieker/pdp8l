@@ -20,10 +20,6 @@
 
 // Performs TTY I/O for the PDP-8/L Zynq I/O board
 
-//  ./z8ltty [-cps <charspersec>] [-nokb] [<octalportnumber>] [-tcl [<scriptfilename> [<scriptargs...>]]]
-//     charspersec defaults to 10
-//     octalportnumber defaults to 03
-
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -92,6 +88,24 @@ int main (int argc, char **argv)
     uint32_t port = 3;
     char *p;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Access TTY");
+            puts ("");
+            puts ("  ./z8ltty [-cps <charspersec>] [-killit] [-nokb] [<octalportnumber>] [-tcl [<scriptfilename> [<scriptargs...>]]]");
+            puts ("     -cps    : set chars per second, default 10");
+            puts ("     -killit : kill other process that is processing this tty port");
+            puts ("     -nokb   : do not pass stdin keyboard to pdp");
+            puts ("     <octalportnumber> defaults to 03, other values are 40 42 44 46");
+            puts ("     -tcl    : use tcl scripting");
+            puts ("               if <scriptfilename> [<scriptargs...>] given, process from that script");
+            puts ("               otherwise read and process commands from stdin");
+            puts ("               needed for loading papertape files");
+            puts ("");
+            puts ("     Can access TTY 03 only if -entty03 given to z8lreal or using z8lsim simulator");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-cps") == 0) {
             if ((++ i >= argc) || (argv[i][0] == '-')) {
                 fprintf (stderr, "missing value for -cps\n");
@@ -396,11 +410,14 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
         char const *arg = Tcl_GetString (objv[i]);
         if ((objc == 2) && (strcasecmp (arg, "help") == 0)) {
             puts ("");
-            puts ("  run [-cps <charspersec>] [-kb] [-nokb]");
-            puts ("    -cps = characters per second");
-            puts ("    -kb = enable keyboard processing");
-            puts ("    -nokb = disable keyboard processing");
+            puts ("  run [-cps <charspersec>] [-kb] [-nokb] [-stopon <string>]");
+            printf ("    -cps = characters per second, default %d\n", cps);
+            printf ("    -kb = enable keyboard processing%s, stop via control-\\\n", (nokb ? "" : ", default"));
+            printf ("    -nokb = disable keyboard processing%s, stop via control-C\n", (nokb ? ", default" : ""));
             puts ("    -stopon <string> = stop when string printed");
+            puts ("       option may be given multiple times");
+            puts ("");
+            puts ("  return value is matching stopon <string> or null string if stopped via control-\\ or -C");
             puts ("");
             return TCL_OK;
         }

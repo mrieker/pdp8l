@@ -19,7 +19,6 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Back external memory with a core file
-//  ./z8lcore [-fork] <corefile>
 
 #include <fcntl.h>
 #include <signal.h>
@@ -46,6 +45,16 @@ int main (int argc, char **argv)
     bool forkit = false;
     char const *corefn = NULL;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Back external memory with a core file");
+            puts ("");
+            puts ("  ./z8lcore [-fork] <corefile>");
+            puts ("     -fork : fork as a daemon after loading corefile into external memory");
+            puts ("     <corefile> : file used to save/restore external memory");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-fork") == 0) {
             forkit = true;
             continue;

@@ -20,11 +20,6 @@
 
 // VC8 small computer handbook PDP-8/I, 1970, p87
 
-// can emulate VC8/E or VC8/I
-//  ./z8lvc8 [-pms <persistence-milliseconds>] [-size <windowsize-pixels>] e | i
-//    persistence defaults to 500mS
-//    windowsize defaults to 1024
-
 #include <fcntl.h>
 #include <string.h>
 #include <sys/time.h>
@@ -138,6 +133,18 @@ int main (int argc, char **argv)
     char const *iodevname = NULL;
 
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Access VC8/E or VC8/I display");
+            puts ("");
+            puts ("  ./z8lvc8 [-pms <persistence-milliseconds>] [-size <windowsize-pixels>] e | i");
+            printf ("     persistence %d..%d, default %dmS\n", MINPERSISTMS, MAXPERSISTMS, DEFPERSISTMS);
+            printf ("     windowsize %d..%d, default %d pixels\n", MINWINSIZE, MAXWINSIZE, DEFWINSIZE);
+            puts ("     e : process VC8/E-style IO instructions");
+            puts ("     i : process VC8/I-style IO instructions");
+            puts ("");
+            return 0;
+        }
 
         // maybe override default ephemeral persistence
         if (strcasecmp (argv[i], "-pms") == 0) {

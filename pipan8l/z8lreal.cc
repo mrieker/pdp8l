@@ -21,10 +21,6 @@
 // Switch the Zynq FPGA to use real PDP-8/L instead of pdp8lsim.v
 // Resets all FPGA devices to power-on reset state
 // Leaves simulator held in power-on reset state
-//  ./z8lreal [-enlo4k] [-entty03]
-//    -enlo4k  = use FPGA extmem for low 4K memory (else use PDP-8/L core)
-//    -entty03 = use FPGA tty (else use PDP-8/L tty)
-//               tty boards must be unplugged for this to work
 
 #include <stdio.h>
 #include <string.h>
@@ -50,6 +46,20 @@ int main (int argc, char **argv)
     bool entty03 = false;
     bool os8zap = false;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Reset and configure ZTurn FPGA to access real PDP-8/L");
+            puts ("     Must be plugged into PDP-8/L via zturn boardset");
+            puts ("");
+            puts ("  ./z8lreal [-enlo4k] [-entty03] [-os8zap]");
+            puts ("     -enlo4k  : use FPGA extmem for low 4K memory (else use PDP-8/L core)");
+            puts ("     -entty03 : use FPGA tty 03 (else use PDP-8/L tty)");
+            puts ("                M706 M707 tty boards must be unplugged for this to work");
+            puts ("     -os8zap  : optimize out annoying ISZ JMP .-1 delay loop in OS/8");
+            puts ("                must also have -enlo4k set for this to work in low 4K memory");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-enlo4k") == 0) {
             enlo4k = true;
             continue;
