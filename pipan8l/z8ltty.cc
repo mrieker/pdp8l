@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +69,7 @@ static bool readerquiet;
 static bool readerstat;
 static int punchfile = -1;
 static int readerfile = -1;
+static struct termios term_original;
 static uint32_t cps = 10;
 static uint32_t punchbytes;
 static uint32_t readerbytes;
@@ -78,6 +80,7 @@ static uint8_t readermask;
 
 static bool findtt (void *param, uint32_t volatile *ttyat);
 static bool stoponcheck (TTYStopOn *const stopon, char prchar);
+static void sigrunhand (int signum);
 
 
 
@@ -449,14 +452,21 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
         goto reterr;
     }
 
-    struct termios term_modified, term_original;
+    struct termios term_modified;
     stdintty = isatty (STDIN_FILENO) > 0;
     if (stdintty && ! nokb) {
+        // stdin is a tty, set it to raw mode
+        fprintf (stderr, "z8ltty: use control-\\ for stop char\n");
         if (tcgetattr (STDIN_FILENO, &term_original) < 0) ABORT ();
+        if (signal (SIGHUP,  sigrunhand) != SIG_DFL) ABORT ();
+        if (signal (SIGTERM, sigrunhand) != SIG_DFL) ABORT ();
         term_modified = term_original;
         cfmakeraw (&term_modified);
-        if (tcsetattr (STDIN_FILENO, TCSANOW, &term_modified) < 0) ABORT ();
-        fprintf (stderr, "z8ltty: use control-\\ for stop char\r\n");
+        if (tcsetattr (STDIN_FILENO, TCSADRAIN, &term_modified) < 0) ABORT ();
+    } else {
+        // stdin not a tty (or we are supposed to ignore it)
+        // in case user presses control-\ to terminate
+        if (signal (SIGQUIT, sigrunhand) != SIG_DFL) ABORT ();
     }
 
     struct timeval nowtv;
@@ -569,7 +579,13 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
     }
 
 stopped:;
-    if (stdintty && ! nokb && (tcsetattr (STDIN_FILENO, TCSANOW, &term_original) < 0)) ABORT ();
+    if (stdintty && ! nokb) {
+        tcsetattr (STDIN_FILENO, TCSADRAIN, &term_original);
+        signal (SIGHUP,  SIG_DFL);
+        signal (SIGTERM, SIG_DFL);
+    } else {
+        signal (SIGQUIT, SIG_DFL);
+    }
     fprintf (stderr, "\n");
     retcode = TCL_OK;
 reterr:;
@@ -578,4 +594,18 @@ reterr:;
         free (stopon);
     }
     return retcode;
+}
+
+static void sigrunhand (int signum)
+{
+    if (signum == SIGQUIT) {
+        if (! ctrlcflag) {
+            ctrlcflag = true;
+            return;
+        }
+    } else {
+        tcsetattr (STDIN_FILENO, TCSADRAIN, &term_original);
+    }
+    dprintf (STDERR_FILENO, "\nz8ltty: terminated by signal %d\n", signum);
+    exit (1);
 }
