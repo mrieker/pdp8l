@@ -155,7 +155,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C406B;
+    localparam VERSION = 32'h384C406C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -943,11 +943,14 @@ module Zynq (
             end
 
             // enable/disable multiplexing based on those counters
-            if (ts1count == 1) dev_r_MA  <= 1;      // 10nS into TS1: stop receiving MA
-            if (ts1count == 4) dev_x_MEM <= 0;      // 40nS into TS1: start sending MEM
+            if (ts1count == 1) dev_r_MA  <= 1;          // 10nS into TS1: stop receiving MA
+            if (ts1count == 4) dev_x_MEM <= dev_i_EA;   // 40nS into TS1: maybe start sending MEM
+                                                        //   (contents of extended memory)
+                                                        //   (wire-anded with pdp's core memory)
+                                                        //   (don't stomp on core if not extended mem)
 
-            if (ts3count == 1) dev_x_MEM <= 1;      // 10nS into TS3: stop sending MEM
-            if (ts3count == 4) dev_r_MA  <= 0;      // 40nS into TS3: start receiving MA
+            if (ts3count == 1) dev_x_MEM <= 1;          // 10nS into TS3: stop sending MEM
+            if (ts3count == 4) dev_r_MA  <= 0;          // 40nS into TS3: start receiving MA
 
             // latch in memory address when it is enabled to be received from PDP
             // it is captured from beginning of TS3 to beginning of TS1
