@@ -60,7 +60,6 @@ int main (int argc, char **argv)
     setlinebuf (stdout);
 
     bool testxmem = false;
-    bool simulate = false;
     bool test3cyc = false;
     bool testcain = false;
     for (int i = 0; ++ i < argc;) {
@@ -68,11 +67,10 @@ int main (int argc, char **argv)
             puts ("");
             puts ("    Test core memory and DMA circuitry");
             puts ("");
-            puts ("  ./z8lcmemtest.armv7l [-3cycle] [-cainc] [-extmem] [-sim]");
+            puts ("  ./z8lcmemtest.armv7l [-3cycle] [-cainc] [-extmem]");
             puts ("    -3cycle : occasionally test 3-cycle DMAs");
             puts ("     -cainc : occasionally test ca-increment 3-cycle DMAs");
             puts ("    -extmem : test FPGA-provided extended memory for upper 28K (otherwise just test low 4K)");
-            puts ("       -sim : use simulator (pdp8lsim.v) instead of real PDP-8/L");
             puts ("");
             return 0;
         }
@@ -86,10 +84,6 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-extmem") == 0) {
             testxmem = true;
-            continue;
-        }
-        if (strcasecmp (argv[i], "-sim") == 0) {
-            simulate = true;
             continue;
         }
         fprintf (stderr, "unknown argument %s\n", argv[i]);
@@ -108,17 +102,8 @@ int main (int argc, char **argv)
 
     cmemat[2] = 0;
 
-    // select simulator and reset it or select real pdp and leave sim reset
-    pdpat[Z_RA] = ZZ_RA;
-    pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = ZZ_RC;
-    pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RE] = (simulate ? e_simit : e_nanocontin) | e_softreset;
-    xmemat[1]   = 0;
-    manualclock = 1;
-    clockit (1000);
-    pdpat[Z_RE] = simulate ? e_simit : e_nanocontin;   // e_simit off leaves sim in reset
-    clockit (1000);
+    // see if we are simulating
+    bool simulate = (pdpat[Z_RE] & e_simit) != 0;
 
     // range of addresses to test
     uint16_t startat = 000000;
@@ -128,6 +113,7 @@ int main (int argc, char **argv)
     // tell user to put a JMP . at 5252 and start it
 
     if (simulate) {
+        manualclock = 1;
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
         clockit (1000);
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;

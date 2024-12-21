@@ -37,7 +37,6 @@
 #define DOTJMPDOT 05252U
 
 static bool manclock;
-static bool simulate;
 static bool traceon;
 static bool volatile exitflag;
 static uint32_t volatile *cmemat;
@@ -67,18 +66,13 @@ int main (int argc, char **argv)
             puts ("     Test PIO circuitry");
             puts ("     Assumes z8lcmemtest works");
             puts ("");
-            puts ("  ./z8lpiotest [-man] [-sim]");
+            puts ("  ./z8lpiotest [-man]");
             puts ("     -man : use manual clocking (only good for simulator mode)");
-            puts ("     -sim : use simulator (pdp8lsim.v) instead of real PDP-8/L");
             puts ("");
             return 0;
         }
         if (strcasecmp (argv[i], "-man") == 0) {
             manclock = true;
-            continue;
-        }
-        if (strcasecmp (argv[i], "-sim") == 0) {
-            simulate = true;
             continue;
         }
         fprintf (stderr, "unknown argument %s\n", argv[i]);
@@ -97,20 +91,11 @@ int main (int argc, char **argv)
     printf ("TT VERSION=%08X\n", tt40at[0]);
     printf ("XM VERSION=%08X\n", xmemat[0]);
 
-    // select simulator and reset it or select real pdp and leave sim reset
-    pdpat[Z_RA] = ZZ_RA;
-    pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = ZZ_RC;
-    pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RE] = (simulate ? e_simit | e_softreset : 0) | (manclock ? 0 : e_nanocontin);
-    xmemat[1]   = 0;
-    clockit (1000);
-    pdpat[Z_RE] = (simulate ? e_simit : 0) | (manclock ? 0 : e_nanocontin);   // e_simit off leaves sim in reset
-    clockit (1000);
-
     // a real PDP needs to be running so we can do DMA
     // tell user to put a JMP . at 5252 and start it
-    if (simulate) {
+    if (pdpat[Z_RE] & e_simit) {
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swSTOP;
+        clockit (1000);
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
         clockit (1000);
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
