@@ -386,9 +386,6 @@
           "iB36V1": {
             "direction": "O"
           },
-          "iBEMA": {
-            "direction": "O"
-          },
           "iCA_INCREMENT": {
             "direction": "O"
           },
@@ -408,6 +405,9 @@
             "direction": "O"
           },
           "i_AC_CLEAR": {
+            "direction": "O"
+          },
+          "i_BEMA": {
             "direction": "O"
           },
           "i_BRK_RQST": {
@@ -2326,7 +2326,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0xD2AF090ACCDF8AFD",
+      "boundary_crc": "0x32BC2228117B3514",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2688,12 +2688,6 @@
           "iB36V1_0"
         ]
       },
-      "Zynq_0_iBEMA": {
-        "ports": [
-          "Zynq_0/iBEMA",
-          "iBEMA_0"
-        ]
-      },
       "Zynq_0_iCA_INCREMENT": {
         "ports": [
           "Zynq_0/iCA_INCREMENT",
@@ -2734,6 +2728,11 @@
         "ports": [
           "Zynq_0/i_AC_CLEAR",
           "i_AC_CLEAR_0"
+        ]
+      },
+      "Zynq_0_i_BEMA": {
+        "ports": [
+          "i_BEMA_0"
         ]
       },
       "Zynq_0_i_BRK_RQST": {
@@ -3273,9 +3272,6 @@
       "iB36V1_0": {
         "direction": "O"
       },
-      "iBEMA_0": {
-        "direction": "O"
-      },
       "iCA_INCREMENT_0": {
         "direction": "O"
       },
@@ -3295,6 +3291,9 @@
         "direction": "O"
       },
       "i_AC_CLEAR_0": {
+        "direction": "O"
+      },
+      "i_BEMA_0": {
         "direction": "O"
       },
       "i_BRK_RQST_0": {

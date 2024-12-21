@@ -22,7 +22,7 @@
 
 module pdp8lsim (
     input CLOCK, CSTEP, RESET,  // fpga 100MHz clock and reset
-    input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
+    input i_BEMA,               // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
     input iCA_INCREMENT,        // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
     input iDATA_IN,             // C36-M2,p15 B-2,J11-32,,,
     input[11:00] i_INPUTBUS,    // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS

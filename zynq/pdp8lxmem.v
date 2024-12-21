@@ -53,16 +53,17 @@ module pdp8lxmem (
     output reg[11:00] devtocpu,
 
     input memstart,                 // pulse from cpu to start memory cycle (150..500nS)
-    input memwrite,                 // pulse from cpu to start memory write
     input[11:00] memaddr,
     input[11:00] memwdat,
     output reg[11:00] memrdat,
     output reg _mrdone,             // pulse to cpu saying data is available
     output reg _mwdone,             // pulse to cpu saying data has been written
     input[2:0] brkfld,              // field for dma
+    output[2:0] field,              // current field being used
 
-    input _bf_enab, _df_enab, exefet, _intack, jmpjms, tp3, _zf_enab,
+    input _bf_enab, _df_enab, exefet, _intack, jmpjms, ts1, ts3, tp3, _zf_enab,
     output _ea, _intinh,
+    output reg r_MA, x_MEM,
 
     input ldaddrsw,                 // load address switch
     input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
@@ -72,10 +73,12 @@ module pdp8lxmem (
     input[11:00] xbrrdat,           // ... read data bus
     output reg xbrenab,             // ... chip enable
     output reg xbrwena              // ... write enable
+
+    ,output memdelay
 );
 
     reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump, lastintack;
-    reg[7:0] memdelay;
+    reg[6:0] memdelay;
     reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
     reg[7:0] numcycles;
 
@@ -85,14 +88,14 @@ module pdp8lxmem (
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
 
-    wire[2:0] field = ~ _zf_enab ? 0 :                  // WC and CA cycles always use field 0
+    assign field = ~ _zf_enab ? 0 :                     // WC and CA cycles always use field 0
                         ~ _df_enab ? dfld :             // data field if cpu says so
                         ~ _bf_enab ? brkfld :           // break field if cpu says so
                         ifld;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1016 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D101B :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 29'b0, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, memdelay } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, memdelay } :
                       { numcycles, lastintack, 21'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -124,8 +127,10 @@ module pdp8lxmem (
             numcycles    <= 0;
             oldsaveddfld <= 0;
             oldsavedifld <= 0;
+            r_MA         <= 1;
             saveddfld    <= 0;
             savedifld    <= 0;
+            x_MEM        <= 1;
         end
 
         // arm processor is writing one of the registers
@@ -303,15 +308,24 @@ module pdp8lxmem (
             case (memdelay)
                 0: begin end
 
-                // 150nS, start reading block memory
+                // wait for beginning of TS1, then start receiving memory address via PIOBUS
+                1: begin
+                    if (ts1) begin
+                        r_MA <= 0;
+                        memdelay <= memdelay + 1;
+                    end
+                end
+
+                // 150nS into TS1, start reading block memory
                 15: begin
+                    r_MA     <= 1;
                     xbraddr  <= { field, memaddr };
                     xbrenab  <= 1;
                     xbrwena  <= 0;
                     memdelay <= memdelay + 1;
                 end
 
-                // 200nS, send read data to cpu
+                // 200nS into TS1, start gating to memory bus and send read data to cpu
                 20: begin
                     if (os8zap & exefet) case (os8step)
 
@@ -359,24 +373,41 @@ module pdp8lxmem (
                         os8step <= 0;
                         memrdat <= xbrrdat;
                     end
+                    x_MEM    <= 0;
                     xbrenab  <= 0;
                     memdelay <= memdelay + 1;
                 end
 
-                // 500nS, send strobe pulse for 100nS telling processor read data is valid
+                // 500nS into TS1, send strobe pulse until we see TS1 drop
+                // the strobe pulse clears TS1 flipflop and sets TS2 flipflop (vol 2 p4 C-6)
                 50: begin
                     _mrdone  <= 0;
                     memdelay <= memdelay + 1;
                 end
 
-                // 600nS, wait for processor to send memwrite pulse (TS3)
-                60: begin
-                    _mrdone  <= 1;
-                    if (memwrite) memdelay <= memdelay + 1;
+                // the strobe pulse:
+                //   strobe+  0nS: causes TS2 to begin
+                //   strobe+150nS: causes TS3 to begin
+                //   strobe+400nS: causes TS4 to begin
+                // the memdone pulse causes TS4 to end
+
+                // wait for TS1 to end, means the processor got the strobe pulse
+                51: begin
+                    if (~ ts1) begin
+                        _mrdone  <= 1;
+                        memdelay <= memdelay + 1;
+                    end
                 end
 
-                // 700nS, clock in write data, start writing to memory
-                70: begin
+                // strobe triggered a 150nS delay that starts TS3, so wait for that to appear
+                52: begin
+                    if (ts3) begin
+                        memdelay <= memdelay + 1;
+                    end
+                end
+
+                // 100nS into TS3, clock in write data, start writing to memory
+                63: begin
 
                     // see if doing ISZ/JMP .-1 zap
                     case (os8step)
@@ -413,18 +444,32 @@ module pdp8lxmem (
                     memdelay <= memdelay + 1;
                 end
 
-                // 750nS, stop writing, turn on memdone pulse for 100nS
-                75: begin
+                // 150nS into TS3, stop writing
+                68: begin
                     xbrenab  <= 0;
                     xbrwena  <= 0;
                     memdelay <= memdelay + 1;
-                    _mwdone  <= 0;
                 end
 
-                // 850nS, all done, shut off memdone pulse
-                85: begin
-                    memdelay <= 0;
+                // wait for TS3 to end
+                69: begin
+                    if (~ ts3) begin
+                        memdelay <= memdelay + 1;
+                    end
+                end
+
+                // let TS4 run for 480 nS (maint vol 1 p 4-22)
+                // then pulse memdone for 100nS to set the MEMIDLE flipflop (vol 2 p4 C-8)
+                118: begin
+                    _mwdone  <= 0;
+                    memdelay <= memdelay + 1;
+                end
+
+                // all done, shut off memdone pulse and stop gating to memory bus
+                127: begin
                     _mwdone  <= 1;
+                    x_MEM    <= 1;
+                    memdelay <= 0;
                 end
 
                 // in between somewhere, just increment counter

@@ -64,7 +64,7 @@ struct PinDef {
 static uint32_t volatile *devs[4];
 
 static PinDef const pindefs[] = {
-    { "iBEMA",           DEV_8L, Z_RA, a_iBEMA,            true  },
+    { "i_BEMA",          DEV_8L, Z_RA, a_i_BEMA,           true  },
     { "iCA_INCREMENT",   DEV_8L, Z_RA, a_iCA_INCREMENT,    true  },
     { "iDATA_IN",        DEV_8L, Z_RA, a_iDATA_IN,         true  },
     { "i_MEMINCR",       DEV_8L, Z_RA, a_i_MEMINCR,        true  },

@@ -43,11 +43,11 @@
 
 #define Z_N 17      // total number of register
 
-#define ZZ_RA (a_i_MEMINCR | a_i_3CYCLE | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE)
+#define ZZ_RA (a_i_BEMA | a_i_MEMINCR | a_i_3CYCLE | a_i_AC_CLEAR | a_i_BRK_RQST | a_i_EA | a_i_EMA | a_i_INT_INHIBIT | a_i_INT_RQST | a_i_IO_SKIP | a_i_MEMDONE | a_i_STROBE)
 #define ZZ_RC (c_i_INPUTBUS)
 #define ZZ_RD (d_i_DMAADDR | d_i_DMADATA)
 
-#define a_iBEMA         (1U <<  0)
+#define a_i_BEMA        (1U <<  0)
 #define a_iCA_INCREMENT (1U <<  1)
 #define a_iDATA_IN      (1U <<  2)
 #define a_i_MEMINCR     (1U <<  3)

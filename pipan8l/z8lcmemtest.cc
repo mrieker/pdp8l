@@ -35,7 +35,6 @@
 
 #define DOTJMPDOT 05252U
 
-static bool externlow4k;
 static bool manualclock;
 
 static bool volatile exitflag;
@@ -72,7 +71,7 @@ int main (int argc, char **argv)
             puts ("  ./z8lcmemtest.armv7l [-3cycle] [-cainc] [-extmem] [-sim]");
             puts ("    -3cycle : occasionally test 3-cycle DMAs");
             puts ("     -cainc : occasionally test ca-increment 3-cycle DMAs");
-            puts ("    -extmem : test FPGA-provided extended as well as core memory (otherwise just core memory)");
+            puts ("    -extmem : test FPGA-provided extended memory for upper 28K (otherwise just test low 4K)");
             puts ("       -sim : use simulator (pdp8lsim.v) instead of real PDP-8/L");
             puts ("");
             return 0;
@@ -127,8 +126,6 @@ int main (int argc, char **argv)
 
     // a real PDP needs to be running so we can do DMA
     // tell user to put a JMP . at 5252 and start it
-    // also put 5252 in external memory low 4K so we can test that too
-    extmem[DOTJMPDOT] = 01234;
 
     if (simulate) {
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
@@ -166,15 +163,6 @@ int main (int argc, char **argv)
         }
     }
 
-    // the deposit should have gone to real core stack, not extmem
-    if (extmem[DOTJMPDOT] != 01234) {
-        fprintf (stderr, "extmem changed\n");
-        ABORT ();
-    }
-
-    // put JMP . in extmem so we can switch to it seamlessly
-    extmem[DOTJMPDOT] = DOTJMPDOT;
-
     signal (SIGINT, siginthand);
 
     printf ("\n");
@@ -184,21 +172,13 @@ int main (int argc, char **argv)
     shadow[DOTJMPDOT] = DOTJMPDOT;
     while (true) {
 
-        if (pass % 3 == 0) {
+        if (simulate && (pass % 3 == 0)) {
             printf ("- - - - - - - - - - - - - - - -\n");
-            externlow4k = ((pass & 1) != 0) && testxmem;
-            manualclock = ((pass & 2) != 0) && simulate;
-            if (testxmem) printf (externlow4k ? "use external block ram for low 4K\n" : (simulate ? "use pdp8lsim.v localcore 4K memory\n" : "use PDP-8/L 4K core stack\n"));
-            if (simulate) printf (manualclock ? "use software clocking\n" : "use FPGA 100MHz clocking\n");
-
-            if (simulate) {
-                uint32_t re = e_simit;
-                if (! manualclock) re |= e_nanocontin;
-                pdpat[Z_RE] = re;
-                clockit (1000);
-            }
-
-            xmemat[1] = externlow4k ? XM_ENLO4K : 0;
+            manualclock = ((pass & 2) != 0);
+            printf (manualclock ? "use software clocking\n" : "use FPGA 100MHz clocking\n");
+            uint32_t re = e_simit;
+            if (! manualclock) re |= e_nanocontin;
+            pdpat[Z_RE] = re;
             clockit (1000);
         }
 
@@ -241,10 +221,9 @@ int main (int argc, char **argv)
         waitcmemidle ();
 
         // readback memory using extmem interface (direct mapped memory)
-        // if externlow4k, we used externmem for low 4K so we can check it here
-        // otherwise, low 4K used core stack which we can't access directly
-        for (int i = externlow4k ? startat : 010000; i <= stopat; i ++) {
-            if (i == DOTJMPDOT) continue;
+        // if XM_ENLO4K, we are using FPGA-provided externmem for low 4K so we can check it here
+        // otherwise, we are using PDP-provided core memory for low 4K which we can't access directly
+        for (int i = (xmemat[1] & XM_ENLO4K) ? startat : 010000; i <= stopat; i ++) {
             uint16_t wdata = shadow[i];
             uint16_t rdata = extmem[i];
             if (rdata != wdata) {

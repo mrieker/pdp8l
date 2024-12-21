@@ -86,7 +86,7 @@ module Zynq (
     output     i_STROBE,
 
     output reg iB36V1,
-    output     iBEMA,
+    output     i_BEMA,
     output     iCA_INCREMENT,
     output reg iD36B2,
     output     iDATA_IN,
@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C406C;
+    localparam VERSION = 32'h384C406E;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -176,7 +176,7 @@ module Zynq (
 
     wire[31:00] regctla, regctlb, regctlc, regctld, regctle, regctlf, regctlg, regctlh, regctli, regctlj, regctlk;
 
-    wire sim_iBEMA;
+    wire sim_i_BEMA;
     wire sim_iCA_INCREMENT;
     wire sim_iDATA_IN;
     wire[11:00] sim_i_INPUTBUS;
@@ -238,7 +238,7 @@ module Zynq (
     wire sim_lbRUN;
     wire sim_lbWC;
 
-    wire dev_iBEMA;
+    wire dev_i_BEMA;
     wire dev_iCA_INCREMENT;
     wire dev_iDATA_IN;
     wire[11:00] dev_i_INPUTBUS;
@@ -292,7 +292,7 @@ module Zynq (
     wire iMEM_P;                         // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
     wire[11:00] oBAC;                    // real PDP-8/L AC contents, valid only during first half of io pulse
     reg[11:00] oBMB;                     // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
-    reg[11:00] oMA;                      // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
+    wire[11:00] oMA;                     // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
 
     reg bareit, simit, lastts1, lastts3;
     reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
@@ -327,7 +327,7 @@ module Zynq (
     wire qMEMSTART;
 
     // arm interface wires;
-    reg arm_iBEMA;
+    reg arm_i_BEMA;
     reg arm_iCA_INCREMENT;
     reg arm_iDATA_IN;
     reg arm_i_MEMINCR;
@@ -359,8 +359,9 @@ module Zynq (
     reg[11:00] arm_swSR;
     reg arm_x_MEM, arm_x_INPUTBUS, arm_x_DMADATA, arm_x_DMAADDR;
     reg arm_r_MA, arm_r_BMB, arm_r_BAC;
-    reg dev_x_MEM, dev_x_INPUTBUS, dev_x_DMADATA, dev_x_DMAADDR;
-    reg dev_r_MA, dev_r_BMB, dev_r_BAC;
+    reg dev_x_INPUTBUS, dev_x_DMADATA, dev_x_DMAADDR;
+    reg dev_r_BMB, dev_r_BAC;
+    wire dev_x_MEM, dev_r_MA;
 
     // tty interface wires
     wire[31:00] ttardata;
@@ -388,6 +389,7 @@ module Zynq (
     wire[31:00] xmardata;
     wire[11:00] xmibus;
     wire[11:00] xmmem;
+    wire[2:0] xmfield;
     wire xm_intinh, xm_mrdone, xm_mwdone, xm_ea;
 
     // extended arithmetic interface wires
@@ -415,7 +417,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[24:00] ilaarray[4095:0], ilardata;
+    reg[39:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -447,8 +449,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 7'b0, ilardata[24:00] } :
-        (readaddr        == 10'b0000010011) ? { 32'b0 } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { 24'b0, ilardata[39:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -501,7 +503,7 @@ module Zynq (
             arm_r_BMB      <= 1;
             arm_r_BAC      <= 1;
 
-            arm_iBEMA         <= 0;
+            arm_i_BEMA        <= 1;
             arm_iCA_INCREMENT <= 0;
             arm_iDATA_IN      <= 0;
             arm_i_MEMINCR     <= 1;
@@ -549,7 +551,7 @@ module Zynq (
             if (armwrite) begin
                 case (writeaddr)                            // write data to register
                      10'b0000000001: begin
-                        arm_iBEMA         <= saxi_WDATA[00];
+                        arm_i_BEMA        <= saxi_WDATA[00];
                         arm_iCA_INCREMENT <= saxi_WDATA[01];
                         arm_iDATA_IN      <= saxi_WDATA[02];
                         arm_i_MEMINCR     <= saxi_WDATA[03];
@@ -684,7 +686,7 @@ module Zynq (
     // when simulating, send signals from devices on to the simulated PDP-8/L
     // when not simming, send signals from devices on to the hardware PDP-8/L
 
-    assign sim_iBEMA          = simit ? dev_iBEMA          : 0;
+    assign sim_i_BEMA         = simit ? dev_i_BEMA         : 1;
     assign sim_iCA_INCREMENT  = simit ? dev_iCA_INCREMENT  : 0;
     assign sim_iDATA_IN       = simit ? dev_iDATA_IN       : 0;
     assign sim_i_INPUTBUS     = simit ? dev_i_INPUTBUS     : 12'hFFF;
@@ -704,7 +706,7 @@ module Zynq (
     assign sim_i_MEMDONE      = simit ? dev_i_MEMDONE      : 1;
     assign sim_i_STROBE       = simit ? dev_i_STROBE       : 1;
 
-    assign     iBEMA          = simit ? 0       : dev_iBEMA;
+    assign     i_BEMA         = simit ? 1       : dev_i_BEMA;
     assign     iCA_INCREMENT  = simit ? 0       : dev_iCA_INCREMENT;
     assign     iDATA_IN       = simit ? 0       : dev_iDATA_IN;
     assign     i_INPUTBUS     = simit ? 12'hFFF : dev_i_INPUTBUS;
@@ -759,7 +761,7 @@ module Zynq (
     //  for 'i' signals: wired-or of all devices and what was written to arm registers
     //  for 'o' signals: selected signal from simulated PDP-8/L or real PDP-8/L
 
-    assign regctla[00] = dev_iBEMA;
+    assign regctla[00] = dev_i_BEMA;
     assign regctla[01] = dev_iCA_INCREMENT;
     assign regctla[02] = dev_iDATA_IN;
     assign regctla[03] = dev_i_MEMINCR;
@@ -923,57 +925,14 @@ module Zynq (
     //  multiplex MEMBUS  //
     ////////////////////////
 
-    reg[2:0] ts1count, ts3count;
+    // timing is controlled by pdp8lxmem module
+    //  r_MA is asserted during first half of TS1 of an extended memory cycle
+    //  x_MEM is asserted from middle of TS1 to end of TS4 for extended memory cycle
 
-    always @(posedge CLOCK) begin
-        if (~ RESET_N) begin
-            ts1count  <= 0;
-            ts3count  <= 0;
-            dev_r_MA  <= 1;
-            dev_x_MEM <= 1;
-        end else if (nanocstep) begin
-
-            // count how far we are into TS1
-            if (dev_oBTS_1) begin
-                ts3count <= 0;
-                if (ts1count != 7) ts1count <= ts1count + 1;
-            end
-
-            // count how far we are into TS3
-            if (dev_oBTS_3) begin
-                ts1count <= 0;
-                if (ts3count != 7) ts3count <= ts3count + 1;
-            end
-
-            // enable/disable multiplexing based on those counters
-            if (ts1count == 1) dev_r_MA  <= 1;          // 10nS into TS1: stop receiving MA
-            if (ts1count == 4) dev_x_MEM <= dev_i_EA;   // 40nS into TS1: maybe start sending MEM
-                                                        //   (contents of extended memory)
-                                                        //   (wire-anded with pdp's core memory)
-                                                        //   (don't stomp on core if not extended mem)
-
-            if (ts3count == 1) dev_x_MEM <= 1;          // 10nS into TS3: stop sending MEM
-            if (ts3count == 4) dev_r_MA  <= 0;          // 40nS into TS3: start receiving MA
-
-            // latch in memory address when it is enabled to be received from PDP
-            // it is captured from beginning of TS3 to beginning of TS1
-            // the MA coming from the PDP should be valid through the beginning of TS1 as that is the beginning of memory read
-            if (~ r_MA) begin
-                oMA[11-00] <= bMEMBUSH;
-                oMA[11-01] <= bMEMBUSA;
-                oMA[11-02] <= bMEMBUSB;
-                oMA[11-03] <= bMEMBUSJ;
-                oMA[11-04] <= bMEMBUSE;
-                oMA[11-05] <= bMEMBUSM;
-                oMA[11-06] <= bMEMBUSN;
-                oMA[11-07] <= bMEMBUSF;
-                oMA[11-08] <= bMEMBUSK;
-                oMA[11-09] <= bMEMBUSC;
-                oMA[11-10] <= bMEMBUSL;
-                oMA[11-11] <= bMEMBUSD;
-            end
-        end
-    end
+    assign oMA = {
+        bMEMBUSH, bMEMBUSA, bMEMBUSB,  bMEMBUSJ, bMEMBUSE, bMEMBUSM,
+        bMEMBUSN, bMEMBUSF, bMEMBUSK,  bMEMBUSC, bMEMBUSL, bMEMBUSD
+    };
 
     assign r_MA  = bareit ? arm_r_MA  : dev_r_MA;
     assign x_MEM = bareit ? arm_x_MEM : dev_x_MEM;
@@ -1066,7 +1025,7 @@ module Zynq (
 
     // internal pio busses - wire-ored(active high)/-anded(active low) from device to processor
     // block device outputs if bareit so pins can be directly controlled by arm
-    assign dev_iBEMA         =      arm_iBEMA;
+    assign dev_i_BEMA        = ~ (~ arm_i_BEMA        | ~ bareit & (xmfield != 0));
     assign dev_iCA_INCREMENT =      arm_iCA_INCREMENT | ~ bareit & cmbrkcainc;
     assign dev_iDATA_IN      =      arm_iDATA_IN      | ~ bareit & cmbrkwrite;
     assign dev_i_INPUTBUS    = ~ (~ arm_i_INPUTBUS    | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus));
@@ -1079,7 +1038,7 @@ module Zynq (
     assign dev_i_DMAADDR     = ~ (~ arm_i_DMAADDR     | ~ bare12 & cmbrkaddr);
     assign dev_i_DMADATA     = ~ (~ arm_i_DMADATA     | ~ bare12 & cmbrkwdat);
     assign dev_i_EA          = ~ (~ arm_i_EA          | ~ bareit & ~ xm_ea);
-    assign dev_i_EMA         =      arm_i_EMA;
+    assign dev_i_EMA         = ~ (~ arm_i_EMA         | ~ bareit & (xmfield != 0));
     assign dev_i_INT_INHIBIT = ~ (~ arm_i_INT_INHIBIT | ~ bareit & ~ xm_intinh);
     assign dev_i_INT_RQST    = ~ (~ arm_i_INT_RQST    | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq));
     assign dev_i_IO_SKIP     = ~ (~ arm_i_IO_SKIP     | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | eaioskp | tt42ioskp | tt44ioskp | tt46ioskp));
@@ -1118,7 +1077,7 @@ module Zynq (
         .CLOCK          (CLOCK),
         .CSTEP          (nanocstep),
         .RESET          (pwronreset | ~ simit),
-        .iBEMA          (sim_iBEMA),
+        .i_BEMA         (sim_i_BEMA),
         .iCA_INCREMENT  (sim_iCA_INCREMENT),
         .iDATA_IN       (sim_iDATA_IN),
         .i_INPUTBUS     (sim_i_INPUTBUS),
@@ -1404,6 +1363,8 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
+    wire[6:0] memdelay;
+
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
         .CSTEP (nanocstep),
@@ -1423,7 +1384,6 @@ module Zynq (
         .devtocpu (xmibus),             // data being received from device
 
         .memstart (dev_oMEMSTART),      // pulse to start reading
-        .memwrite (dev_oBTS_3),         // pulse to start writing
         .memaddr  (dev_oMA),            // address within memory
         .memwdat  (dev_oBMB),           // data being written to memory
         .memrdat  (xmmem),              // data that was read from memory
@@ -1431,16 +1391,22 @@ module Zynq (
         ._mwdone  (xm_mwdone),          // pulse indicating write has completed
 
         .brkfld (cmbrkema),             // extended memory address for break (dma) cycles
+        .field  (xmfield),
 
         ._bf_enab (dev_o_BF_ENABLE),    // next mem cycle should use break field
         ._df_enab (dev_o_DF_ENABLE),    // next mem cycle should use data field
         .exefet   (dev_oE_SET_F_SET),   // next mem cycle is for fetch or execute
         ._intack  (dev_o_LOAD_SF),      // next mem cycle is ackmowledging interrupt
         .jmpjms   (dev_oJMP_JMS),       // instruction register holds JMP or JMS instruction
-        .tp3      (dev_oBTP3),          // finished writing memory
+        .ts1      (dev_oBTS_1),
+        .ts3      (dev_oBTS_3),
+        .tp3      (dev_oBTP3),
         ._zf_enab (dev_o_SP_CYC_NEXT),  // special (WC or CA) cycle is next
         ._ea      (xm_ea),              // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
         ._intinh  (xm_intinh),          // block interrupt delivery
+
+        .r_MA     (dev_r_MA),           //> gate memory address in from memory bus
+        .x_MEM    (dev_x_MEM),          //> gate memory data out to memory bus
 
         .ldaddrsw (~ dev_o_KEY_LOAD),
         .ldaddfld ({ 2'b00, ~ dev_o_KEY_DF }),
@@ -1451,6 +1417,8 @@ module Zynq (
         .xbrrdat (xbrrdat),
         .xbrenab (xbrenab),
         .xbrwena (xbrwena)
+
+        ,.memdelay (memdelay)
     );
 
     // core memory interface
@@ -1592,24 +1560,30 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                cmtriggre,              // ctldata == 5252
-                cmawrite,               // arm is writing regs
-                i_BRK_RQST,             // brk cycle being requested
-                cmbrkwrite,             // - write cycle
-                cmbrk3cycl,             // - 3 cycle
-                cmbrkcainc,             // - ca inc
-                o_B_BREAK,              // break cycle in progress
+                memdelay,
+                cmawrite,
+                cmbusy,
+                i_BRK_RQST,
+                o_B_BREAK,
                 oBTS_1,                 // time state 1
                 oBTS_3,                 // time state 3
-                cmbusy,
-                oBMB
+                oMEMSTART,
+                i_EA,
+                i_STROBE,
+                i_MEMDONE,
+                r_MA,
+                r_BMB,
+                x_MEM,
+                xbrenab,
+                xbrwena,
+                xbraddr
             };
 
             ilaindex <= ilaindex + 1;
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (cmtriggre) ilaarmed <= 0;
+            else if (memdelay != 0) ilaarmed <= 0;
         end
     end
 endmodule

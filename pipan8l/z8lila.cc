@@ -34,7 +34,7 @@
 #include "z8lutil.h"
 
 #define DEPTH 4096  // total number of elements in ilaarray
-#define AFTER 1     // number of samples to take after sample containing trigger
+#define AFTER 4000  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
@@ -76,8 +76,14 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o %o  %o %o %o  %o %o %o  %02o  %04o\n",
+            printf ("%6.2f  %02X  %o %02o %o %o  %o %o  %o %o %o %o  %o %o %o  %o %o  %05o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,    // trigger shows as 0.00uS
+                (unsigned) (thisentry >> 33) & 0x7F,
+                (unsigned) (thisentry >> 32) & 1,
+                (unsigned) (thisentry >> 28) & 15,
+                (unsigned) (thisentry >> 27) & 1,
+                (unsigned) (thisentry >> 26) & 1,
+                (unsigned) (thisentry >> 25) & 1,
                 (unsigned) (thisentry >> 24) & 1,
                 (unsigned) (thisentry >> 23) & 1,
                 (unsigned) (thisentry >> 22) & 1,
@@ -87,8 +93,8 @@ int main (int argc, char **argv)
                 (unsigned) (thisentry >> 18) & 1,
                 (unsigned) (thisentry >> 17) & 1,
                 (unsigned) (thisentry >> 16) & 1,
-                (unsigned) (thisentry >> 12) & 017,
-                (unsigned)  thisentry & 07777);
+                (unsigned) (thisentry >> 15) & 1,
+                (unsigned)  thisentry & 077777);
             indotdotdot = false;
         } else if (! indotdotdot) {
             printf ("    ...\n");

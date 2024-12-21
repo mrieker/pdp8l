@@ -157,7 +157,7 @@ int main (int argc, char **argv)
             printf ("VERSION=%08X 8L%s", z8ls[0], eol);
 
             printf ("  oBIOP1=%o             oBAC=%04o           brkwhenhltd=%o    ",   FIELD(Z_RF,f_oBIOP1),         FIELD(Z_RH,h_oBAC),           FIELD(Z_RE,e_brkwhenhltd));
-            printf ("  iBEMA=%o              i_DMAADDR=%04o      majstate=%s%s",      FIELD(Z_RA,a_iBEMA),          FIELD(Z_RD,d_i_DMAADDR),  majstatenames[FIELD(Z_RK,k_majstate)], eol);
+            printf ("  i_BEMA=%o             i_DMAADDR=%04o      majstate=%s%s",      FIELD(Z_RA,a_i_BEMA),         FIELD(Z_RD,d_i_DMAADDR),  majstatenames[FIELD(Z_RK,k_majstate)], eol);
 
             printf ("  oBIOP2=%o             oBMB=%04o           nanocstep=%o      ",   FIELD(Z_RF,f_oBIOP2),         FIELD(Z_RH,h_oBMB),           FIELD(Z_RE,e_nanocstep));
             printf ("  iCA_INCREMENT=%o      i_DMADATA=%04o      nextmajst=%s%s",     FIELD(Z_RA,a_iCA_INCREMENT),  FIELD(Z_RD,d_i_DMADATA),  majstatenames[FIELD(Z_RK,k_nextmajst)], eol);

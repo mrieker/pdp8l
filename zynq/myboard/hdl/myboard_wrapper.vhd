@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Mon Dec 16 08:30:03 2024
+--Date        : Sat Dec 21 15:10:38 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -74,7 +74,6 @@ entity myboard_wrapper is
     bPIOBUSM_0 : inout STD_LOGIC;
     bPIOBUSN_0 : inout STD_LOGIC;
     iB36V1_0 : out STD_LOGIC;
-    iBEMA_0 : out STD_LOGIC;
     iCA_INCREMENT_0 : out STD_LOGIC;
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
@@ -82,6 +81,7 @@ entity myboard_wrapper is
     iMEM_07_0 : out STD_LOGIC;
     i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
+    i_BEMA_0 : out STD_LOGIC;
     i_BRK_RQST_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
     i_EMA_0 : out STD_LOGIC;
@@ -170,7 +170,6 @@ architecture STRUCTURE of myboard_wrapper is
     bPIOBUSM_0 : inout STD_LOGIC;
     bPIOBUSN_0 : inout STD_LOGIC;
     iB36V1_0 : out STD_LOGIC;
-    iBEMA_0 : out STD_LOGIC;
     iCA_INCREMENT_0 : out STD_LOGIC;
     iD36B2_0 : out STD_LOGIC;
     iDATA_IN_0 : out STD_LOGIC;
@@ -178,6 +177,7 @@ architecture STRUCTURE of myboard_wrapper is
     iMEM_07_0 : out STD_LOGIC;
     i_3CYCLE_0 : out STD_LOGIC;
     i_AC_CLEAR_0 : out STD_LOGIC;
+    i_BEMA_0 : out STD_LOGIC;
     i_BRK_RQST_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
     i_EMA_0 : out STD_LOGIC;
@@ -307,7 +307,6 @@ myboard_i: component myboard
       bPIOBUSM_0 => bPIOBUSM_0,
       bPIOBUSN_0 => bPIOBUSN_0,
       iB36V1_0 => iB36V1_0,
-      iBEMA_0 => iBEMA_0,
       iCA_INCREMENT_0 => iCA_INCREMENT_0,
       iD36B2_0 => iD36B2_0,
       iDATA_IN_0 => iDATA_IN_0,
@@ -315,6 +314,7 @@ myboard_i: component myboard
       iMEM_07_0 => iMEM_07_0,
       i_3CYCLE_0 => i_3CYCLE_0,
       i_AC_CLEAR_0 => i_AC_CLEAR_0,
+      i_BEMA_0 => i_BEMA_0,
       i_BRK_RQST_0 => i_BRK_RQST_0,
       i_EA_0 => i_EA_0,
       i_EMA_0 => i_EMA_0,
