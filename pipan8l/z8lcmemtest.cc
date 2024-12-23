@@ -215,6 +215,7 @@ int main (int argc, char **argv)
             if (rdata != wdata) {
                 printf ("extmem error %05o was %04o should be %04o\n", i, rdata, wdata);
                 errors ++;
+                ABORT ();
             }
         }
 
@@ -239,6 +240,7 @@ int main (int argc, char **argv)
             if (rdata != wdata) {
                 printf ("cmem error %05o was %04o should be %04o\n", i, rdata, wdata);
                 errors ++;
+                ABORT ();
             }
         }
 
@@ -271,7 +273,6 @@ static void siginthand (int signum)
 static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
 {
     ASSERT (xaddr != DOTJMPDOT);
-    ASSERT (wdata != DOTJMPDOT);
 
     // maybe use 3-cycle dma to write the location
     if (do3cyc) {

@@ -20,7 +20,7 @@ ls -l `pwd`/images/linux/BOOT.BIN
 scp images/linux/BOOT.BIN root@zturn:/boot/BOOT.BIN
 set +e
 ssh root@zturn reboot
-ping zturn
+ping -c 70 zturn
 
 # ssh zturn
 # cd .../pdp8l/pipan8l

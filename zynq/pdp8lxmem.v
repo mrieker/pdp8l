@@ -88,15 +88,21 @@ module pdp8lxmem (
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
 
-    assign field = ~ _zf_enab ? 0 :                     // WC and CA cycles always use field 0
-                        ~ _df_enab ? dfld :             // data field if cpu says so
-                        ~ _bf_enab ? brkfld :           // break field if cpu says so
-                        ifld;
+    // the _xx_enab inputs are valid in the cycle before the one they are needed in
+    // ...and they go away right around the start of TS1 where they are needed
+    // so we save them at the end of previous TS3 so they are valid at start of TS1 through end of TS3 that they are needed for
+    reg buf_bf_enab, buf_df_enab, buf_zf_enab, lastts3;
 
-    assign armrdata = (armraddr == 0) ? 32'h584D101B :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign field =
+                ~ buf_bf_enab ? brkfld :    // break field if cpu says so
+                ~ buf_df_enab ? dfld   :    // data field if cpu says so
+                ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
+                                ifld;       // by default, use instruction field
+
+    assign armrdata = (armraddr == 0) ? 32'h584D101C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 29'b0, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, memdelay } :
-                      { numcycles, lastintack, 21'b0, os8step };
+                      { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 18'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
@@ -108,11 +114,15 @@ module pdp8lxmem (
             if (RESET) begin
                 // these get cleared on power up
                 // they remain as is when start switch is pressed
+                buf_bf_enab   <= 1;
+                buf_df_enab   <= 1;
+                buf_zf_enab   <= 1;
                 ctlenab       <= 1;
                 ctllo4k       <= 0;
                 dfld          <= 0;
                 ifld          <= 0;
                 ifldafterjump <= 0;
+                lastts3       <= 0;
                 memdelay      <= 0;
                 _mrdone       <= 1;
                 _mwdone       <= 1;
@@ -147,6 +157,17 @@ module pdp8lxmem (
             endcase
         end else if (CSTEP) begin
             numcycles <= numcycles + 1;
+
+            // capture the _xx_enable signals at the end of TS3
+            // they hold the values needed for the next memory cycle
+            // clocking at the end of TS3 holds them valid throughout the current cycle
+            // ...and gives the next cycle plenty of time to set up
+            if (lastts3 & ~ ts3) begin
+                buf_bf_enab <= _bf_enab;
+                buf_df_enab <= _df_enab;
+                buf_zf_enab <= _zf_enab;
+            end
+            lastts3 <= ts3;
 
             // maybe we have load address switch to process
             // theoretically can't happen when the processor is running

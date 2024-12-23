@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C406E;
+    localparam VERSION = 32'h384C406F;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART;
@@ -306,13 +306,10 @@ module Zynq (
     // synchroniSed input wires
     wire q_ADDR_ACCEPT;
     wire q_B_RUN;
-    wire q_BF_ENABLE;
     wire qBUSINIT;
-    wire q_DF_ENABLE;
     wire q_KEY_CLEAR;
     wire q_KEY_LOAD;
     wire q_LOAD_SF;
-    wire q_SP_CYC_NEXT;
     wire qBIOP1;
     wire qBIOP2;
     wire qBIOP4;
@@ -417,7 +414,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[39:00] ilaarray[4095:0], ilardata;
+    reg[29:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -449,8 +446,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { 24'b0, ilardata[39:32] } :
+        (readaddr        == 10'b0000010010) ? {  2'b0, ilardata[29:00] } :
+        (readaddr        == 10'b0000010011) ? { 32'b0                  } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -638,13 +635,10 @@ module Zynq (
 
     synk synkaa (CLOCK, q_ADDR_ACCEPT, o_ADDR_ACCEPT);
     synk synkbr (CLOCK, q_B_RUN,       o_B_RUN);
-    synk synkbe (CLOCK, q_BF_ENABLE,   o_BF_ENABLE);
     synk synkbi (CLOCK, qBUSINIT,      oBUSINIT);
-    synk synkde (CLOCK, q_DF_ENABLE,   o_DF_ENABLE);
     synk synkkc (CLOCK, q_KEY_CLEAR,   o_KEY_CLEAR);
     synk synkkl (CLOCK, q_KEY_LOAD,    o_KEY_LOAD);
     synk synkls (CLOCK, q_LOAD_SF,     o_LOAD_SF);
-    synk synksc (CLOCK, q_SP_CYC_NEXT, o_SP_CYC_NEXT);
     synk synkp1 (CLOCK, qBIOP1,        oBIOP1);
     synk synkp2 (CLOCK, qBIOP2,        oBIOP2);
     synk synkp4 (CLOCK, qBIOP4,        oBIOP4);
@@ -746,16 +740,16 @@ module Zynq (
     assign dev_oMA            = simit ? sim_oMA            : oMA;
     assign dev_oMEMSTART      = simit ? sim_oMEMSTART      : qMEMSTART;
     assign dev_o_ADDR_ACCEPT  = simit ? sim_o_ADDR_ACCEPT  : q_ADDR_ACCEPT;
-    assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : q_BF_ENABLE;
+    assign dev_o_BF_ENABLE    = simit ? sim_o_BF_ENABLE    : o_BF_ENABLE;
     assign dev_oBUSINIT       = simit ? sim_oBUSINIT       : qBUSINIT;
     assign dev_o_B_RUN        = simit ? sim_o_B_RUN        : q_B_RUN;
-    assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : q_DF_ENABLE;
+    assign dev_o_DF_ENABLE    = simit ? sim_o_DF_ENABLE    : o_DF_ENABLE;
     assign dev_o_KEY_CLEAR    = simit ? sim_o_KEY_CLEAR    : q_KEY_CLEAR;
     assign dev_o_KEY_DF       = simit ? sim_o_KEY_DF       : o_KEY_DF;
     assign dev_o_KEY_IF       = simit ? sim_o_KEY_IF       : o_KEY_IF;
     assign dev_o_KEY_LOAD     = simit ? sim_o_KEY_LOAD     : q_KEY_LOAD;
     assign dev_o_LOAD_SF      = simit ? sim_o_LOAD_SF      : q_LOAD_SF;
-    assign dev_o_SP_CYC_NEXT  = simit ? sim_o_SP_CYC_NEXT  : q_SP_CYC_NEXT;
+    assign dev_o_SP_CYC_NEXT  = simit ? sim_o_SP_CYC_NEXT  : o_SP_CYC_NEXT;
 
     // reading arm registers gets device bus signals
     //  for 'i' signals: wired-or of all devices and what was written to arm registers
@@ -1560,20 +1554,17 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                memdelay,
-                cmawrite,
-                cmbusy,
                 i_BRK_RQST,
+                i_3CYCLE,
+                o_SP_CYC_NEXT,
+                o_BF_ENABLE,
                 o_B_BREAK,
                 oBTS_1,                 // time state 1
                 oBTS_3,                 // time state 3
                 oMEMSTART,
-                i_EA,
                 i_STROBE,
                 i_MEMDONE,
-                r_MA,
-                r_BMB,
-                x_MEM,
+                xmfield,
                 xbrenab,
                 xbrwena,
                 xbraddr
@@ -1583,7 +1574,7 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (memdelay != 0) ilaarmed <= 0;
+            else if (~ i_3CYCLE) ilaarmed <= 0;
         end
     end
 endmodule

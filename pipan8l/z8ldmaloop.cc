@@ -28,11 +28,33 @@
 
 int main (int argc, char **argv)
 {
-    //uint32_t n = 0;
     Z8LPage z8p;
+    uint32_t volatile *extmem = z8p.extmem ();
+
+    // clear extended memory
+    for (int i = 0; i < 32768; i ++) {
+        extmem[i] = 0;
+    }
+
+    // set up WC/CA pair at 01144
+
+    // write 0000 to 01144
+    z8p.dmacycle (CM_ENAB + 00000 * CM_DATA0 + CM_WRITE + 01144 * CM_ADDR0, 0);
+
+    // write 2345 to 01145
+    z8p.dmacycle (CM_ENAB + 02345 * CM_DATA0 + CM_WRITE + 01145 * CM_ADDR0, 0);
+
+    // write 4321 to 12345
+    extmem[012345] = 04321;
+
+    int good = 0;
     while (true) {
-        /*uint32_t cm =*/ z8p.dmacycle (CM_ENAB, 0);
-        //printf ("%09o  %04o\n", ++ n, (cm & CM_DATA) / CM_DATA0);
+        uint32_t cm = z8p.dmacycle (CM_ENAB + 011144 * CM_ADDR0, CM2_3CYCL);
+        if ((cm & CM_DATA) != 04321 * CM_DATA0) {
+            printf ("read %04o  (good %d)\n", (cm & CM_DATA) / CM_DATA0, good);
+            return 1;
+        }
+        good ++;
     }
     return 0;
 }
