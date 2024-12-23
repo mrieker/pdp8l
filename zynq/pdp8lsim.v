@@ -105,6 +105,7 @@ module pdp8lsim (
     ,output reg lastswLDAD
     ,output reg lastswSTART
     ,output debounced
+    ,output memen
 
     ,input brkwhenhltd
 );
@@ -144,7 +145,7 @@ module pdp8lsim (
     // general processor state
     reg hidestep, intdelayed, intenabled, ldad;
     reg lastswCONT, lastswDEP, lastswEXAM;
-    reg irusedf, link, memen;
+    reg irusedf, link, memen, memidle;
     wire runff, tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ireg;
     reg[3:0] hltbrkintfet;
@@ -312,6 +313,7 @@ module pdp8lsim (
             lastswSTART <= 0;
             majstate    <= MS_HALT;
             memen       <= 0;
+            memidle     <= 0;
             nextmajst   <= MS_HALT;
 
             o_BWC_OVERFLOW <= 1;
@@ -410,14 +412,11 @@ module pdp8lsim (
                             timestate <= TS_TP1BEG;
                         end
                     end else begin
-                        case (timedelay)
-                            1: if (! i_STROBE) timedelay <= 2;
-                            2: if (i_STROBE) begin
-                                mbuf      <= iMEM;
-                                timedelay <= 0;
-                                timestate <= TS_TP1BEG;
-                            end
-                        endcase
+                        if (! i_STROBE) begin
+                            mbuf      <= iMEM;
+                            timedelay <= 0;
+                            timestate <= TS_TP1BEG;
+                        end
                     end
                 end
 
@@ -427,8 +426,12 @@ module pdp8lsim (
                 end
 
                 TS_TP1END: begin
-                    if (timedelay != 5) timedelay <= timedelay + 1;
-                    else begin timedelay <= 0; timestate <= TS_TS2BODY; end
+                    if (timedelay != 5) begin
+                        timedelay <= timedelay + 1;
+                    end else if (memen | i_STROBE) begin
+                        timedelay <= 0;
+                        timestate <= TS_TS2BODY;
+                    end
                 end
 
                 //////////////////////////////////////////
@@ -489,8 +492,7 @@ module pdp8lsim (
                 ////////////////////////////////////////
 
                 // write modification or original data in MB back to memory
-                // - for localcore, we wait 280nS then clock in the value
-                // - for external memory, it indicates it has clocked it in by asserting i_MEMDONE
+                // - this state lasts for 280nS
                 TS_TS3BODY: begin
 
                     // like a real PDP, compute next major state in time for TP3
@@ -538,20 +540,15 @@ module pdp8lsim (
                         endcase
                     end
 
-                    // if localcore, wait 280nS, clock into memory then start TP3
-                    if (memen) begin
-                        if (timedelay != 28) timedelay <= timedelay + 1;
-                        else begin
-                            localcore[madr] <= mbuf;
-                            timedelay       <= 0;
-                            timestate       <= TS_TP3BEG;
-                        end
-                    end
-
-                    // if external memory, wait for MEMDONE then start TP3
+                    // wait 280nS, clock into memory then start TP3
+                    // if external memory, pdp8lxmem.v clocked data in somewhere in middle of TS3
+                    if (timedelay != 28) timedelay <= timedelay + 1;
                     else begin
-                        if (i_MEMDONE) timedelay <= 1;
-                        else timestate <= TS_TP3BEG;
+                        if (memen) begin
+                            localcore[madr] <= mbuf;
+                        end
+                        timedelay <= 0;
+                        timestate <= TS_TP3BEG;
                     end
                 end
 
@@ -709,25 +706,30 @@ module pdp8lsim (
                 end
 
                 TS_TP4BEG: begin
-                    if (timedelay == 0) begin
-                        case (nextmajst)
-                            MS_FETCH: madr <= pctr;
-                            MS_WC:    madr <= ~ i_DMAADDR;
-                            MS_BRK:   if (majstate != MS_CA) madr <= ~ i_DMAADDR;
-                            MS_INTAK: begin
-                                intdelayed <= 0;
-                                intenabled <= 0;
-                                ireg       <= 4;
-                                iopea      <= 0;
-                                madr       <= 0;
-                            end
-                        endcase
-                    end
-                    if (timedelay != 2) timedelay <= timedelay + 1;
-                    else begin
-                        majstate  <= nextmajst;
-                        timestate <= TS_TP4END;
-                    end
+                    case (timedelay)
+                        0: begin
+                            case (nextmajst)
+                                MS_FETCH: madr <= pctr;
+                                MS_WC:    madr <= ~ i_DMAADDR;
+                                MS_BRK:   if (majstate != MS_CA) madr <= ~ i_DMAADDR;
+                                MS_INTAK: begin
+                                    intdelayed <= 0;
+                                    intenabled <= 0;
+                                    ireg       <= 4;
+                                    iopea      <= 0;
+                                    madr       <= 0;
+                                end
+                            endcase
+                            timedelay <= 1;
+                        end
+                        1: if (memen | memidle) begin
+                            timedelay <= 2;
+                        end
+                        2: begin
+                            majstate  <= nextmajst;
+                            timestate <= TS_TP4END;
+                        end
+                    endcase
                 end
 
                 TS_TP4END: begin
@@ -749,6 +751,12 @@ module pdp8lsim (
             lastswEXAM  <= swEXAM;
             lastswLDAD  <= swLDAD;
             lastswSTART <= swSTART;
+
+            // keep track of external memory state
+            // it is only valid for external memory cuz i_STROBE,i_MEMDONE are only for external memory
+            // see vol 2 p4 C-8
+            if (~ i_STROBE) memidle <= 0;           // waiting for i_MEMDONE for this cycle
+            else if (~ i_MEMDONE) memidle <= 1;     // got i_MEMDONE for this cycle
         end
     end
 endmodule

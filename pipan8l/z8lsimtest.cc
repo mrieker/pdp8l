@@ -796,7 +796,6 @@ static void clockit ()
     if (perclock) {
 #if 111
         uint32_t timestate = FIELD (Z_RK, k_timestate);
-        bool bwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
         //uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
         //uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
         //uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
@@ -804,12 +803,10 @@ static void clockit ()
         //uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
         //uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s bwc_overflow=%o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s oMEMSTART=%o i_STROBE=%o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
-            bwcover);
-        //  ! FIELD(Z_RA,a_i_INT_RQST), ! FIELD(Z_RA,a_i_INT_INHIBIT), FIELD(Z_RG,g_lbION),
-        //  ifld, dfld, ifaj, savedifld, saveddfld, os8step);
+            FIELD(Z_RF,f_oMEMSTART), FIELD(Z_RA,a_i_STROBE));
 #endif
     }
 }

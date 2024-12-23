@@ -158,10 +158,10 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C406F;
+    localparam VERSION = 32'h384C4070;
 
     reg[11:02] readaddr, writeaddr;
-    wire debounced, lastswLDAD, lastswSTART;
+    wire debounced, lastswLDAD, lastswSTART, simmemen;
 
     // pdp8/l module signals
 
@@ -842,7 +842,8 @@ module Zynq (
     assign regctlg[10] = debounced;
     assign regctlg[11] = lastswLDAD;
     assign regctlg[12] = lastswSTART;
-    assign regctlg[15:13] = 0;
+    assign regctlg[13] = simmemen;
+    assign regctlg[15:14] = 0;
     assign regctlg[27:16] = { sim_lbIR, 9'b000000000 };
     assign regctlg[31:28] = 0;
 
@@ -1151,6 +1152,7 @@ module Zynq (
         .debounced      (debounced),
         .lastswLDAD     (lastswLDAD),
         .lastswSTART    (lastswSTART),
+        .memen          (simmemen),
         .brkwhenhltd    (brkwhenhltd)
     );
 

@@ -163,7 +163,7 @@ int main (int argc, char **argv)
             printf ("  iCA_INCREMENT=%o      i_DMADATA=%04o      nextmajst=%s%s",     FIELD(Z_RA,a_iCA_INCREMENT),  FIELD(Z_RD,d_i_DMADATA),  majstatenames[FIELD(Z_RK,k_nextmajst)], eol);
 
             printf ("  oBIOP4=%o             oMA=%04o            nanotrigger=%o    ",   FIELD(Z_RF,f_oBIOP4),         FIELD(Z_RI,i_oMA),            FIELD(Z_RE,e_nanotrigger));
-            printf ("  iDATA_IN=%o           i_INPUTBUS=%04o     timedelay=%o0%s",    FIELD(Z_RA,a_iDATA_IN),       FIELD(Z_RC,c_i_INPUTBUS), FIELD(Z_RK,k_timedelay), eol);
+            printf ("  iDATA_IN=%o           i_INPUTBUS=%04o     timedelay=%o%s",     FIELD(Z_RA,a_iDATA_IN),       FIELD(Z_RC,c_i_INPUTBUS), FIELD(Z_RK,k_timedelay), eol);
 
             printf ("  oBTP2=%o                                  nanocontin=%o     ",   FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin));
             printf ("  i_MEMINCR=%o          iMEM=%04o           timestate=%s%s",     FIELD(Z_RA,a_i_MEMINCR),      FIELD(Z_RC,c_iMEM),       timestatenames[FIELD(Z_RK,k_timestate)], eol);
@@ -172,7 +172,7 @@ int main (int argc, char **argv)
             printf ("  iMEM_P=%o             swCONT=%o            cyclectr=%04o%s",   FIELD(Z_RA,a_iMEM_P),         FIELD(Z_RB,b_swCONT),     FIELD(Z_RK,k_cyclectr), eol);
 
             printf ("  oBTS_1=%o             lbCA=%o              simit=%o          ",  FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit));
-            printf ("  i_3CYCLE=%o           swDEP=%o             memcycctr=%08X%s",  FIELD(Z_RA,a_i_3CYCLE),       FIELD(Z_RB,b_swDEP),      z8ls[Z_RN], eol);
+            printf ("  i_3CYCLE=%o           swDEP=%o             simmemen=%o%s",     FIELD(Z_RA,a_i_3CYCLE),       FIELD(Z_RB,b_swDEP),      FIELD(Z_RG,g_simmemen), eol);
 
             printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o         ",  FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit));
             printf ("  i_AC_CLEAR=%o         swDFLD=%o%s",                            FIELD(Z_RA,a_i_AC_CLEAR),     FIELD(Z_RB,b_swDFLD), eol);
@@ -202,7 +202,8 @@ int main (int argc, char **argv)
             printf ("  i_STROBE=%o           swSR=%04o%s",                            FIELD(Z_RA,a_i_STROBE),       FIELD(Z_RB,b_swSR), eol);
 
             printf ("  o_BUSINIT=%o%s",                                               FIELD(Z_RF,f_o_BUSINIT), eol);
-            printf ("  o_B_RUN=%o            lbAC=%04o           bPIOBUS=%04o%s",     FIELD(Z_RF,f_o_B_RUN),        FIELD(Z_RI,i_lbAC),           FIELD(Z_RP,p_bPIOBUS), eol);
+            printf ("  o_B_RUN=%o            lbAC=%04o           bPIOBUS=%04o     ",    FIELD(Z_RF,f_o_B_RUN),        FIELD(Z_RI,i_lbAC),           FIELD(Z_RP,p_bPIOBUS));
+            printf ("  memcycctr=%08X%s",                                             z8ls[Z_RN], eol);
             printf ("  o_DF_ENABLE=%o        lbMA=%04o             r_BAC=%o%s",       FIELD(Z_RF,f_o_DF_ENABLE),    FIELD(Z_RJ,j_lbMA),           FIELD(Z_RO,o_r_BAC), eol);
             printf ("  o_KEY_CLEAR=%o        lbMB=%04o             r_BMB=%o%s",       FIELD(Z_RF,f_o_KEY_CLEAR),    FIELD(Z_RJ,j_lbMB),           FIELD(Z_RO,o_r_BMB), eol);
             printf ("  o_KEY_DF=%o                                 x_INPUTBUS=%o%s",  FIELD(Z_RF,f_o_KEY_DF),                                     FIELD(Z_RO,o_x_INPUTBUS), eol);
