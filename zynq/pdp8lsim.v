@@ -204,7 +204,8 @@ module pdp8lsim (
     assign o_DF_ENABLE   = ~ ((nextmajst == MS_EXEC) & irusedf);                // next mem cycle uses DF (p22 C-7)
     assign o_SP_CYC_NEXT = ~ ((nextmajst == MS_WC) | (nextmajst == MS_CA));     // next mem cycle is MS_WC or MS_CA, use field 0 (p22 C-6, p5 C-3, also p5 B-2)
     assign o_BF_ENABLE   = ~  (nextmajst == MS_BRK);                            // next mem cycle is MS_BRK[WH], use break field (dma extended address bits) for next mem access (p5 D-2)
-    assign o_LOAD_SF     = ~  (nextmajst == MS_INTAK);                          // next mem cycle is exec of JMS 0 used for interrupt cycle
+    assign o_LOAD_SF     = ~ ((nextmajst == MS_INTAK) & ts4);                   // next mem cycle is exec of JMS 0 used for interrupt cycle
+                                                                                // ...gated with TS4 like real PDP (p22 C-5; p9)
 
     // local memory (presumably inferred block memory)
     reg[11:00] localcore[4095:0000];

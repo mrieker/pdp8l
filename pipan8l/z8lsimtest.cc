@@ -37,6 +37,8 @@
 
 #define FIELD(index,mask) ((pdpat[index] & mask) / (mask & - mask))
 
+#define TESTOS8ZAP false
+
 static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
 
@@ -155,8 +157,8 @@ int main (int argc, char **argv)
 
     // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
     // ...so we can directly access its contents via extmemptr, feeding in random numbers as needed
-    // also tell it to convert ISZ x / JMP .-1 to ISZ x / NOP ; x <= 0
-    xmemat[1] = XM_ENABLE | XM_ENLO4K | XM_OS8ZAP;
+    // TESTOS8ZAP: also tell it to convert ISZ x / JMP .-1 to ISZ x / NOP ; x <= 0
+    xmemat[1] = XM_ENABLE | XM_ENLO4K | (TESTOS8ZAP ? XM_OS8ZAP : 0);
     for (int i = 0; i < 5; i ++) clockit ();
 
     // get initial conditions
@@ -186,7 +188,7 @@ int main (int argc, char **argv)
 
         printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
 
-        ////if (instrno == 119764) perclock = true;
+        //// if (instrno == 1) perclock = true;
 
         uint32_t startclockno = clockno;
 
@@ -281,7 +283,7 @@ int main (int argc, char **argv)
 
                 // perform fetch memory cycle
                 extfetaddr = (xmem_ifld << 12) | pctr;
-                if (((lastwasisz + 1) == ((xmem_ifld << 12) | pctr)) && (opcode == (05200 | (lastwasisz & 00177)))) {
+                if (TESTOS8ZAP && ((lastwasisz + 1) == ((xmem_ifld << 12) | pctr)) && (opcode == (05200 | (lastwasisz & 00177)))) {
                     // pdp8lxmem.v is changing the fetch JMP .-1 to fetch NOP, writeback ISZ value with 0
                     printf (" os8zapped");
                     memorycyclx (g_lbFET,
@@ -674,13 +676,6 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
 // - vfywdata = data that should be at vfywaddr
 static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t rdbkdata, uint16_t wtbkdata, uint16_t vfywaddr, uint16_t vfywdata)
 {
-    // write the read data to the given address so cpu can read it
-    // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
-    // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
-    // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
-    uint16_t xaddr = (field << 12) | addr;
-    extmemptr[xaddr] = rdata;
-
     // clock until we see TS1
     for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for TS1 asserted\n");
@@ -699,6 +694,13 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
 
     // should now be fully transitioned to the major state
     if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
+
+    // write the read data to the given address so cpu can read it
+    // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
+    // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
+    // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
+    uint16_t xaddr = (field << 12) | addr;
+    extmemptr[xaddr] = rdata;
 
     // end of TS1 means it finished reading that memory location into MB
     for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
@@ -794,7 +796,6 @@ static void clockit ()
     clockno ++;
 
     if (perclock) {
-#if 111
         uint32_t timestate = FIELD (Z_RK, k_timestate);
         //uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
         //uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
@@ -803,11 +804,11 @@ static void clockit ()
         //uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
         //uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s oMEMSTART=%o i_STROBE=%o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s oMEMSTART=%o i_STROBE=%o iMEM=%04o xbr[%05o] ce=%o we=%o rd=%04o wd=%04o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
-            FIELD(Z_RF,f_oMEMSTART), FIELD(Z_RA,a_i_STROBE));
-#endif
+            FIELD(Z_RF,f_oMEMSTART), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RC,c_iMEM),
+            FIELD(Z_RL,l_xbraddr), FIELD(Z_RL,l_xbrenab), FIELD(Z_RL,l_xbrwena), FIELD(Z_RM,m_xbrrdat), FIELD(Z_RM,m_xbrwdat));
     }
 }
 

@@ -72,13 +72,14 @@ module pdp8lxmem (
     output[11:00] xbrwdat,          // ... write data bus
     input[11:00] xbrrdat,           // ... read data bus
     output xbrenab,                 // ... chip enable
-    output xbrwena                  // ... write enable
+    output reg xbrwena              // ... write enable
 
     ,output xmstate
 );
 
-    reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump, lastintack;
-    reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
+    reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump;
+    reg[2:0] lastintack;
+    reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] numcycles;
 
     reg mdhold, mdstep, os8zap;
@@ -86,7 +87,7 @@ module pdp8lxmem (
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
-    reg[3:0] xmstate;
+    reg[4:0] xmstate;
 
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
@@ -99,10 +100,10 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D101E :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D101F :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
-                      { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 18'b0, os8step };
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 3'b0, xmstate } :
+                      { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
@@ -131,7 +132,6 @@ module pdp8lxmem (
     assign xbrwdat = memwdat;           // data being written to memory (from processor's MB register)
     assign memrdat = xbrrdat;           // data read from memory (goes to processor via MEM bus)
     assign xbrenab = xmread | xmwrite;  // enable extmem ram while reading or writing
-    assign xbrwena = xmwrite;           // write extmem ram while writing
     assign _mrdone = ~ xmstrobe;        // reading complete
 
     // main processing loop
@@ -151,18 +151,17 @@ module pdp8lxmem (
                 lastts3       <= 0;
                 os8step       <= 0;
                 os8zap        <= 0;
-                r_MA    <= 1;
-                x_MEM   <= 1;
-                xmstate <= 0;
+                r_MA          <= 1;
+                x_MEM         <= 1;
+                xbrwena       <= 0;
+                xmstate       <= 0;
             end
             // these get cleared on power up or start switch
             intinhibeduntiljump <= 0;
-            lastintack   <= 0;
-            numcycles    <= 0;
-            oldsaveddfld <= 0;
-            oldsavedifld <= 0;
-            saveddfld    <= 0;
-            savedifld    <= 0;
+            lastintack <= 0;
+            numcycles  <= 0;
+            saveddfld  <= 0;
+            savedifld  <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -213,15 +212,7 @@ module pdp8lxmem (
                         // check for CDFn instruction
                         if (ioopcode[00]) begin
                             // won't be followed by intack, just set the field
-                            if (_intack) begin
-                                dfld <= ioopcode[05:03];
-                            end
-                            // will be followed by intack,
-                            // the dfld register was already saved in saveddfld and dfld was set to 0
-                            // so we must save the new dfld in saveddfld and leave dfld set to 0
-                            else begin
-                                saveddfld <= ioopcode[05:03];
-                            end
+                            dfld <= ioopcode[05:03];
                         end
 
                         // check for CIFn instruction
@@ -234,45 +225,19 @@ module pdp8lxmem (
                     4: begin
                         case (ioopcode[05:03])
                             1: begin    // 6214 RDF
-                                devtocpu[05:03] <= _intack ? dfld : saveddfld;
+                                devtocpu[05:03] <= dfld;
                             end
                             2: begin    // 6224 RIF
-                                devtocpu[05:03] <= _intack ? ifld : savedifld;
+                                devtocpu[05:03] <= ifld;
                             end
                             3: begin    // 6234 RIB
-                                devtocpu[05:03] <= _intack ? savedifld : oldsavedifld;
-                                devtocpu[02:00] <= _intack ? saveddfld : oldsaveddfld;
+                                devtocpu[05:03] <= savedifld;
+                                devtocpu[02:00] <= saveddfld;
                             end
 
                             4: begin    // 6244 RMF
-
-                                // if no interrupt, do just what book says
-                                if (_intack) begin
-                                    dfld          <= saveddfld;
-                                    ifldafterjump <= savedifld;
-                                end
-
-                                // RMF should never be followed by interrupt but if it is...
-                                //  here's what a programmer should expect:
-                                //   DFLD=2, SAVEDDFLD=3, IFLD=7, SAVEDIFLD=4
-                                //     RMF      sets DFLD=3, IFLDAFTERJUMP=4
-                                //   DFLD=3, SAVEDDFLD=3, IFLD=7, SAVEDIFLD=4, IFLDAFTERJUMP=4
-                                //     INTACK   sets SAVEDDFLD=3, SAVEDIFLD=7, DFLD=IFLD=IFLDJAFTERJUMP=0
-                                //   DFLD=0, SAVEDDFLD=3, IFLD=0, SAVEDIFLD=7, IFLDAFTERJUMP=0
-
-                                //  the intack code below has done (back at TP3 time):
-                                //   OLDSAVEDDFLD=3
-                                //   OLDSAVEDIFLD=4
-                                //   SAVEDDFLD=2
-                                //   SAVEDIFLD=7
-                                //   DFLD=0
-                                //   IFLD=0
-                                //   IFLDAFTERJUMP=0
-                                //  and now we are at IOP4 time to fix things up:
-                                //   SAVEDDFLD=3
-                                else begin
-                                    saveddfld <= oldsaveddfld;
-                                end
+                                dfld          <= saveddfld;
+                                ifldafterjump <= savedifld;
                             end
                         endcase
                     end
@@ -280,19 +245,18 @@ module pdp8lxmem (
             end
 
             // somewhere in middle of instruction to be followed by jms 0 for an interrupt
-            //  tp3     = blip near end of writing memory (our external block ram, sim's localcore array, or PDP-8/L core stack)
             //  _intack = next cycle will be the exec of the jms 0 for calling interrupt service routine
+            //            asserted only during TS4 (p22 C-5; p9)
             // the interrupt service routine always starts in field 0
-            // tp3 is timing used by mc8l board
-            if (tp3 & ~ _intack & ~ lastintack) begin
-                lastintack <= 1;        // only once per low-to-high transition
-                oldsaveddfld <= saveddfld;
-                oldsavedifld <= savedifld;
-                saveddfld  <= dfld;     // save data & instruction fields
-                savedifld  <= jmpjms ? ifldafterjump : ifld;
-                dfld <= 0;              // interrupt routine starts in field 0
-                ifld <= 0;
-                ifldafterjump <= 0;
+            if (~ _intack) begin
+                if (lastintack == 6) begin  // have solid 60nS of _intack in TS4 cycle
+                    saveddfld <= dfld;      // save data & instruction fields
+                    savedifld <= jmpjms ? ifldafterjump : ifld;
+                    dfld <= 0;              // interrupt routine starts in field 0
+                    ifld <= 0;
+                    ifldafterjump <= 0;
+                end
+                if (lastintack != 7) lastintack <= lastintack + 1;
             end
 
             // somewhere in middle of jmp/jms, don't inhibit interrupts any more
@@ -378,16 +342,31 @@ module pdp8lxmem (
                          else xmstate <= 5;
                 end
 
-                // if write complete, tell stepper (eg x8lmctrace.cc) cycle is complete (it can get write data)
-                5: if (xmmemdone & ~ armwrite) begin
-                    mdstep  <= 0;
-                    xmstate <= 6;
+                // wait for start of write pulse
+                5: begin
+                    if (xmwrite) xmstate <= 6;
                 end
 
-                // wait for step enabled, then output write complete pulse to processor
-                6: if (~ mdhold | mdstep) begin
+                // 100nS into write pulse, output a 50nS write pulse to extmem ram
+                15: begin
+                    xbrwena <= 1;
+                    xmstate <= 16;
+                end
+                20: begin
+                    xbrwena <= 0;
+                    xmstate <= 21;
+                end
+
+                // if write complete, tell stepper (eg x8lmctrace.cc) cycle is complete (it can get write data)
+                21: if (xmmemdone & ~ armwrite) begin
+                    mdstep  <= 0;
+                    xmstate <= 22;
+                end
+
+                // wait for step enabled, then output 100nS write complete pulse to processor
+                22: if (~ mdhold | mdstep) begin
                     _mwdone <= 0;
-                    xmstate <= 7;
+                    xmstate <= 23;
                 end
 
                 default: xmstate <= xmstate + 1;

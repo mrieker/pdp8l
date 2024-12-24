@@ -167,7 +167,11 @@
 #define k_majstate0   (k_majstate   & - k_majstate)
 #define k_timedelay0  (k_timedelay  & - k_timedelay)
 #define k_timestate0  (k_timestate  & - k_timestate)
-#define l_breakdata0  (l_breakdata  & - l_breakdata)
+#define l_xbraddr0    (l_xbraddr    & - l_xbraddr)
+#define l_xbrwena0    (l_xbrwena    & - l_xbrwena)
+#define l_xbrenab0    (l_xbrenab    & - l_xbrenab)
+#define m_xbrrdat0    (m_xbrrdat    & - m_xbrrdat)
+#define m_xbrwdat0    (m_xbrwdat    & - m_xbrwdat)
 
 #define o_bDMABUS (07777U << 20)
 #define o_bDMABUSA (1U << 31)

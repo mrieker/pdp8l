@@ -76,7 +76,8 @@ int main (int argc, char **argv)
         }
 
         // print out mem cycle info
-        printf ("%08X:  %05o / %04o -> %04o\n",
-            pdpat[Z_RN], FIELD (Z_RL, l_xbraddr), FIELD (Z_RM, m_xbrrdat), FIELD (Z_RM, m_xbrwdat));
+        printf ("%08X:  %05o / %04o -> %04o  DF=%o  SAFEDDFLD=%o\n",
+            pdpat[Z_RN], FIELD (Z_RL, l_xbraddr), FIELD (Z_RM, m_xbrrdat), FIELD (Z_RM, m_xbrwdat),
+            (xmemat[2] & XM2_DFLD) / XM2_DFLD0, (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0);
     }
 }
