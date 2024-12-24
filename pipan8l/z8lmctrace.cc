@@ -22,7 +22,7 @@
 // Uses MDHOLD/MDSTEP bits of pdp8lxmem.v to stop the processor at end of each memory cycle
 // Must have ENLO4K set so it will be able to stop processor when it accesses low 4K memory
 
-//  ./z8lmctrace
+//  ./z8lmctrace [-clear]
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -39,10 +39,6 @@
 
 int main (int argc, char **argv)
 {
-    setlinebuf (stdout);
-
-    // access the zynq io page
-    // hopefully it has our pdp8l.v code indicated by magic number in first word
     Z8LPage z8p;
     uint32_t volatile *pdpat  = z8p.findev ("8L", NULL, NULL, false);
     uint32_t volatile *xmemat = z8p.findev ("XM", NULL, NULL, false);
@@ -50,8 +46,32 @@ int main (int argc, char **argv)
     printf ("8L version %08X\n", pdpat[Z_VER]);
     printf ("XM version %08X\n", xmemat[Z_VER]);
 
+    if (argc > 1) {
+        if (strcmp (argv[1], "-?") == 0) {
+            puts ("");
+            puts ("  Print memory cycles as they happen:\n");
+            puts ("    ./z8lmctrace\n");
+            puts ("");
+            puts ("  Must have -enlo4k mode set so extmem gets used for everything\n");
+            puts ("    eg, ./z8lreal -enlo4k\n");
+            puts ("");
+            puts ("  Clear memory cycle trace mode:\n");
+            puts ("    ./z8lmectrace -clear\n");
+            puts ("");
+            return 0;
+        }
+        if (strcasecmp (argv[1], "-clear") == 0) {
+            xmemat[1] &= ~ XM_MDHOLD;
+            return 0;
+        }
+        fprintf (stderr, "unknown argument %s\n", argv[1]);
+        return 1;
+    }
+
+    setlinebuf (stdout);
+
     if (! (xmemat[1] & XM_ENLO4K)) {
-        fprintf (stderr, "does not have enlo4k set\n");
+        fprintf (stderr, "enlo4k mode must be set\n");
         ABORT ();
     }
 
@@ -76,8 +96,8 @@ int main (int argc, char **argv)
         }
 
         // print out mem cycle info
-        printf ("%08X:  %05o / %04o -> %04o  DF=%o  SAFEDDFLD=%o\n",
-            pdpat[Z_RN], FIELD (Z_RL, l_xbraddr), FIELD (Z_RM, m_xbrrdat), FIELD (Z_RM, m_xbrwdat),
-            (xmemat[2] & XM2_DFLD) / XM2_DFLD0, (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0);
+        printf ("%08X:  %05o / %04o  DF=%o\n",
+            pdpat[Z_RN], FIELD (Z_RL, l_xbraddr), FIELD (Z_RM, m_xbrwdat),
+            (xmemat[2] & XM2_DFLD) / XM2_DFLD0);
     }
 }
