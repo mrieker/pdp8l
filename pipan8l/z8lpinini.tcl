@@ -30,6 +30,16 @@ proc helpini {} {
     puts "    readmb              - read MB from PIO bus"
     puts "    sendio              - send IO data over PIO bus"
     puts ""
+    puts "  loadbin <filename>    - load bin-format file into FPGA-provided extmem"
+    puts "  loadrim <filename>    - load rim-format file into FPGA-provided extmem"
+    puts ""
+}
+
+# convert character to integer
+proc chartoint {cc} {
+    if {$cc == ""} {return -1}
+    scan $cc "%c" ii
+    return [expr {$ii & 0377}]
 }
 
 # loop continually dumping the AC as it appears on the PIOBUS
@@ -45,6 +55,263 @@ proc loopdumpac {} {
 # get environment variable, return default value if not defined
 proc getenv {varname {defvalu ""}} {
     return [expr {[info exists ::env($varname)] ? $::env($varname) : $defvalu}]
+}
+
+# load bin format tape file into extmem, return start address
+#  returns
+#   string: error message
+#       -1: successful, no start address
+#     else: successful, start address
+proc loadbin {fname} {
+    set fp [open $fname rb]
+
+    if {! [pin get o_B_RUN]} {return "processor must be halted"}
+    pin set XM_ENLO4K 1     ;# fpga will force processor to use extmem for low 4K
+
+    set rubbingout 0
+    set inleadin 1
+    set state -1
+    set addr 0
+    set data 0
+    set chksum 0
+    set offset -1
+    set start -1
+    set nextaddr -1
+    set verify [dict create]
+
+    set field 0
+
+    puts "loadbin: loading $fname..."
+
+    while {true} {
+        if {[ctrlcflag]} {
+            return "control-C"
+        }
+
+        # read byte from tape
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        set ch [chartoint $ch]
+
+        # ignore anything between pairs of rubouts
+        if {$ch == 0377} {
+            set rubbingout [expr 1 - $rubbingout]
+            continue
+        }
+        if $rubbingout continue
+
+        # 03x0 sets field to 'x'
+        # not counted in checksum
+        if {($ch & 0300) == 0300} {
+            set field [expr {($ch & 0070) >> 3}]
+            continue
+        }
+
+        # leader/trailer is just <7>
+        if {$ch == 0200} {
+            if $inleadin continue
+            break
+        }
+        set inleadin 0
+
+        # no other frame should have <7> set
+        if {$ch & 0200} {
+            close $fp
+            puts ""
+            return [format "bad char %03o at %d" $ch $offset]
+        }
+
+        # add to checksum before stripping <6>
+        incr chksum $ch
+
+        # state 4 means we have a data word assembled ready to go to memory
+        # it also invalidates the last address as being a start address
+        # and it means the next byte is the first of a data pair
+        if {$state == 4} {
+            pin set em:$addr $data
+            dict set verify $addr $data
+            puts -nonewline [format "  %05o / %04o\r" $addr $data]
+            flush stdout
+
+            # set up for next byte
+            set addr [expr {($addr & 070000) | (($addr + 1) & 007777)}]
+            set start -1
+            set state 2
+            set nextaddr $addr
+        }
+
+        # <6> set means this is first part of an address
+        if {$ch & 0100} {
+            set state 0
+            incr ch -0100
+        }
+
+        # process the 6 bits
+        switch $state {
+            -1 {
+                close $fp
+                puts ""
+                return [format "bad leader char %03o at %d" $ch $offset]
+            }
+
+            0 {
+                # top 6 bits of address are followed by bottom 6 bits
+                set addr [expr {($field << 12) | ($ch << 6)}]
+                set state 1
+            }
+
+            1 {
+                # bottom 6 bits of address are followed by top 6 bits data
+                # it is also the start address if it is last address on tape and is not followed by any data other than checksum
+                incr addr $ch
+                set start $addr
+                set state 2
+            }
+
+            2 {
+                # top 6 bits of data are followed by bottom 6 bits
+                set data [expr {$ch << 6}]
+                set state 3
+            }
+
+            3 {
+                # bottom 6 bits of data are followed by top 6 bits of next word
+                # the data is stored in memory when next frame received,
+                # as this is the checksum if it is the very last data word
+                incr data $ch
+                set state 4
+            }
+
+            default abort
+        }
+    }
+
+    close $fp
+    puts ""
+
+    # trailing byte found, validate checksum
+    set chksum [expr {$chksum - ($data & 63)}]
+    set chksum [expr {$chksum - ($data >> 6)}]
+    set chksum [expr {$chksum & 07777}]
+    if {$chksum != $data} {
+        return [format "checksum calculated %04o, given on tape %04o" $chksum $data]
+    }
+
+    # verify what was loaded
+    return [loadverify $verify $start]
+}
+
+# load rim format tape file into extmem
+#  returns
+#   string: error message
+#       "": successful
+proc loadrim {fname} {
+    set fp [open $fname rb]
+
+    if {! [pin get o_B_RUN]} {return "processor must be halted"}
+    pin set XM_ENLO4K 1     ;# fpga will force processor to use extmem for low 4K
+
+    set addr 0
+    set data 0
+    set offset -1
+    set verify [dict create]
+
+    setsw ifld 0
+    setsw dfld 0
+
+    puts "loadrim: loading $fname..."
+
+    while {true} {
+        if {[ctrlcflag]} {
+            return "control-C"
+        }
+
+        # read byte from tape
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} break
+        set ch [chartoint $ch]
+
+        # ignore rubouts
+        if {$ch == 0377} continue
+
+        # keep skipping until we have an address
+        if {! ($ch & 0100)} continue
+
+        set addr [expr {($ch & 077) << 6}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        set ch [chartoint $ch]
+        set addr [expr {$addr | ($ch & 077)}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        set ch [chartoint $ch]
+        set data [expr {($ch & 077) << 6}]
+
+        incr offset
+        set ch [read $fp 1]
+        if {[eof $fp]} {
+            close $fp
+            puts ""
+            return "eof reading loadfile at $offset"
+        }
+        set ch [chartoint $ch]
+        set data [expr {$data | ($ch & 077)}]
+
+        pin set em:$addr $data
+        dict set verify $addr $data
+        puts -nonewline [format "  %04o / %04o\r" $addr $data]
+        flush stdout
+    }
+
+    close $fp
+    puts ""
+
+    # verify what was loaded
+    return [loadverify $verify ""]
+}
+
+# verify memory loaded by bin/rim
+#  input:
+#   verify = dictionary of addr => data as written to memory
+#   retifok = value to return if verification successful
+#  output:
+#   returns error: error message string
+#            else: $retifok
+proc loadverify {verify retifok} {
+    puts "loadverify: verifying..."
+    dict for {xaddr expect} $verify {
+        if {[ctrlcflag]} {
+            return "control-C"
+        }
+        set actual [pin get em:$xaddr]
+        puts -nonewline [format "  %05o / %04o\r" $xaddr $actual]
+        flush stdout
+        if {$actual != $expect} {
+            puts ""
+            return [format "%05o was %04o expected %04o" $xaddr $actual $expect]
+        }
+    }
+    puts ""
+    puts "loadverify: verify ok"
+    return $retifok
 }
 
 # convert integer to 4-digit octal string
