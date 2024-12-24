@@ -226,7 +226,6 @@ static PinDef const pindefs[] = {
     { "timestate",       DEV_8L, Z_RK, k_timestate,        false },
     { "cyclectr",        DEV_8L, Z_RK, k_cyclectr,         false },
     { "nextmajst",       DEV_8L, Z_RK, k_nextmajst,        false },
-    { "breakdata",       DEV_8L, Z_RL, l_breakdata,        false },
     { "bDMABUS",         DEV_8L, Z_RO, o_bDMABUS,          false },
     { "r_BAC",           DEV_8L, Z_RO, o_r_BAC,            true  },
     { "r_BMB",           DEV_8L, Z_RO, o_r_BMB,            true  },

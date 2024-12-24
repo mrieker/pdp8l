@@ -43,7 +43,6 @@ static uint32_t volatile *cmemat;
 static uint32_t volatile *extmem;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *tt40at;
-static uint32_t volatile *xmemat;
 
 static bool findtt40 (void *param, uint32_t volatile *ttyat);
 static void siginthand (int signum);
@@ -82,14 +81,12 @@ int main (int argc, char **argv)
     Z8LPage z8p;
     pdpat  = z8p.findev ("8L", NULL, NULL, true);
     cmemat = z8p.findev ("CM", NULL, NULL, true);
-    xmemat = z8p.findev ("XM", NULL, NULL, true);
     extmem = z8p.extmem ();
     tt40at = z8p.findev ("TT", findtt40, NULL, true);
 
     printf ("8L VERSION=%08X\n", pdpat[0]);
     printf ("CM VERSION=%08X\n", cmemat[0]);
     printf ("TT VERSION=%08X\n", tt40at[0]);
-    printf ("XM VERSION=%08X\n", xmemat[0]);
 
     // a real PDP needs to be running so we can do DMA
     // tell user to put a JMP . at 5252 and start it

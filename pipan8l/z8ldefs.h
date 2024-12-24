@@ -36,7 +36,7 @@
 #define Z_RJ 10
 #define Z_RK 11
 #define Z_RL 12
-#define Z_RM 13     // 0000 xbrwdat 0000 xbrrdat
+#define Z_RM 13
 #define Z_RN 14     // memcycctr
 #define Z_RO 15
 #define Z_RP 16
@@ -145,7 +145,12 @@
 #define k_timestate (  037U << 10)
 #define k_cyclectr  (01777U << 15)
 #define k_nextmajst (  017U << 25)
-#define l_breakdata (07777U <<  0)
+
+#define l_xbraddr (077777U <<  0)
+#define l_xbrwena (     1U << 16)
+#define l_xbrenab (     1U << 20)
+#define m_xbrrdat ( 07777U <<  0)
+#define m_xbrwdat ( 07777U << 16)
 
 #define b_swSR0       (b_swSR       & - b_swSR)
 #define c_i_INPUTBUS0 (c_i_INPUTBUS & - c_i_INPUTBUS)
@@ -281,6 +286,8 @@
 
 // pdp8lxmem.v registers
 #define XM_OS8ZAP (1U <<  0)
+#define XM_MDSTEP (1U <<  1)
+#define XM_MDHOLD (1U <<  2)
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
 

@@ -82,7 +82,7 @@ module pdp8lxmem (
     reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
     reg[7:0] numcycles;
 
-    reg os8zap;
+    reg mdhold, mdstep, os8zap;
     reg[11:00] os8iszrdata;
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
@@ -99,8 +99,8 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D101C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4k, 29'b0, os8zap } :
+    assign armrdata = (armraddr == 0) ? 32'h584D101D :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, memdelay } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 18'b0, os8step };
 
@@ -123,6 +123,8 @@ module pdp8lxmem (
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 lastts3       <= 0;
+                mdhold        <= 0;
+                mdstep        <= 0;
                 memdelay      <= 0;
                 _mrdone       <= 1;
                 _mwdone       <= 1;
@@ -152,6 +154,8 @@ module pdp8lxmem (
                 1: begin
                     ctlenab  <= armwdata[31];           // save overall enabled flag
                     ctllo4k  <= armwdata[30];           // save low 4K enabled flag
+                    mdhold   <= armwdata[02];
+                    mdstep   <= armwdata[01];
                     os8zap   <= armwdata[00];           // save os8zap enabled flag
                 end
             endcase
@@ -479,11 +483,19 @@ module pdp8lxmem (
                     end
                 end
 
+                117: begin
+                    mdstep   <= 0;
+                    memdelay <= memdelay + 1;
+                end
+
                 // let TS4 run for 480 nS (maint vol 1 p 4-22)
                 // then pulse memdone for 100nS to set the MEMIDLE flipflop (vol 2 p4 C-8)
+                // hold off until stepped if in memdone hold mode
                 118: begin
-                    _mwdone  <= 0;
-                    memdelay <= memdelay + 1;
+                    if (~ mdhold | mdstep) begin
+                        _mwdone  <= 0;
+                        memdelay <= memdelay + 1;
+                    end
                 end
 
                 // all done, shut off memdone pulse and stop gating to memory bus
