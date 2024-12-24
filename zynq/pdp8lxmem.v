@@ -55,8 +55,8 @@ module pdp8lxmem (
     input memstart,                 // pulse from cpu to start memory cycle (150..500nS)
     input[11:00] memaddr,
     input[11:00] memwdat,
-    output reg[11:00] memrdat,
-    output reg _mrdone,             // pulse to cpu saying data is available
+    output[11:00] memrdat,
+    output _mrdone,                 // pulse to cpu saying data is available
     output reg _mwdone,             // pulse to cpu saying data has been written
     input[2:0] brkfld,              // field for dma
     output[2:0] field,              // current field being used
@@ -69,16 +69,15 @@ module pdp8lxmem (
     input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
 
     output reg[14:00] xbraddr,      // external block ram address bus
-    output reg[11:00] xbrwdat,      // ... write data bus
+    output[11:00] xbrwdat,          // ... write data bus
     input[11:00] xbrrdat,           // ... read data bus
-    output reg xbrenab,             // ... chip enable
-    output reg xbrwena              // ... write enable
+    output xbrenab,                 // ... chip enable
+    output xbrwena                  // ... write enable
 
-    ,output memdelay
+    ,output xmstate
 );
 
     reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump, lastintack;
-    reg[6:0] memdelay;
     reg[2:0] dfld, ifld, ifldafterjump, oldsaveddfld, oldsavedifld, saveddfld, savedifld;
     reg[7:0] numcycles;
 
@@ -87,6 +86,7 @@ module pdp8lxmem (
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
+    reg[3:0] xmstate;
 
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
@@ -99,9 +99,9 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D101D :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D101E :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, memdelay } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 18'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -109,6 +109,32 @@ module pdp8lxmem (
 
     wire[6:0] os8jmpopcad = os8iszopcad + 1;
 
+    // external memory controller
+
+    // control the external memory
+    wire xmmemenab, xmread, xmstrobe, xmwrite, xmmemdone;
+    pdp8lmemctl xmmemctl (
+        .CLOCK (CLOCK),
+        .CSTEP (CSTEP),
+        .RESET (RESET),
+
+        .memstart (memstart),
+        .select (~ _ea),
+
+        .memenab (xmmemenab),   // extmem is being used this cycle
+        .read (xmread),         // read memory (asserted for 500nS)
+        .strobe (xmstrobe),     // finish up reading (asserted for 100nS)
+        .write (xmwrite),       // write memory (asserted for 500nS)
+        .memdone (xmmemdone)    // finish up writing (asserted for 100nS)
+    );
+
+    assign xbrwdat = memwdat;           // data being written to memory (from processor's MB register)
+    assign memrdat = xbrrdat;           // data read from memory (goes to processor via MEM bus)
+    assign xbrenab = xmread | xmwrite;  // enable extmem ram while reading or writing
+    assign xbrwena = xmwrite;           // write extmem ram while writing
+    assign _mrdone = ~ xmstrobe;        // reading complete
+
+    // main processing loop
     always @(posedge CLOCK) begin
         if (BINIT) begin
             if (RESET) begin
@@ -123,15 +149,11 @@ module pdp8lxmem (
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 lastts3       <= 0;
-                mdhold        <= 0;
-                mdstep        <= 0;
-                memdelay      <= 0;
-                _mrdone       <= 1;
-                _mwdone       <= 1;
                 os8step       <= 0;
                 os8zap        <= 0;
-                xbrenab       <= 0;
-                xbrwena       <= 0;
+                r_MA    <= 1;
+                x_MEM   <= 1;
+                xmstate <= 0;
             end
             // these get cleared on power up or start switch
             intinhibeduntiljump <= 0;
@@ -139,10 +161,8 @@ module pdp8lxmem (
             numcycles    <= 0;
             oldsaveddfld <= 0;
             oldsavedifld <= 0;
-            r_MA         <= 1;
             saveddfld    <= 0;
             savedifld    <= 0;
-            x_MEM        <= 1;
         end
 
         // arm processor is writing one of the registers
@@ -259,18 +279,12 @@ module pdp8lxmem (
                 endcase
             end
 
-            // maybe pdp is requesting a memory cycle on extended memory
-            // includes the lower 4K if our enlo4k bit is set cuz that forces _EA=0
-            else if (memstart & ~ _ea & (memdelay == 0)) begin
-                memdelay <= memdelay + 1;
-            end
-
             // somewhere in middle of instruction to be followed by jms 0 for an interrupt
             //  tp3     = blip near end of writing memory (our external block ram, sim's localcore array, or PDP-8/L core stack)
             //  _intack = next cycle will be the exec of the jms 0 for calling interrupt service routine
             // the interrupt service routine always starts in field 0
             // tp3 is timing used by mc8l board
-            else if (tp3 & ~ _intack & ~ lastintack) begin
+            if (tp3 & ~ _intack & ~ lastintack) begin
                 lastintack <= 1;        // only once per low-to-high transition
                 oldsaveddfld <= saveddfld;
                 oldsavedifld <= savedifld;
@@ -329,191 +343,55 @@ module pdp8lxmem (
                 devtocpu <= 0;
             end
 
-            // see if pdp is requesting a memory cycle
-            case (memdelay)
-                0: begin end
-
-                // wait for beginning of TS1, then start receiving memory address via PIOBUS
-                1: begin
-                    if (ts1) begin
-                        r_MA <= 0;
-                        memdelay <= memdelay + 1;
-                    end
-                end
-
-                // 150nS into TS1, start reading block memory
-                15: begin
-                    r_MA     <= 1;
-                    xbraddr  <= { field, memaddr };
-                    xbrenab  <= 1;
-                    xbrwena  <= 0;
-                    memdelay <= memdelay + 1;
-                end
-
-                // 200nS into TS1, start gating to memory bus and send read data to cpu
-                20: begin
-                    if (os8zap & exefet) case (os8step)
-
-                        // see if we just fetched an ISZ direct page, not last word on page (so there is room for following JMP on page)
-                        // if so, save ISZ opcode address, save ISZ operand address
-                        // in any case, send opcode on to processor
-                        0: begin
-                            if ((xbrrdat[11:07] == 5'b01001) & (xbraddr[06:00] != 7'b1111111)) begin
-                                os8iszopcad <= xbraddr[06:00];
-                                os8iszxaddr <= { xbraddr[14:07], xbrrdat[06:00] };
-                                os8step <= 1;
-                            end
-                            memrdat <= xbrrdat;
-                        end
-
-                        // see if we just read the operand for the ISZ
-                        // if so, save the operand
-                        // if not, last cycle wasn't really a fetch of an ISZ, abandon zap
-                        // in any case, send operand on to processor
-                        1: begin
-                            if (xbraddr == os8iszxaddr) begin
-                                os8iszrdata <= xbrrdat;
-                                os8step <= 2;
-                            end
-                            else os8step <= 0;
-                            memrdat <= xbrrdat;
-                        end
-
-                        // see if we just fetched a JMP .-1 following the ISZ
-                        // if so, send NOP to processor instead of JMP .-1
-                        // if not, send opcode to processor and abandon zap
-                        2: begin
-                            if ((xbraddr == { os8iszxaddr[14:07], os8jmpopcad }) &
-                                    (xbrrdat == { 5'b10101, os8iszopcad })) begin
-                                memrdat <= 12'o7000;
-                                os8step <= 3;
-                            end
-                            else begin
-                                memrdat <= xbrrdat;
-                                os8step <= 0;
-                            end
-                        end
-                    endcase
-                    else begin
-                        os8step <= 0;
-                        memrdat <= xbrrdat;
-                    end
-                    x_MEM    <= 0;
-                    xbrenab  <= 0;
-                    memdelay <= memdelay + 1;
-                end
-
-                // 500nS into TS1, send strobe pulse until we see TS1 drop
-                // the strobe pulse clears TS1 flipflop and sets TS2 flipflop (vol 2 p4 C-6)
-                50: begin
-                    _mrdone  <= 0;
-                    memdelay <= memdelay + 1;
-                end
-
-                // the strobe pulse:
-                //   strobe+  0nS: causes TS2 to begin
-                //   strobe+150nS: causes TS3 to begin
-                //   strobe+400nS: causes TS4 to begin
-                // the memdone pulse causes TS4 to end
-
-                // wait for TS1 to end, means the processor got the strobe pulse
-                51: begin
-                    if (~ ts1) begin
-                        _mrdone  <= 1;
-                        memdelay <= memdelay + 1;
-                    end
-                end
-
-                // strobe triggered a 150nS delay that starts TS3, so wait for that to appear
-                52: begin
-                    if (ts3) begin
-                        memdelay <= memdelay + 1;
-                    end
-                end
-
-                // 100nS into TS3, clock in write data, start writing to memory
-                63: begin
-
-                    // see if doing ISZ/JMP .-1 zap
-                    case (os8step)
-
-                        // see if writing ISZ operand is read value + 1
-                        // if so, only EXEC state of ISZ increments memory so we know we are in EXEC following FETCH of an ISZ direct
-                        // if not, abandon zap
-                        // in any case, send operand on to processor as is
-                        2: begin
-                            if (memwdat != os8iszrdata + 1) os8step <= 0;
-                            xbrwdat <= memwdat;
-                        end
-
-                        // see if writing back JMP .-1 that was zapped to a NOP (should always be the case)
-                        // if so, zap the writeback to write 0 to the ISZ operand and zap is complete
-                        // if not, leave the writeback as is and abandon zap and disable future zapping as error indication
-                        3: begin
-                            if (memwdat == 12'o7000) begin
-                                xbraddr <= os8iszxaddr;
-                                xbrwdat <= 0;
-                            end
-                            else begin
-                                xbrwdat <= memwdat;
-                                os8zap  <= 0;
-                            end
-                            os8step <= 0;
-                        end
-
-                        // either not zapping or writing back FETCH of the ISZ opcode, write what processor wants as is
-                        default: xbrwdat <= memwdat;
-                    endcase
-                    xbrenab  <= 1;
-                    xbrwena  <= 1;
-                    memdelay <= memdelay + 1;
-                end
-
-                // 150nS into TS3, stop writing
-                68: begin
-                    xbrenab  <= 0;
-                    xbrwena  <= 0;
-                    memdelay <= memdelay + 1;
-                end
-
-                // wait for TS3 to end
-                69: begin
-                    if (~ ts3) begin
-                        memdelay <= memdelay + 1;
-                    end
-                end
-
-                117: begin
-                    mdstep   <= 0;
-                    memdelay <= memdelay + 1;
-                end
-
-                // let TS4 run for 480 nS (maint vol 1 p 4-22)
-                // then pulse memdone for 100nS to set the MEMIDLE flipflop (vol 2 p4 C-8)
-                // hold off until stepped if in memdone hold mode
-                118: begin
-                    if (~ mdhold | mdstep) begin
-                        _mwdone  <= 0;
-                        memdelay <= memdelay + 1;
-                    end
-                end
-
-                // all done, shut off memdone pulse and stop gating to memory bus
-                127: begin
-                    _mwdone  <= 1;
-                    x_MEM    <= 1;
-                    memdelay <= 0;
-                end
-
-                // in between somewhere, just increment counter
-                default: begin
-                    memdelay <= memdelay + 1;
-                end
-            endcase
-
             // process each intack cycle only once
             // ie, don't process another one until this one is finished
             if (_intack) lastintack <= 0;
+
+            // control the external memory
+            case (xmstate)
+
+                // wait for pdp to start a memory cycle
+                0: begin
+                    _mwdone <= 1;
+                    x_MEM   <= 1;
+                    if (memstart) xmstate <= 1;
+                end
+
+                // wait 20nS for xmmemenab to update
+                // if enabled, gate processor's MA onto MEMBUS, else we wait here until we get an extmem cycle
+                2: if (xmmemenab) begin
+                    r_MA <= 0;
+                    xmstate <= 3;
+                end
+
+                // if before read pulse, latch in memory address from MEMBUS
+                // if at start of read pulse, stop gating MA onto MEMBUS
+                3: begin
+                    if (~ xmread) xbraddr <= { field, memaddr };
+                    else begin r_MA <= 1; xmstate <= 4; end
+                end
+
+                // if in read pulse, gate read data, strobe and memdone onto MEMBUS etc
+                // strobe pulse has come and gone by the end of the read pulse
+                4: begin
+                    if (xmread) x_MEM <= 0;
+                         else xmstate <= 5;
+                end
+
+                // if write complete, tell stepper (eg x8lmctrace.cc) cycle is complete (it can get write data)
+                5: if (xmmemdone & ~ armwrite) begin
+                    mdstep  <= 0;
+                    xmstate <= 6;
+                end
+
+                // wait for step enabled, then output write complete pulse to processor
+                6: if (~ mdhold | mdstep) begin
+                    _mwdone <= 0;
+                    xmstate <= 7;
+                end
+
+                default: xmstate <= xmstate + 1;
+            endcase
         end
     end
 endmodule

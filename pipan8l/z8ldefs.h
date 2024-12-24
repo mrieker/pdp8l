@@ -291,7 +291,7 @@
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
 
-#define XM2_MEMDELAY (0377U <<  0)
+#define XM2_XMSTATE   (017U <<  0)
 #define XM2_SAVEDIFLD   (7U <<  8)
 #define XM2_SAVEDDFLD   (7U << 11)
 #define XM2_IFLDAFJMP   (7U << 14)
@@ -300,7 +300,7 @@
 #define XM2_FIELD       (7U << 27)
 #define XM2__MWDONE     (1U << 30)
 #define XM2__MRDONE     (1U << 31)
-#define XM2_MEMDELAY0   (1U <<  0)
+#define XM2_XMSTATE0    (1U <<  0)
 #define XM2_SAVEDIFLD0  (1U <<  8)
 #define XM2_SAVEDDFLD0  (1U << 11)
 #define XM2_IFLDAFJMP0  (1U << 14)

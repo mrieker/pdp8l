@@ -414,7 +414,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[29:00] ilaarray[4095:0], ilardata;
+    reg[28:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -446,7 +446,7 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {  2'b0, ilardata[29:00] } :
+        (readaddr        == 10'b0000010010) ? {  3'b0, ilardata[28:00] } :
         (readaddr        == 10'b0000010011) ? { 32'b0                  } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
@@ -1359,7 +1359,7 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
-    wire[6:0] memdelay;
+    wire[3:0] xmstate;
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
@@ -1414,7 +1414,7 @@ module Zynq (
         .xbrenab (xbrenab),
         .xbrwena (xbrwena)
 
-        ,.memdelay (memdelay)
+        ,.xmstate (xmstate)
     );
 
     // core memory interface
@@ -1556,13 +1556,9 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                i_BRK_RQST,
-                i_3CYCLE,
-                o_SP_CYC_NEXT,
-                o_BF_ENABLE,
-                o_B_BREAK,
-                oBTS_1,                 // time state 1
-                oBTS_3,                 // time state 3
+                xmstate,
+                oBTS_1,
+                oBTS_3,
                 oMEMSTART,
                 i_STROBE,
                 i_MEMDONE,
@@ -1576,7 +1572,7 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (~ i_3CYCLE) ilaarmed <= 0;
+            else if (oMEMSTART) ilaarmed <= 0;
         end
     end
 endmodule

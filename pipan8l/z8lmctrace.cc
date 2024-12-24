@@ -59,15 +59,19 @@ int main (int argc, char **argv)
 
         // tell pdp8lxmem.v to let processor do one mem cycle then stop
         xmemat[1] |= XM_MDHOLD | XM_MDSTEP;
+        bool halted = false;
         for (int i = 0; xmemat[1] & XM_MDSTEP; i ++) {
-            if (FIELD (Z_RF, f_o_B_RUN)) {
-                printf ("processor halted\n");
-                do usleep (10000);
-                while (FIELD (Z_RF, f_o_B_RUN));
+            if (i > 10000) {
+                if (! FIELD (Z_RF, f_o_B_RUN)) {
+                    fprintf (stderr, "timed out waiting for cycle to complete\n");
+                    ABORT ();
+                }
+                if (! halted) {
+                    printf ("processor halted\n");
+                    halted = true;
+                }
+                usleep (10000);
                 i = 0;
-            } else if (i > 10000) {
-                fprintf (stderr, "timed out waiting for cycle to complete\n");
-                ABORT ();
             }
         }
 
