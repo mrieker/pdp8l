@@ -21,7 +21,7 @@ proc os8dpackloadandboot {{sourcedisk ""}} {
 }
 
 proc os8dpacktoggleinboot {} {
-    wrmem 023 06007     ;#  caf
+    wrmem 023 06002     ;#  iof
     wrmem 024 06744     ;#  dlca
     wrmem 025 01032     ;#  tad unit
     wrmem 026 06746     ;#  dldc

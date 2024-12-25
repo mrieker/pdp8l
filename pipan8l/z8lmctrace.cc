@@ -172,8 +172,13 @@ int main (int argc, char **argv)
         }
 
         // print out mem cycle info
-        printf ("%08X:  %05o / %04o  DF=%o%s%s\n",
-            pdpat[Z_RN], xaddr, wdata, (xmemat[2] & XM2_DFLD) / XM2_DFLD0, statestr, disasstr.c_str ());
+        printf ("%08X:  %05o / %04o  DF=%o IF=%o IFAJ=%o ION=%o%s%s\n",
+            pdpat[Z_RN], xaddr, wdata,
+            (xmemat[2] & XM2_DFLD) / XM2_DFLD0,
+            (xmemat[2] & XM2_IFLD) / XM2_IFLD0,
+            (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0,
+            FIELD (Z_RF, f_oC36B2),
+            statestr, disasstr.c_str ());
 
         // get ready for next cycle
         last_dmabrk = dmabrk;
