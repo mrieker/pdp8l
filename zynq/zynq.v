@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4070;
+    localparam VERSION = 32'h384C4071;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -414,7 +414,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[28:00] ilaarray[4095:0], ilardata;
+    reg[41:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -446,8 +446,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {  3'b0, ilardata[28:00] } :
-        (readaddr        == 10'b0000010011) ? { 32'b0                  } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { 22'b0, ilardata[41:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -1359,7 +1359,7 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
-    wire[3:0] xmstate;
+    wire[4:0] xmstate;
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
@@ -1557,22 +1557,23 @@ module Zynq (
             // capture signals
             ilaarray[ilaindex] <= {
                 xmstate,
-                oBTS_1,
-                oBTS_3,
-                oMEMSTART,
-                i_STROBE,
-                i_MEMDONE,
+                dev_oBTS_1,
+                dev_oBTS_3,
+                dev_oMEMSTART,
+                dev_i_STROBE,
+                dev_i_MEMDONE,
                 xmfield,
                 xbrenab,
                 xbrwena,
-                xbraddr
+                xbraddr,
+                xbrwdat
             };
 
             ilaindex <= ilaindex + 1;
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (oMEMSTART) ilaarmed <= 0;
+            else if (dev_oMEMSTART) ilaarmed <= 0;
         end
     end
 endmodule

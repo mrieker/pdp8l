@@ -17,6 +17,10 @@ proc os8dpackloadandboot {{sourcedisk ""}} {
     atexit "exec kill $rk8pid"
     after 1000
 
+    startat [os8dpacktoggleinboot]
+}
+
+proc os8dpacktoggleinboot {} {
     wrmem 023 06007     ;#  caf
     wrmem 024 06744     ;#  dlca
     wrmem 025 01032     ;#  tad unit
@@ -25,8 +29,7 @@ proc os8dpackloadandboot {{sourcedisk ""}} {
     wrmem 030 01032     ;#  tad unit
     wrmem 031 05031     ;#  jmp .
     wrmem 032 00000     ;# unit: 0
-
-    startat 023
+    return 023
 }
 
 proc os8dtapeloadandboot {{sourcetape ""}} {
@@ -48,6 +51,11 @@ proc os8dtapeloadandboot {{sourcetape ""}} {
     atexit "exec kill $tc08pid"
     after 1000
 
+    startat [os8dtapetoggleinboot]
+}
+
+proc os8dtapetoggleinboot {} {
+
     ;# from OS8 Handbook p41
 
     wrmem 07613 06774   ;# 7613 load status register B (with zeroes)
@@ -62,5 +70,5 @@ proc os8dtapeloadandboot {{sourcetape ""}} {
     wrmem 07754 07577   ;# 7754 read 129 words
     wrmem 07755 07577   ;# 7755 read into 7600..0000
 
-    startat 07613
+    return 07613
 }

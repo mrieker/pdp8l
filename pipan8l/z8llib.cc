@@ -158,10 +158,15 @@ void Z8LLib::openpads ()
     }
 
     // enable extended memory io instruction processing (to set data field, instruciton field, etc)
-    // leave XM_ENLO4K and XM_OS8ZAP bits as they were
     uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
     fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
-    xmemat[1] |= XM_ENABLE;
+    uint32_t xm = XM_ENABLE;
+    char const *enlo4k = getenv ("z8llib_enlo4k");
+    if ((enlo4k != NULL) && (enlo4k[0] & 1)) xm |= XM_ENLO4K;
+    char const *os8zap = getenv ("z8llib_os8zap");
+    if ((os8zap != NULL) && (os8zap[0] & 1)) xm |= XM_OS8ZAP;
+    fprintf (stderr, "Z8LLib::openpads: enlo4k=%o os8zap=%o\n", (xm & XM_ENLO4K) / XM_ENLO4K, (xm & XM_OS8ZAP) / XM_OS8ZAP);
+    xmemat[1] = xm;
 }
 
 // read switches and lightbulbs from zynq pdp8l.v

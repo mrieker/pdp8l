@@ -1,8 +1,10 @@
 ;# get regular pipan8l init file
 set ret [source "[file dirname [info script]]/pipan8lini.tcl"]
 
-;# only wait 1mS for flick switches
-set bncyms 1
+;# wait 20mS for flick switches
+;# - 20mS in case z8lmctrace is running
+;#   10mS misses some flicks
+set bncyms 20
 
 ;# function to open tty port available as pipes
 ;# overrides pipan8lini.tcl's openttypipes
