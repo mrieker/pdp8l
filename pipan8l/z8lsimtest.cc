@@ -227,9 +227,9 @@ int main (int argc, char **argv)
     for (int i = 0; i < 5; i ++) clockit ();
 
     // if using a real PDP, user must manually halt it (or use pipan8l)
-    if (fullreal && ! FIELD (Z_RF, f_o_B_RUN)) {
+    if (fullreal && FIELD (Z_RF, f_oB_RUN)) {
         fputs ("flick STOP switch to stop processor ", stderr);
-        for (int i = 0; ! FIELD (Z_RF, f_o_B_RUN); i ++) {
+        for (int i = 0; FIELD (Z_RF, f_oB_RUN); i ++) {
             if (i == 5) fputs ("\nif fails to stop, try -clear ", stderr);
             sleep (1);
             fputc ('.', stderr);
@@ -252,7 +252,7 @@ int main (int argc, char **argv)
 
         // user must manually start it
         fprintf (stderr, "set SR %04o ; LD ADDR ; START ", DOTJMPDOT);
-        while (FIELD (Z_RF, f_o_B_RUN)) {
+        while (! FIELD (Z_RF, f_oB_RUN)) {
             sleep (1);
             fputc ('.', stderr);
         }
@@ -303,7 +303,7 @@ int main (int argc, char **argv)
 
         printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
 
-        //// if (instrno == 1) perclock = true;
+        ////if (instrno == 41) perclock = true;
 
         uint32_t startclockno = clockno;
 
@@ -365,7 +365,7 @@ int main (int argc, char **argv)
                 printf ("interrupt acknowledge");
 
                 intrequest = false; //TODO: drop request random number of cycles later
-                pdpat[Z_RA] = zrawrite |= a_i_INT_RQST;
+                pdpat[Z_RA] = zrawrite &= ~ a_iINT_RQST;
 
                 // save and reset fields
                 xmem_saveddfld = xmem_dfld;
@@ -608,10 +608,6 @@ int main (int argc, char **argv)
                                     if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
                                     clockit ();
                                 }
-
-                                // clear the random bits so it won't clock them again during nulled-out io pulses
-                                pdpat[Z_RA] = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                                pdpat[Z_RC] = zrcwrite |= c_i_INPUTBUS;
                             }
 
                             // update our shadow registers
@@ -677,13 +673,15 @@ int main (int argc, char **argv)
                         if (opcode & 0004) acum |= randsr;
                         printf (" => %04o", acum);
                         if (opcode & 0002) {
-                            for (int i = 0; ! FIELD (Z_RF, f_o_B_RUN); i ++) {
+                            for (int i = 0; FIELD (Z_RF, f_oB_RUN); i ++) {
                                 if (i > 1000) fatalerr ("timed out waiting for RUN negated after HLT instruction\n");
                                 clockit ();
                             }
                             printf (" cont");
                             docont ();
                             contforcesfetch = true; // cont switch in pdp8lsim.v always does fetch next (no brk, irq, etc)
+                            ASSERT (! realmode);
+                            goto vfyacetc;          // pdp8lsim.v already at beginning of TS1BODY of next instruction
                         }
                     } else {
                         uint16_t newac = (opcode & 0200) ? 0 : acum;
@@ -706,13 +704,14 @@ int main (int argc, char **argv)
                 clockit ();
             }
 
+            // the accumulator and link should be up to date
+        vfyacetc:;
+            verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
+            verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
+
             // print how many cycles it took (each clock is 10nS)
             uint32_t clocks = clockno - startclockno;
             printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
-
-            // the accumulator and link should be up to date
-            verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
-            verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
         }
     }
 
@@ -721,7 +720,7 @@ int main (int argc, char **argv)
         memorycycle (g_lbFET, xmem_ifld, pctr, 07402, 07402);
         xmemat[1] &= ~ XM_MDHOLD & ~ XM_MDSTEP;
         usleep (20);
-        if (! FIELD (Z_RF, f_o_B_RUN)) {
+        if (FIELD (Z_RF, f_oB_RUN)) {
             fprintf (stderr, "processor failed to halt, probably need to do -clear\n");
         }
     }
@@ -776,7 +775,7 @@ static void dostart ()
     pdpat[Z_RB] &= ~ b_swSTART;
 
     // clock until the run flipflop sets
-    for (int i = 0; FIELD (Z_RF, f_o_B_RUN); i ++) {
+    for (int i = 0; ! FIELD (Z_RF, f_oB_RUN); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for RUN after flicking START switch\n");
         clockit ();
     }
@@ -798,9 +797,14 @@ static void docont ()
     pdpat[Z_RB] &= ~ b_swCONT;
 
     // clock until the run flipflop sets
-    for (int i = 0; FIELD (Z_RB, f_o_B_RUN); i ++) {
+    for (int i = 0; ! FIELD (Z_RF, f_oB_RUN); i ++) {
         if (i > 1000) fatalerr ("timed out waiting for RUN after flicking CONT switch\n");
         clockit ();
+    }
+
+    uint32_t ts = FIELD (Z_RK, k_timestate);
+    if (ts != TS_TS1BODY) {
+        fatalerr ("not in TS1BODY after CONT switch (%u)\n", ts);
     }
 }
 
@@ -938,11 +942,13 @@ static void requestdmaorint (uint32_t state, uint16_t rdata)
         if (brkrequest) {
             dmafield  = randbits (3);
             dmaaddr   = randbits (12);
-            dmadatain = randbits (1);
+            dmadatain = randbits (1);       // 0=read memory; 1=write memory
             dmawdata  = randbits (12);
             dma3cycle = randbits (2) == 0;
             dmacainc  = dma3cycle && randbits (1);
-            printf ("  <<brkreq=1 3cycle=%o addr=%o%04o>>  ", dma3cycle, dmafield, dmaaddr);
+            printf ("  <<brkreq=1 3cycle=%o addr=%o%04o", dma3cycle, dmafield, dmaaddr);
+            if (dmadatain) printf (" wdata=%04o", dmawdata);
+            printf (">> ");
             if (cmemat[1] & CM_BUSY) {
                 fatalerr ("CM_BUSY set when about to request dma cycle");
             }
@@ -953,12 +959,12 @@ static void requestdmaorint (uint32_t state, uint16_t rdata)
             }
         }
     }
-    if (! brkrequest) pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
+    if (! brkrequest) pdpat[Z_RA] = zrawrite &= ~ a_iBRK_RQST;
     if (! intrequest && ((state != g_lbFET) || ((rdata & 07403) != 07402))) {
         intrequest = randbits (10) == 0;
         if (intrequest) {
-            printf ("  <<intreq=1 intena=%d>>  ", intenabled);
-            pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
+            printf ("  <<intreq=1 intena=%d>> ", intenabled);
+            pdpat[Z_RA] = zrawrite |= a_iINT_RQST;
         }
     }
 }

@@ -22,23 +22,23 @@
 
 module pdp8lsim (
     input CLOCK, CSTEP, RESET,  // fpga 100MHz clock and reset
-    input i_BEMA,               // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
-    input iCA_INCREMENT,        // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
-    input iDATA_IN,             // C36-M2,p15 B-2,J11-32,,,
+    input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
+    input i_CA_INCRMNT,         // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
+    input i_DATA_IN,            // C36-M2,p15 B-2,J11-32,,,
     input[11:00] i_INPUTBUS,    // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
-    input i_MEMINCR,            // C36-T2,p15 B-1,J11-18,,,
+    input iMEMINCR,             // C36-T2,p15 B-1,J11-18,,,
     input[11:00] iMEM,          // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
     input iMEM_P,               // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
-    input i_3CYCLE,             // C35-K2,p15 A-3,J11-38,,C22,
-    input i_AC_CLEAR,           // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
-    input i_BRK_RQST,           // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
+    input i3CYCLE,              // C35-K2,p15 A-3,J11-38,,C22,
+    input iAC_CLEAR,            // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
+    input iBRK_RQST,            // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
     input[11:00] i_DMAADDR,     // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
     input[11:00] i_DMADATA,     // C35-B1,p15 A-8,DMABUSA,,,gated out to CPU by x_DMADATA
     input i_EA,                 // B34-B1,p18 C-8,J11-53,,B30,high: use CPU core stack for mem cycle; low: block using CPU core stack
-    input i_EMA,                // B35-V2,p5 B-7,J11-51,,B29,goes to EA light bulb on front panel
-    input i_INT_INHIBIT,        // B36-L1,p9 B-3,J12-66,,,
-    input i_INT_RQST,           // D34-M2,p15 C-3,J12-23,,D32,open collector out to CPU
-    input i_IO_SKIP,            // D34-K2,p15 C-3,J12-28,,D30,gated out to CPU by x_INPUTBUS
+    input iEMA,                 // B35-V2,p5 B-7,J11-51,,B29,goes to EA light bulb on front panel
+    input iINT_INHIBIT,         // B36-L1,p9 B-3,J12-66,,,
+    input iINT_RQST,            // D34-M2,p15 C-3,J12-23,,D32,open collector out to CPU
+    input iIO_SKIP,             // D34-K2,p15 C-3,J12-28,,D30,gated out to CPU by x_INPUTBUS
     input i_MEMDONE,            // B34-V2,p4 C-7,J11-55,,B32,gated out to CPU by x_MEM
     input i_STROBE,             // B34-S2,p4 C-6,J11-59,,B35,gated out to CPU by x_MEM
     output[11:00] oBAC,         // D36-B1,p15 D-8,PIOBUSA,,,gated onto PIOBUS by r_BAC
@@ -60,7 +60,7 @@ module pdp8lsim (
     output reg o_ADDR_ACCEPT,   // C36-S2,p15 S-2,J11-22,,,
     output o_BF_ENABLE,         // B36-E1,p22 C-6,J12-69,,,
     output oBUSINIT,            // C36-V2,p15 B-1,J11-9,,,active high bus init
-    output o_B_RUN,             // D34-S2,p15 C-1,J12-29,,D36,run flipflop on p4 B-2
+    output oB_RUN,              // D34-S2,p15 C-1,J12-29,,D36,run flipflop on p4 B-2
     output o_DF_ENABLE,         // B36-B1,p22 C-7,J12-65,,,
     output o_KEY_CLEAR,         // B36-J1,p22 C-5,J12-68,,,
     output o_KEY_DF,            // B36-S1,p22 C-4,J12-44,,,
@@ -168,7 +168,7 @@ module pdp8lsim (
     assign oLINE_LOW   = RESET;
     assign oMA         = madr;
     assign oMEMSTART   = (timestate == TS_TS1BODY);
-    assign o_B_RUN     = ~ runff;
+    assign oB_RUN      = runff;
     assign o_KEY_DF    = ~ swDFLD;
     assign o_KEY_IF    = ~ swIFLD;
     assign o_KEY_LOAD  = ~ ldad;                        // load address switch cycle (p22 C-2, not exact match)
@@ -250,10 +250,10 @@ module pdp8lsim (
     wire withio = (majstate == MS_FETCH) & iopea;
 
     // get incoming ac bits from io bus
-    wire[11:00] ioac = (i_AC_CLEAR ? acum : 0) | ~ i_INPUTBUS;
+    wire[11:00] ioac = (iAC_CLEAR ? 0 : acum) | ~ i_INPUTBUS;
 
     // data written back to memory during break cycle
-    wire[11:00] breakdata = (iDATA_IN ? ~ i_DMADATA : mbuf) + { 11'b0, ~ i_MEMINCR };
+    wire[11:00] breakdata = (i_DATA_IN ? mbuf : ~ i_DMADATA) + { 11'b0, iMEMINCR };
 
     // major state following last cycle of current instruction
     always @(*) begin
@@ -265,14 +265,14 @@ module pdp8lsim (
         else if ((majstate == MS_FETCH) & ((mbuf & 12'o7403) == 12'o7402)) hltbrkintfet <= MS_HALT;
 
         // if there is a dma request pending, start doing the dma
-        else if (~ i_BRK_RQST) hltbrkintfet <= i_3CYCLE ? MS_BRK : MS_WC;
+        else if (iBRK_RQST) hltbrkintfet <= i3CYCLE ? MS_WC : MS_BRK;
 
         // if interrupt requested, interrupts are enabled via 6001 (ION),
         // and they aren't inhibited via 62x2/62x3 (CIF), next is int ack
-        else if (~ i_INT_RQST &                                         // some device is requesting an interrupt
+        else if (iINT_RQST &                                            // some device is requesting an interrupt
                     intenabled &                                        // 6001 was executed at least one instruction ago
                     ~ ((ireg == 6) & (mbuf[08:00] == 9'o002)) &         // not blocked by current 6002 (IOF) instruction
-                    (i_INT_INHIBIT | oJMP_JMS) &                        // not blocked by prior 62x2/62x3 until jump or currently jumping
+                    (~ iINT_INHIBIT | oJMP_JMS) &                       // not blocked by prior 62x2/62x3 until jump or currently jumping
                     ~ ((ireg == 6) & ((mbuf[08:00] & 9'o706) == 9'o202))) begin // not blocked by 62x2/62x3 currently executing
             hltbrkintfet <= MS_INTAK;
         end
@@ -335,7 +335,7 @@ module pdp8lsim (
                         MS_HALT: begin
 
                             // testing- handle DMA while halted
-                            if (brkwhenhltd & ~ i_BRK_RQST) begin
+                            if (brkwhenhltd & iBRK_RQST) begin
                                 madr      <= ~ i_DMAADDR;
                                 majstate  <= MS_BRKWH;      // do break then halt afterward
                                 nextmajst <= MS_BRKWH;      // cycles start with nextmajst = majstate
@@ -464,7 +464,7 @@ module pdp8lsim (
                                 o_BWC_OVERFLOW <= (mbuf != 12'o7777);
                             end
                             MS_CA: begin
-                                mbuf <= mbuf + iCA_INCREMENT;
+                                if (~ i_CA_INCRMNT) mbuf <= mbuf + 1;
                             end
                             MS_BRK, MS_BRKWH: begin
                                 mbuf <= breakdata;      // data must be ready in time for TS3 (pdp-8/l user's handbook p39)
@@ -585,7 +585,7 @@ module pdp8lsim (
                             intdelayed <= 1;
                         end
                         acum <= ioac;
-                        if (~ i_IO_SKIP) pctr <= pctr + 1;
+                        if (iIO_SKIP) pctr <= pctr + 1;
                         timedelay <= 0;
                         timestate <= TS_BEGIOP2;
                     end
@@ -607,7 +607,7 @@ module pdp8lsim (
                             intenabled <= 0;
                         end
                         acum <= ioac;
-                        if (~ i_IO_SKIP) pctr <= pctr + 1;
+                        if (iIO_SKIP) pctr <= pctr + 1;
                         timedelay <= 0;
                         timestate <= TS_BEGIOP4;
                     end
@@ -626,7 +626,7 @@ module pdp8lsim (
                     if (timedelay != 58) timedelay <= timedelay + 1;
                     else begin
                         acum <= ioac;
-                        if (~ i_IO_SKIP) pctr <= pctr + 1;
+                        if (iIO_SKIP) pctr <= pctr + 1;
                         timedelay <= 8;             // TS4 is 400nS
                         timestate <= TS_TS4BODY;
                     end

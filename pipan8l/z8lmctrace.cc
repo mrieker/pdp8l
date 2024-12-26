@@ -101,7 +101,7 @@ int main (int argc, char **argv)
         bool halted = false;
         for (int i = 0; xmemat[1] & XM_MDSTEP; i ++) {
             if (i > 10000) {
-                if (! FIELD (Z_RF, f_o_B_RUN)) {
+                if (FIELD (Z_RF, f_oB_RUN)) {
                     fprintf (stderr, "timed out waiting for cycle to complete\n");
                     ABORT ();
                 }

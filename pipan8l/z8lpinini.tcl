@@ -65,7 +65,7 @@ proc getenv {varname {defvalu ""}} {
 proc loadbin {fname} {
     set fp [open $fname rb]
 
-    if {! [pin get o_B_RUN]} {return "processor must be halted"}
+    if {[pin get oB_RUN]} {return "processor must be halted"}
     pin set XM_ENLO4K 1     ;# fpga will force processor to use extmem for low 4K
 
     set rubbingout 0
@@ -213,7 +213,7 @@ proc loadbin {fname} {
 proc loadrim {fname} {
     set fp [open $fname rb]
 
-    if {! [pin get o_B_RUN]} {return "processor must be halted"}
+    if {[pin get oB_RUN]} {return "processor must be halted"}
     pin set XM_ENLO4K 1     ;# fpga will force processor to use extmem for low 4K
 
     set addr 0

@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Wed Dec 25 15:28:53 2024
+--Date        : Thu Dec 26 15:23:27 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -73,23 +73,23 @@ entity myboard_wrapper is
     bPIOBUSL_0 : inout STD_LOGIC;
     bPIOBUSM_0 : inout STD_LOGIC;
     bPIOBUSN_0 : inout STD_LOGIC;
-    iB36V1_0 : out STD_LOGIC;
-    iCA_INCREMENT_0 : out STD_LOGIC;
-    iD36B2_0 : out STD_LOGIC;
-    iDATA_IN_0 : out STD_LOGIC;
+    i3CYCLE_0 : out STD_LOGIC;
+    iAC_CLEAR_0 : out STD_LOGIC;
+    iBEMA_0 : out STD_LOGIC;
+    iBRK_RQST_0 : out STD_LOGIC;
+    iEMA_0 : out STD_LOGIC;
+    iEXTDMAADD_12_0 : out STD_LOGIC;
+    iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
-    iMEM_07_0 : out STD_LOGIC;
-    i_3CYCLE_0 : out STD_LOGIC;
-    i_AC_CLEAR_0 : out STD_LOGIC;
-    i_BEMA_0 : out STD_LOGIC;
-    i_BRK_RQST_0 : out STD_LOGIC;
+    iIO_SKIP_0 : out STD_LOGIC;
+    iMEMINCR_0 : out STD_LOGIC;
+    i_B36V1_0 : out STD_LOGIC;
+    i_CA_INCRMNT_0 : out STD_LOGIC;
+    i_D36B2_0 : out STD_LOGIC;
+    i_DATA_IN_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
-    i_EMA_0 : out STD_LOGIC;
-    i_EXTDMAADD_12_0 : out STD_LOGIC;
-    i_INT_INHIBIT_0 : out STD_LOGIC;
-    i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
-    i_MEMINCR_0 : out STD_LOGIC;
+    i_MEM_07_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
     oBIOP2_0 : in STD_LOGIC;
@@ -99,6 +99,7 @@ entity myboard_wrapper is
     oBTS_1_0 : in STD_LOGIC;
     oBTS_3_0 : in STD_LOGIC;
     oBUSINIT_0 : in STD_LOGIC;
+    oB_RUN_0 : in STD_LOGIC;
     oC36B2_0 : in STD_LOGIC;
     oD35B2_0 : in STD_LOGIC;
     oE_SET_F_SET_0 : in STD_LOGIC;
@@ -109,7 +110,6 @@ entity myboard_wrapper is
     o_BF_ENABLE_0 : in STD_LOGIC;
     o_BWC_OVERFLOW_0 : in STD_LOGIC;
     o_B_BREAK_0 : in STD_LOGIC;
-    o_B_RUN_0 : in STD_LOGIC;
     o_DF_ENABLE_0 : in STD_LOGIC;
     o_KEY_CLEAR_0 : in STD_LOGIC;
     o_KEY_DF_0 : in STD_LOGIC;
@@ -169,23 +169,23 @@ architecture STRUCTURE of myboard_wrapper is
     bPIOBUSL_0 : inout STD_LOGIC;
     bPIOBUSM_0 : inout STD_LOGIC;
     bPIOBUSN_0 : inout STD_LOGIC;
-    iB36V1_0 : out STD_LOGIC;
-    iCA_INCREMENT_0 : out STD_LOGIC;
-    iD36B2_0 : out STD_LOGIC;
-    iDATA_IN_0 : out STD_LOGIC;
+    i3CYCLE_0 : out STD_LOGIC;
+    iAC_CLEAR_0 : out STD_LOGIC;
+    iBEMA_0 : out STD_LOGIC;
+    iBRK_RQST_0 : out STD_LOGIC;
+    iEMA_0 : out STD_LOGIC;
+    iEXTDMAADD_12_0 : out STD_LOGIC;
+    iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
-    iMEM_07_0 : out STD_LOGIC;
-    i_3CYCLE_0 : out STD_LOGIC;
-    i_AC_CLEAR_0 : out STD_LOGIC;
-    i_BEMA_0 : out STD_LOGIC;
-    i_BRK_RQST_0 : out STD_LOGIC;
+    iIO_SKIP_0 : out STD_LOGIC;
+    iMEMINCR_0 : out STD_LOGIC;
+    i_B36V1_0 : out STD_LOGIC;
+    i_CA_INCRMNT_0 : out STD_LOGIC;
+    i_D36B2_0 : out STD_LOGIC;
+    i_DATA_IN_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
-    i_EMA_0 : out STD_LOGIC;
-    i_EXTDMAADD_12_0 : out STD_LOGIC;
-    i_INT_INHIBIT_0 : out STD_LOGIC;
-    i_IO_SKIP_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
-    i_MEMINCR_0 : out STD_LOGIC;
+    i_MEM_07_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
     oBIOP2_0 : in STD_LOGIC;
@@ -195,6 +195,7 @@ architecture STRUCTURE of myboard_wrapper is
     oBTS_1_0 : in STD_LOGIC;
     oBTS_3_0 : in STD_LOGIC;
     oBUSINIT_0 : in STD_LOGIC;
+    oB_RUN_0 : in STD_LOGIC;
     oC36B2_0 : in STD_LOGIC;
     oD35B2_0 : in STD_LOGIC;
     oE_SET_F_SET_0 : in STD_LOGIC;
@@ -205,7 +206,6 @@ architecture STRUCTURE of myboard_wrapper is
     o_BF_ENABLE_0 : in STD_LOGIC;
     o_BWC_OVERFLOW_0 : in STD_LOGIC;
     o_B_BREAK_0 : in STD_LOGIC;
-    o_B_RUN_0 : in STD_LOGIC;
     o_DF_ENABLE_0 : in STD_LOGIC;
     o_KEY_CLEAR_0 : in STD_LOGIC;
     o_KEY_DF_0 : in STD_LOGIC;
@@ -306,23 +306,23 @@ myboard_i: component myboard
       bPIOBUSL_0 => bPIOBUSL_0,
       bPIOBUSM_0 => bPIOBUSM_0,
       bPIOBUSN_0 => bPIOBUSN_0,
-      iB36V1_0 => iB36V1_0,
-      iCA_INCREMENT_0 => iCA_INCREMENT_0,
-      iD36B2_0 => iD36B2_0,
-      iDATA_IN_0 => iDATA_IN_0,
+      i3CYCLE_0 => i3CYCLE_0,
+      iAC_CLEAR_0 => iAC_CLEAR_0,
+      iBEMA_0 => iBEMA_0,
+      iBRK_RQST_0 => iBRK_RQST_0,
+      iEMA_0 => iEMA_0,
+      iEXTDMAADD_12_0 => iEXTDMAADD_12_0,
+      iINT_INHIBIT_0 => iINT_INHIBIT_0,
       iINT_RQST_0 => iINT_RQST_0,
-      iMEM_07_0 => iMEM_07_0,
-      i_3CYCLE_0 => i_3CYCLE_0,
-      i_AC_CLEAR_0 => i_AC_CLEAR_0,
-      i_BEMA_0 => i_BEMA_0,
-      i_BRK_RQST_0 => i_BRK_RQST_0,
+      iIO_SKIP_0 => iIO_SKIP_0,
+      iMEMINCR_0 => iMEMINCR_0,
+      i_B36V1_0 => i_B36V1_0,
+      i_CA_INCRMNT_0 => i_CA_INCRMNT_0,
+      i_D36B2_0 => i_D36B2_0,
+      i_DATA_IN_0 => i_DATA_IN_0,
       i_EA_0 => i_EA_0,
-      i_EMA_0 => i_EMA_0,
-      i_EXTDMAADD_12_0 => i_EXTDMAADD_12_0,
-      i_INT_INHIBIT_0 => i_INT_INHIBIT_0,
-      i_IO_SKIP_0 => i_IO_SKIP_0,
       i_MEMDONE_0 => i_MEMDONE_0,
-      i_MEMINCR_0 => i_MEMINCR_0,
+      i_MEM_07_0 => i_MEM_07_0,
       i_STROBE_0 => i_STROBE_0,
       oBIOP1_0 => oBIOP1_0,
       oBIOP2_0 => oBIOP2_0,
@@ -332,6 +332,7 @@ myboard_i: component myboard
       oBTS_1_0 => oBTS_1_0,
       oBTS_3_0 => oBTS_3_0,
       oBUSINIT_0 => oBUSINIT_0,
+      oB_RUN_0 => oB_RUN_0,
       oC36B2_0 => oC36B2_0,
       oD35B2_0 => oD35B2_0,
       oE_SET_F_SET_0 => oE_SET_F_SET_0,
@@ -342,7 +343,6 @@ myboard_i: component myboard
       o_BF_ENABLE_0 => o_BF_ENABLE_0,
       o_BWC_OVERFLOW_0 => o_BWC_OVERFLOW_0,
       o_B_BREAK_0 => o_B_BREAK_0,
-      o_B_RUN_0 => o_B_RUN_0,
       o_DF_ENABLE_0 => o_DF_ENABLE_0,
       o_KEY_CLEAR_0 => o_KEY_CLEAR_0,
       o_KEY_DF_0 => o_KEY_DF_0,

@@ -383,55 +383,55 @@
           "bPIOBUSN": {
             "direction": "IO"
           },
-          "iB36V1": {
+          "i3CYCLE": {
             "direction": "O"
           },
-          "iCA_INCREMENT": {
+          "iAC_CLEAR": {
             "direction": "O"
           },
-          "iD36B2": {
+          "iBEMA": {
             "direction": "O"
           },
-          "iDATA_IN": {
+          "iBRK_RQST": {
+            "direction": "O"
+          },
+          "iEMA": {
+            "direction": "O"
+          },
+          "iEXTDMAADD_12": {
+            "direction": "O"
+          },
+          "iINT_INHIBIT": {
             "direction": "O"
           },
           "iINT_RQST": {
             "direction": "O"
           },
-          "iMEM_07": {
+          "iIO_SKIP": {
             "direction": "O"
           },
-          "i_3CYCLE": {
+          "iMEMINCR": {
             "direction": "O"
           },
-          "i_AC_CLEAR": {
+          "i_B36V1": {
             "direction": "O"
           },
-          "i_BEMA": {
+          "i_CA_INCRMNT": {
             "direction": "O"
           },
-          "i_BRK_RQST": {
+          "i_D36B2": {
+            "direction": "O"
+          },
+          "i_DATA_IN": {
             "direction": "O"
           },
           "i_EA": {
             "direction": "O"
           },
-          "i_EMA": {
-            "direction": "O"
-          },
-          "i_EXTDMAADD_12": {
-            "direction": "O"
-          },
-          "i_INT_INHIBIT": {
-            "direction": "O"
-          },
-          "i_IO_SKIP": {
-            "direction": "O"
-          },
           "i_MEMDONE": {
             "direction": "O"
           },
-          "i_MEMINCR": {
+          "i_MEM_07": {
             "direction": "O"
           },
           "i_STROBE": {
@@ -459,6 +459,9 @@
             "direction": "I"
           },
           "oBUSINIT": {
+            "direction": "I"
+          },
+          "oB_RUN": {
             "direction": "I"
           },
           "oC36B2": {
@@ -489,9 +492,6 @@
             "direction": "I"
           },
           "o_B_BREAK": {
-            "direction": "I"
-          },
-          "o_B_RUN": {
             "direction": "I"
           },
           "o_DF_ENABLE": {
@@ -2326,7 +2326,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0x32BC2228117B3514",
+      "boundary_crc": "0xB0AD4CD39A155319",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2682,28 +2682,39 @@
           "LEDoutR_0"
         ]
       },
-      "Zynq_0_iB36V1": {
+      "Zynq_0_i3CYCLE": {
         "ports": [
-          "Zynq_0/iB36V1",
-          "iB36V1_0"
+          "i3CYCLE_0"
         ]
       },
-      "Zynq_0_iCA_INCREMENT": {
+      "Zynq_0_iAC_CLEAR": {
         "ports": [
-          "Zynq_0/iCA_INCREMENT",
-          "iCA_INCREMENT_0"
+          "iAC_CLEAR_0"
         ]
       },
-      "Zynq_0_iD36B2": {
+      "Zynq_0_iBEMA": {
         "ports": [
-          "Zynq_0/iD36B2",
-          "iD36B2_0"
+          "iBEMA_0"
         ]
       },
-      "Zynq_0_iDATA_IN": {
+      "Zynq_0_iBRK_RQST": {
         "ports": [
-          "Zynq_0/iDATA_IN",
-          "iDATA_IN_0"
+          "iBRK_RQST_0"
+        ]
+      },
+      "Zynq_0_iEMA": {
+        "ports": [
+          "iEMA_0"
+        ]
+      },
+      "Zynq_0_iEXTDMAADD_12": {
+        "ports": [
+          "iEXTDMAADD_12_0"
+        ]
+      },
+      "Zynq_0_iINT_INHIBIT": {
+        "ports": [
+          "iINT_INHIBIT_0"
         ]
       },
       "Zynq_0_iINT_RQST": {
@@ -2712,33 +2723,34 @@
           "iINT_RQST_0"
         ]
       },
-      "Zynq_0_iMEM_07": {
+      "Zynq_0_iIO_SKIP": {
         "ports": [
-          "Zynq_0/iMEM_07",
-          "iMEM_07_0"
+          "iIO_SKIP_0"
         ]
       },
-      "Zynq_0_i_3CYCLE": {
+      "Zynq_0_iMEMINCR": {
         "ports": [
-          "Zynq_0/i_3CYCLE",
-          "i_3CYCLE_0"
+          "iMEMINCR_0"
         ]
       },
-      "Zynq_0_i_AC_CLEAR": {
+      "Zynq_0_i_B36V1": {
         "ports": [
-          "Zynq_0/i_AC_CLEAR",
-          "i_AC_CLEAR_0"
+          "i_B36V1_0"
         ]
       },
-      "Zynq_0_i_BEMA": {
+      "Zynq_0_i_CA_INCRMNT": {
         "ports": [
-          "i_BEMA_0"
+          "i_CA_INCRMNT_0"
         ]
       },
-      "Zynq_0_i_BRK_RQST": {
+      "Zynq_0_i_D36B2": {
         "ports": [
-          "Zynq_0/i_BRK_RQST",
-          "i_BRK_RQST_0"
+          "i_D36B2_0"
+        ]
+      },
+      "Zynq_0_i_DATA_IN": {
+        "ports": [
+          "i_DATA_IN_0"
         ]
       },
       "Zynq_0_i_EA": {
@@ -2747,40 +2759,15 @@
           "i_EA_0"
         ]
       },
-      "Zynq_0_i_EMA": {
-        "ports": [
-          "Zynq_0/i_EMA",
-          "i_EMA_0"
-        ]
-      },
-      "Zynq_0_i_EXTDMAADD_12": {
-        "ports": [
-          "Zynq_0/i_EXTDMAADD_12",
-          "i_EXTDMAADD_12_0"
-        ]
-      },
-      "Zynq_0_i_INT_INHIBIT": {
-        "ports": [
-          "Zynq_0/i_INT_INHIBIT",
-          "i_INT_INHIBIT_0"
-        ]
-      },
-      "Zynq_0_i_IO_SKIP": {
-        "ports": [
-          "Zynq_0/i_IO_SKIP",
-          "i_IO_SKIP_0"
-        ]
-      },
       "Zynq_0_i_MEMDONE": {
         "ports": [
           "Zynq_0/i_MEMDONE",
           "i_MEMDONE_0"
         ]
       },
-      "Zynq_0_i_MEMINCR": {
+      "Zynq_0_i_MEM_07": {
         "ports": [
-          "Zynq_0/i_MEMINCR",
-          "i_MEMINCR_0"
+          "i_MEM_07_0"
         ]
       },
       "Zynq_0_i_STROBE": {
@@ -2981,6 +2968,12 @@
           "Zynq_0/oBUSINIT"
         ]
       },
+      "oB_RUN_0_1": {
+        "ports": [
+          "oB_RUN_0",
+          "Zynq_0/oB_RUN"
+        ]
+      },
       "oC36B2_0_1": {
         "ports": [
           "oC36B2_0",
@@ -3039,12 +3032,6 @@
         "ports": [
           "o_B_BREAK_0",
           "Zynq_0/o_B_BREAK"
-        ]
-      },
-      "o_B_RUN_0_1": {
-        "ports": [
-          "o_B_RUN_0",
-          "Zynq_0/o_B_RUN"
         ]
       },
       "o_DF_ENABLE_0_1": {
@@ -3269,55 +3256,55 @@
       "bPIOBUSN_0": {
         "direction": "IO"
       },
-      "iB36V1_0": {
+      "i3CYCLE_0": {
         "direction": "O"
       },
-      "iCA_INCREMENT_0": {
+      "iAC_CLEAR_0": {
         "direction": "O"
       },
-      "iD36B2_0": {
+      "iBEMA_0": {
         "direction": "O"
       },
-      "iDATA_IN_0": {
+      "iBRK_RQST_0": {
+        "direction": "O"
+      },
+      "iEMA_0": {
+        "direction": "O"
+      },
+      "iEXTDMAADD_12_0": {
+        "direction": "O"
+      },
+      "iINT_INHIBIT_0": {
         "direction": "O"
       },
       "iINT_RQST_0": {
         "direction": "O"
       },
-      "iMEM_07_0": {
+      "iIO_SKIP_0": {
         "direction": "O"
       },
-      "i_3CYCLE_0": {
+      "iMEMINCR_0": {
         "direction": "O"
       },
-      "i_AC_CLEAR_0": {
+      "i_B36V1_0": {
         "direction": "O"
       },
-      "i_BEMA_0": {
+      "i_CA_INCRMNT_0": {
         "direction": "O"
       },
-      "i_BRK_RQST_0": {
+      "i_D36B2_0": {
+        "direction": "O"
+      },
+      "i_DATA_IN_0": {
         "direction": "O"
       },
       "i_EA_0": {
         "direction": "O"
       },
-      "i_EMA_0": {
-        "direction": "O"
-      },
-      "i_EXTDMAADD_12_0": {
-        "direction": "O"
-      },
-      "i_INT_INHIBIT_0": {
-        "direction": "O"
-      },
-      "i_IO_SKIP_0": {
-        "direction": "O"
-      },
       "i_MEMDONE_0": {
         "direction": "O"
       },
-      "i_MEMINCR_0": {
+      "i_MEM_07_0": {
         "direction": "O"
       },
       "i_STROBE_0": {
@@ -3345,6 +3332,9 @@
         "direction": "I"
       },
       "oBUSINIT_0": {
+        "direction": "I"
+      },
+      "oB_RUN_0": {
         "direction": "I"
       },
       "oC36B2_0": {
@@ -3375,9 +3365,6 @@
         "direction": "I"
       },
       "o_B_BREAK_0": {
-        "direction": "I"
-      },
-      "o_B_RUN_0": {
         "direction": "I"
       },
       "o_DF_ENABLE_0": {

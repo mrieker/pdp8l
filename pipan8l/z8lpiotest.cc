@@ -128,7 +128,7 @@ int main (int argc, char **argv)
         }
     }
 
-    if (pdpat[Z_RF] & f_o_B_RUN) {
+    if (! (pdpat[Z_RF] & f_oB_RUN)) {
         fprintf (stderr, "processor not running\n");
         ABORT ();
     }
@@ -212,7 +212,7 @@ int main (int argc, char **argv)
         // otherwise, make sure interrupt request is clear from last time
         bool incounter = (randbits (4) == 0);
         if (incounter) {
-            pdpat[Z_RA] = ZZ_RA & ~ a_i_INT_RQST;
+            pdpat[Z_RA] = ZZ_RA | a_iINT_RQST;
             counter = (counter + 1) & 07777;
             if (counter == 0) counter = 1;
             ////printf ("main*: incremented counter to %04o\n", counter);

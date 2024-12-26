@@ -156,59 +156,28 @@ int main (int argc, char **argv)
             // register dump
             printf ("VERSION=%08X 8L%s", z8ls[0], eol);
 
-            printf ("  oBIOP1=%o             oBAC=%04o           brkwhenhltd=%o    ",   FIELD(Z_RF,f_oBIOP1),         FIELD(Z_RH,h_oBAC),           FIELD(Z_RE,e_brkwhenhltd));
-            printf ("  i_BEMA=%o             i_DMAADDR=%04o      majstate=%s%s",      FIELD(Z_RA,a_i_BEMA),         FIELD(Z_RD,d_i_DMAADDR),  majstatenames[FIELD(Z_RK,k_majstate)], eol);
-
-            printf ("  oBIOP2=%o             oBMB=%04o           nanocstep=%o      ",   FIELD(Z_RF,f_oBIOP2),         FIELD(Z_RH,h_oBMB),           FIELD(Z_RE,e_nanocstep));
-            printf ("  iCA_INCREMENT=%o      i_DMADATA=%04o      nextmajst=%s%s",     FIELD(Z_RA,a_iCA_INCREMENT),  FIELD(Z_RD,d_i_DMADATA),  majstatenames[FIELD(Z_RK,k_nextmajst)], eol);
-
-            printf ("  oBIOP4=%o             oMA=%04o            nanotrigger=%o    ",   FIELD(Z_RF,f_oBIOP4),         FIELD(Z_RI,i_oMA),            FIELD(Z_RE,e_nanotrigger));
-            printf ("  iDATA_IN=%o           i_INPUTBUS=%04o     timedelay=%o%s",     FIELD(Z_RA,a_iDATA_IN),       FIELD(Z_RC,c_i_INPUTBUS), FIELD(Z_RK,k_timedelay), eol);
-
-            printf ("  oBTP2=%o                                  nanocontin=%o     ",   FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin));
-            printf ("  i_MEMINCR=%o          iMEM=%04o           timestate=%s%s",     FIELD(Z_RA,a_i_MEMINCR),      FIELD(Z_RC,c_iMEM),       timestatenames[FIELD(Z_RK,k_timestate)], eol);
-
-            printf ("  oBTP3=%o              lbBRK=%o             softreset=%o      ",  FIELD(Z_RF,f_oBTP3),          FIELD(Z_RG,g_lbBRK),          FIELD(Z_RE,e_softreset));
-            printf ("  iMEM_P=%o             swCONT=%o            cyclectr=%04o%s",   FIELD(Z_RA,a_iMEM_P),         FIELD(Z_RB,b_swCONT),     FIELD(Z_RK,k_cyclectr), eol);
-
-            printf ("  oBTS_1=%o             lbCA=%o              simit=%o          ",  FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit));
-            printf ("  i_3CYCLE=%o           swDEP=%o             simmemen=%o%s",     FIELD(Z_RA,a_i_3CYCLE),       FIELD(Z_RB,b_swDEP),      FIELD(Z_RG,g_simmemen), eol);
-
-            printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o         ",  FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit));
-            printf ("  i_AC_CLEAR=%o         swDFLD=%o%s",                            FIELD(Z_RA,a_i_AC_CLEAR),     FIELD(Z_RB,b_swDFLD), eol);
-
-            printf ("  o_BWC_OVERFLOW=%o     lbEA=%o                               ",   FIELD(Z_RF,f_o_BWC_OVERFLOW), FIELD(Z_RG,g_lbEA));
-            printf ("  i_BRK_RQST=%o         swEXAM=%o            debounced=%o%s",    FIELD(Z_RA,a_i_BRK_RQST),     FIELD(Z_RB,b_swEXAM),     FIELD(Z_RG,g_debounced), eol);
-
-            printf ("  o_B_BREAK=%o          lbEXE=%o             bDMABUS=%04o     ",   FIELD(Z_RF,f_o_B_BREAK),      FIELD(Z_RG,g_lbEXE),          FIELD(Z_RO,o_bDMABUS));
-            printf ("  i_EA=%o               swIFLD=%o            lastswLDAD=%o%s",   FIELD(Z_RA,a_i_EA),           FIELD(Z_RB,b_swIFLD),     FIELD(Z_RG,g_lastswLDAD), eol);
-
-            printf ("  oE_SET_F_SET=%o       lbFET=%o               x_DMAADDR=%o    ",  FIELD(Z_RF,f_oE_SET_F_SET),   FIELD(Z_RG,g_lbFET),          FIELD(Z_RO,o_x_DMAADDR));
-            printf ("  i_EMA=%o              swLDAD=%o            lastswSTART=%o%s",  FIELD(Z_RA,a_i_EMA),          FIELD(Z_RB,b_swLDAD),     FIELD(Z_RG,g_lastswSTART), eol);
-
-            printf ("  oJMP_JMS=%o           lbION=%o               x_DMADATA=%o    ",  FIELD(Z_RF,f_oJMP_JMS),       FIELD(Z_RG,g_lbION),          FIELD(Z_RO,o_x_DMADATA));
-            printf ("  i_INT_INHIBIT=%o      swMPRT=%o%s",                            FIELD(Z_RA,a_i_INT_INHIBIT),  FIELD(Z_RB,b_swMPRT), eol);
-
-            printf ("  oLINE_LOW=%o          lbLINK=%o                             ",   FIELD(Z_RF,f_oLINE_LOW),      FIELD(Z_RG,g_lbLINK));
-            printf ("  i_INT_RQST=%o         swSTEP=%o%s",                            FIELD(Z_RA,a_i_INT_RQST),     FIELD(Z_RB,b_swSTEP), eol);
-
-            printf ("  oMEMSTART=%o          lbRUN=%o             bMEMBUS=%04o     ",  FIELD(Z_RF,f_oMEMSTART),      FIELD(Z_RG,g_lbRUN),          FIELD(Z_RP,p_bMEMBUS));
-            printf ("  i_IO_SKIP=%o          swSTOP=%o%s",                            FIELD(Z_RA,a_i_IO_SKIP),      FIELD(Z_RB,b_swSTOP), eol);
-
-            printf ("  o_ADDR_ACCEPT=%o      lbWC=%o                r_MA=%o         ",  FIELD(Z_RF,f_o_ADDR_ACCEPT),  FIELD(Z_RG,g_lbWC),           FIELD(Z_RO,o_r_MA));
-            printf ("  i_MEMDONE=%o          swSTART=%o%s",                           FIELD(Z_RA,a_i_MEMDONE),      FIELD(Z_RB,b_swSTART), eol);
-
-            printf ("  o_BF_ENABLE=%o        lbIR=%o                x_MEM=%o        ",  FIELD(Z_RF,f_o_BF_ENABLE),    FIELD(Z_RG,g_lbIR),           FIELD(Z_RO,o_x_MEM));
-            printf ("  i_STROBE=%o           swSR=%04o%s",                            FIELD(Z_RA,a_i_STROBE),       FIELD(Z_RB,b_swSR), eol);
-
-            printf ("  o_BUSINIT=%o%s",                                               FIELD(Z_RF,f_o_BUSINIT), eol);
-            printf ("  o_B_RUN=%o            lbAC=%04o           bPIOBUS=%04o     ",    FIELD(Z_RF,f_o_B_RUN),        FIELD(Z_RI,i_lbAC),           FIELD(Z_RP,p_bPIOBUS));
-            printf ("  memcycctr=%08X%s",                                             z8ls[Z_RN], eol);
-            printf ("  o_DF_ENABLE=%o        lbMA=%04o             r_BAC=%o%s",       FIELD(Z_RF,f_o_DF_ENABLE),    FIELD(Z_RJ,j_lbMA),           FIELD(Z_RO,o_r_BAC), eol);
-            printf ("  o_KEY_CLEAR=%o        lbMB=%04o             r_BMB=%o%s",       FIELD(Z_RF,f_o_KEY_CLEAR),    FIELD(Z_RJ,j_lbMB),           FIELD(Z_RO,o_r_BMB), eol);
-            printf ("  o_KEY_DF=%o                                 x_INPUTBUS=%o%s",  FIELD(Z_RF,f_o_KEY_DF),                                     FIELD(Z_RO,o_x_INPUTBUS), eol);
-            printf ("  o_KEY_IF=%o           o_LOAD_SF=%o%s",                         FIELD(Z_RF,f_o_KEY_IF),       FIELD(Z_RF,f_o_LOAD_SF), eol);
-            printf ("  o_KEY_LOAD=%o         o_SP_CYC_NEXT=%o%s",                     FIELD(Z_RF,f_o_KEY_LOAD),     FIELD(Z_RF,f_o_SP_CYC_NEXT), eol);
+            printf ("  oBIOP1=%o             oBAC=%04o           brkwhenhltd=%o      iBEMA=%o              i_DMAADDR=%04o      majstate=%s%s",      FIELD(Z_RF,f_oBIOP1),         FIELD(Z_RH,h_oBAC),           FIELD(Z_RE,e_brkwhenhltd), FIELD(Z_RA,a_iBEMA),         FIELD(Z_RD,d_i_DMAADDR),  majstatenames[FIELD(Z_RK,k_majstate)], eol);
+            printf ("  oBIOP2=%o             oBMB=%04o           nanocstep=%o        i_CA_INCRMNT=%o       i_DMADATA=%04o      nextmajst=%s%s",     FIELD(Z_RF,f_oBIOP2),         FIELD(Z_RH,h_oBMB),           FIELD(Z_RE,e_nanocstep),   FIELD(Z_RA,a_i_CA_INCRMNT),  FIELD(Z_RD,d_i_DMADATA),  majstatenames[FIELD(Z_RK,k_nextmajst)], eol);
+            printf ("  oBIOP4=%o             oMA=%04o            nanotrigger=%o      i_DATA_IN=%o          i_INPUTBUS=%04o     timedelay=%o%s",     FIELD(Z_RF,f_oBIOP4),         FIELD(Z_RI,i_oMA),            FIELD(Z_RE,e_nanotrigger), FIELD(Z_RA,a_i_DATA_IN),     FIELD(Z_RC,c_i_INPUTBUS), FIELD(Z_RK,k_timedelay), eol);
+            printf ("  oBTP2=%o                                  nanocontin=%o       iMEMINCR=%o           iMEM=%04o           timestate=%s%s",     FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin),  FIELD(Z_RA,a_iMEMINCR),      FIELD(Z_RC,c_iMEM),       timestatenames[FIELD(Z_RK,k_timestate)], eol);
+            printf ("  oBTP3=%o              lbBRK=%o             softreset=%o        iMEM_P=%o             swCONT=%o            cyclectr=%04o%s",  FIELD(Z_RF,f_oBTP3),          FIELD(Z_RG,g_lbBRK),          FIELD(Z_RE,e_softreset),   FIELD(Z_RA,a_iMEM_P),        FIELD(Z_RB,b_swCONT),     FIELD(Z_RK,k_cyclectr), eol);
+            printf ("  oBTS_1=%o             lbCA=%o              simit=%o            i3CYCLE=%o            swDEP=%o             simmemen=%o%s",    FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit),       FIELD(Z_RA,a_i3CYCLE),       FIELD(Z_RB,b_swDEP),      FIELD(Z_RG,g_simmemen), eol);
+            printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o           iAC_CLEAR=%o          swDFLD=%o%s",                           FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit),      FIELD(Z_RA,a_iAC_CLEAR),     FIELD(Z_RB,b_swDFLD), eol);
+            printf ("  o_BWC_OVERFLOW=%o     lbEA=%o                                 iBRK_RQST=%o          swEXAM=%o            debounced=%o%s",    FIELD(Z_RF,f_o_BWC_OVERFLOW), FIELD(Z_RG,g_lbEA),           FIELD(Z_RA,a_iBRK_RQST),   FIELD(Z_RB,b_swEXAM),        FIELD(Z_RG,g_debounced), eol);
+            printf ("  o_B_BREAK=%o          lbEXE=%o             bDMABUS=%04o       i_EA=%o               swIFLD=%o            lastswLDAD=%o%s",   FIELD(Z_RF,f_o_B_BREAK),      FIELD(Z_RG,g_lbEXE),          FIELD(Z_RO,o_bDMABUS),     FIELD(Z_RA,a_i_EA),          FIELD(Z_RB,b_swIFLD),     FIELD(Z_RG,g_lastswLDAD), eol);
+            printf ("  oE_SET_F_SET=%o       lbFET=%o             x_DMAADDR=%o        iEMA=%o               swLDAD=%o            lastswSTART=%o%s", FIELD(Z_RF,f_oE_SET_F_SET),   FIELD(Z_RG,g_lbFET),          FIELD(Z_RO,o_x_DMAADDR),   FIELD(Z_RA,a_iEMA),          FIELD(Z_RB,b_swLDAD),     FIELD(Z_RG,g_lastswSTART), eol);
+            printf ("  oJMP_JMS=%o           lbION=%o             x_DMADATA=%o        iINT_INHIBIT=%o       swMPRT=%o%s",                           FIELD(Z_RF,f_oJMP_JMS),       FIELD(Z_RG,g_lbION),          FIELD(Z_RO,o_x_DMADATA),   FIELD(Z_RA,a_iINT_INHIBIT),  FIELD(Z_RB,b_swMPRT), eol);
+            printf ("  oLINE_LOW=%o          lbLINK=%o                               iINT_RQST=%o          swSTEP=%o%s",                            FIELD(Z_RF,f_oLINE_LOW),      FIELD(Z_RG,g_lbLINK),         FIELD(Z_RA,a_iINT_RQST),   FIELD(Z_RB,b_swSTEP), eol);
+            printf ("  oMEMSTART=%o          lbRUN=%o             bMEMBUS=%04o       iIO_SKIP=%o           swSTOP=%o%s",                            FIELD(Z_RF,f_oMEMSTART),      FIELD(Z_RG,g_lbRUN),          FIELD(Z_RP,p_bMEMBUS),     FIELD(Z_RA,a_iIO_SKIP),      FIELD(Z_RB,b_swSTOP), eol);
+            printf ("  o_ADDR_ACCEPT=%o      lbWC=%o              r_MA=%o             i_MEMDONE=%o          swSTART=%o%s",                          FIELD(Z_RF,f_o_ADDR_ACCEPT),  FIELD(Z_RG,g_lbWC),           FIELD(Z_RO,o_r_MA),        FIELD(Z_RA,a_i_MEMDONE),     FIELD(Z_RB,b_swSTART), eol);
+            printf ("  o_BF_ENABLE=%o        lbIR=%o              x_MEM=%o            i_STROBE=%o           swSR=%04o%s",                           FIELD(Z_RF,f_o_BF_ENABLE),    FIELD(Z_RG,g_lbIR),           FIELD(Z_RO,o_x_MEM),       FIELD(Z_RA,a_i_STROBE),      FIELD(Z_RB,b_swSR), eol);
+            printf ("  o_BUSINIT=%o%s",                                                                                                             FIELD(Z_RF,f_o_BUSINIT), eol);
+            printf ("  oB_RUN=%o             lbAC=%04o           bPIOBUS=%04o       memcycctr=%08X%s",                                              FIELD(Z_RF,f_oB_RUN),         FIELD(Z_RI,i_lbAC),           FIELD(Z_RP,p_bPIOBUS),     z8ls[Z_RN], eol);
+            printf ("  o_DF_ENABLE=%o        lbMA=%04o           r_BAC=%o%s",                                                                       FIELD(Z_RF,f_o_DF_ENABLE),    FIELD(Z_RJ,j_lbMA),           FIELD(Z_RO,o_r_BAC), eol);
+            printf ("  o_KEY_CLEAR=%o        lbMB=%04o           r_BMB=%o%s",                                                                       FIELD(Z_RF,f_o_KEY_CLEAR),    FIELD(Z_RJ,j_lbMB),           FIELD(Z_RO,o_r_BMB), eol);
+            printf ("  o_KEY_DF=%o                               x_INPUTBUS=%o%s",                                                                  FIELD(Z_RF,f_o_KEY_DF),                                     FIELD(Z_RO,o_x_INPUTBUS), eol);
+            printf ("  o_KEY_IF=%o           o_LOAD_SF=%o%s",                                                                                       FIELD(Z_RF,f_o_KEY_IF),       FIELD(Z_RF,f_o_LOAD_SF), eol);
+            printf ("  o_KEY_LOAD=%o         o_SP_CYC_NEXT=%o%s",                                                                                   FIELD(Z_RF,f_o_KEY_LOAD),     FIELD(Z_RF,f_o_SP_CYC_NEXT), eol);
 
             for (int i = 0; i < 1024;) {
                 uint32_t idver = z8ls[i];

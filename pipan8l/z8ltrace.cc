@@ -140,8 +140,8 @@ int main (int argc, char **argv)
                             if (i > 1000) fatalerr ("timed out waiting fot IOP%u asserted\n", m);
                             clockit ();
                         }
-                        bool ioskp = ! FIELD (Z_RA, a_i_IO_SKIP);
-                        bool acclr = ! FIELD (Z_RA, a_i_AC_CLEAR);
+                        bool ioskp  = FIELD (Z_RA, a_iIO_SKIP);
+                        bool acclr  = FIELD (Z_RA, a_iAC_CLEAR);
                         uint16_t ac = FIELD (Z_RH, h_oBAC);
                         lineptr += sprintf (lineptr, " -> IOP%u -> %c%c%04o", m, (ioskp ? 'S' : ' '), (acclr ? 'C' : ' '), ac);
                         for (int i = 0; FIELD (Z_RF, m); i ++) {
