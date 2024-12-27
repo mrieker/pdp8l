@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4103;
+    localparam VERSION = 32'h384C4105;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -294,10 +294,9 @@ module Zynq (
     reg[11:00] oBMB;                     // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
     wire[11:00] oMA;                     // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
 
-    reg bareit, simit, lastts1, lastts3;
+    reg bareit, simit, lastts1, lastts3, didio;
     reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
     wire iopstart, iopstop;
-    wire firstiop1, firstiop2, firstiop4;
     wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
     reg[2:0] iopclrcount;               // count fpga cycles where no IOP is on
@@ -355,10 +354,11 @@ module Zynq (
     reg[11:00] arm_iDMADATA;
     reg[11:00] arm_swSR;
     reg arm_x_MEM, arm_x_INPUTBUS, arm_x_DMADATA, arm_x_DMAADDR;
-    reg arm_r_MA, arm_r_BMB, arm_r_BAC;
+    reg arm_r_MA, arm_r_BMB, arm_r_BAC, arm_hizmembus;
     reg dev_x_INPUTBUS, dev_x_DMADATA, dev_x_DMAADDR;
     reg dev_r_BMB, dev_r_BAC;
-    wire dev_x_MEM, dev_r_MA;
+    wire dev_x_MEM, dev_r_MA, dev_hizmembus;
+    wire hizmembus;
 
     // tty interface wires
     wire[31:00] ttardata;
@@ -419,7 +419,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[41:00] ilaarray[4095:0], ilardata;
+    reg[13:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -445,14 +445,14 @@ module Zynq (
         (readaddr        == 10'b0000001110) ? memcycctr  :
         (readaddr        == 10'b0000001111) ? {
             bDMABUSA, bDMABUSB, bDMABUSC, bDMABUSD, bDMABUSE, bDMABUSF, bDMABUSH, bDMABUSJ, bDMABUSK, bDMABUSL, bDMABUSM, bDMABUSN,
-            13'b0, r_BAC, r_BMB, r_MA, x_DMAADDR, x_DMADATA, x_INPUTBUS, x_MEM } :
+            12'b0, hizmembus, r_BAC, r_BMB, r_MA, x_DMAADDR, x_DMADATA, x_INPUTBUS, x_MEM } :
         (readaddr        == 10'b0000010000) ? {
             bMEMBUSA, bMEMBUSB, bMEMBUSC, bMEMBUSD, bMEMBUSE, bMEMBUSF, bMEMBUSH, bMEMBUSJ, bMEMBUSK, bMEMBUSL, bMEMBUSM, bMEMBUSN,
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { 22'b0, ilardata[41:32] } :
+        (readaddr        == 10'b0000010010) ? { 18'b0, ilardata[13:00] } :
+        (readaddr        == 10'b0000010011) ? { 32'b0                  } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
@@ -506,6 +506,7 @@ module Zynq (
             arm_r_MA       <= 1;
             arm_r_BMB      <= 1;
             arm_r_BAC      <= 1;
+            arm_hizmembus  <= 1;
 
             arm_iBEMA         <= 0;
             arm_i_CA_INCRMNT  <= 1;
@@ -614,6 +615,7 @@ module Zynq (
                         arm_r_MA          <= saxi_WDATA[04];
                         arm_r_BMB         <= saxi_WDATA[05];
                         arm_r_BAC         <= saxi_WDATA[06];
+                        arm_hizmembus     <= saxi_WDATA[07];
                     end
                 endcase
                 saxi_AWREADY <= 1;                          // we are ready to accept an address again
@@ -834,7 +836,8 @@ module Zynq (
     assign regctlf[23] = dev_o_LOAD_SF;
     assign regctlf[24] = dev_o_SP_CYC_NEXT;
     assign regctlf[25] = oD35B2;
-    assign regctlf[31:26] = 0;
+    assign regctlf[26] = didio;
+    assign regctlf[31:27] = 0;
 
     assign regctlg[00] = sim_lbBRK;
     assign regctlg[01] = sim_lbCA;
@@ -940,22 +943,24 @@ module Zynq (
 
     assign r_MA  = bareit ? arm_r_MA  : dev_r_MA;
     assign x_MEM = bareit ? arm_x_MEM : dev_x_MEM;
+    assign hizmembus = bareit ? arm_hizmembus : dev_hizmembus;
 
-    // gate memory read data to PDP in case it is reading from extended memory
-    // data is gated from middle of TS1 to beginning of TS3
-    assign bMEMBUSH = x_MEM ? 1'bZ : i_MEM[11-00];
-    assign bMEMBUSB = x_MEM ? 1'bZ : i_MEM[11-01];
-    assign bMEMBUSJ = x_MEM ? 1'bZ : i_MEM[11-02];
-    assign bMEMBUSE = x_MEM ? 1'bZ : i_MEM[11-03];
-    assign bMEMBUSM = x_MEM ? 1'bZ : i_MEM[11-04];
-    assign bMEMBUSF = x_MEM ? 1'bZ : i_MEM[11-05];
-    assign bMEMBUSN = x_MEM ? 1'bZ : i_MEM[11-06];
-    assign bMEMBUSA = x_MEM ? 1'bZ : i_MEM_P;
-    assign bMEMBUSK = x_MEM ? 1'bZ : i_MEM[11-08];
-    assign bMEMBUSC = x_MEM ? 1'bZ : i_MEM[11-09];
-    assign bMEMBUSL = x_MEM ? 1'bZ : i_MEM[11-10];
-    assign bMEMBUSD = x_MEM ? 1'bZ : i_MEM[11-11];
-    assign i_MEM_07 = i_MEM[11-07];
+    // gate memory read data to PDP when it is reading from extended memory
+    // data is gated from middle of TS1 to end of TS4 when using extended memory
+    // send out zeroes when PDP is using its own core stack so we don't jam jMEM going to PDP
+    assign bMEMBUSH = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-00]);
+    assign bMEMBUSB = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-01]);
+    assign bMEMBUSJ = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-02]);
+    assign bMEMBUSE = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-03]);
+    assign bMEMBUSM = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-04]);
+    assign bMEMBUSF = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-05]);
+    assign bMEMBUSN = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-06]);
+    assign bMEMBUSA = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM_P);
+    assign bMEMBUSK = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-08]);
+    assign bMEMBUSC = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-09]);
+    assign bMEMBUSL = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-10]);
+    assign bMEMBUSD = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-11]);
+    assign i_MEM_07 =                     x_MEM ? 0 : i_MEM[11-07];
 
     ////////////////////////
     //  multiplex PIOBUS  //
@@ -965,13 +970,18 @@ module Zynq (
     //   outside io pulses, PIOBUS is gating MB contents into us
     //   during first half of io pulse, PIOBUS is gating AC contents into us
     //   during second half of io pulse and for 40nS after, PIOBUS is gating INPUTBUS out to PDP-8/L
+    //   - PIOBUS must be zeroes if none of our devices are selected during this time
+    //     so we don't jam up the j_INPUTBUS going to the PDP
 
-    // receive AC contents from PIOBUS, but it is valid only during first half of io pulse (ie, when r_BAC is asserted), garbage otherwise
+    // receive AC contents from PIOBUS, but it is valid only during first half of io pulse
+    // (ie, when r_BAC is asserted), garbage otherwise
     assign oBAC = {
         bPIOBUSA, bPIOBUSH, bPIOBUSB, bPIOBUSJ, bPIOBUSC, bPIOBUSK,
         bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
 
     // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
+    // note that iINPUTBUS will be all zeroes if none of our devices are selected cuz it is or of all device outputs
+    // ...which causes all PIOBUS lines to be zero and open-draining all the j_INPUTBUS transistors
     assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
     assign bPIOBUSH = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-01];
     assign bPIOBUSB = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-02];
@@ -999,8 +1009,9 @@ module Zynq (
                 dev_r_BAC <= 1;
                 dev_r_BMB <= 0;
                 dev_x_INPUTBUS <= 1;
-                oBMB  <= { bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
-                           bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
+                oBMB <= {
+                    bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
+                    bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
             end else if (iopsetcount ==  1 & iopclrcount == 0) begin
                 // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
                 // ...and leave oBMB contents as they were (contains io opcode)
@@ -1189,26 +1200,24 @@ module Zynq (
     //     else if iopstop do iopstop processing    // lasts for dozens of cycles
     //   end
 
-    assign firstiop1 = dev_oBIOP1 & dev_oBMB[0]   ==   1'b1;    // any 110xxxxxxxx1 executes only on IOP1
-    assign firstiop2 = dev_oBIOP2 & dev_oBMB[1:0] ==  2'b10;    // any 110xxxxxxx10 executes only on IOP2
-    assign firstiop4 = dev_oBIOP4 & dev_oBMB[2:0] == 3'b100;    // any 110xxxxxx100 executes only on IOP4
-                                                                // any 110xxxxxx000 never executes
-
     always @(posedge CLOCK) begin
         if (pwronreset) begin
+            didio       <= 0;
             iopsetcount <= 0;
             iopclrcount <= 7;
         end else if (nanocstep) begin
-            if (firstiop1 | firstiop2 | firstiop4) begin
-                // somewhere inside the first IOP for an instruction
-                // 130nS into it, blip a iopstart pulse for one CSTEP clock
+            if (lastts1 & ~ dev_oBTS_1) didio <= 0;
+            else if (dev_oBIOP1 | dev_oBIOP2 | dev_oBIOP4) begin
+                // somewhere inside any IOPn for an instruction
+                // 130nS into it, blip a iopstart pulse for first IOP of the instruction for one CSTEP clock
+                didio       <= 1;
                 iopclrcount <= 0;
-                if ((iopsetcount < 13) | iopstart | (iopsetcount == 14)) begin
+                if ((iopsetcount < 13) | (iopsetcount == 13 & ~ armwrite) | (iopsetcount == 14)) begin
                     iopsetcount <= iopsetcount + 1;
                 end
             end else begin
-                // somewhere outside the first IOPn for an instruction
-                // 70nS into the void, raise and hold the stop signal until next iopulse (from a subsequent io instruction)
+                // somewhere outside an IOPn for an instruction
+                // 70nS into the void, raise and hold the stop signal until next iopulse (from this or other IO instruction)
                 iopsetcount <= 0;
                 if (iopclrcount < 7) begin
                     iopclrcount <= iopclrcount + 1;
@@ -1217,8 +1226,14 @@ module Zynq (
         end
     end
 
-    assign iopstart = iopsetcount == 13 & ~ armwrite;       // IOP started 130nS ago, process the opcode in dev_oBMB, start driving busses
-    assign iopstop  = iopclrcount ==  7;                    // IOP finished 70nS ago, stop driving io busses
+    wire firstiop =
+        (dev_oBIOP1 & dev_oBMB[0]   ==   1'b1) |    // any 110xxxxxxxx1 executes only on IOP1
+        (dev_oBIOP2 & dev_oBMB[1:0] ==  2'b10) |    // any 110xxxxxxx10 executes only on IOP2
+        (dev_oBIOP4 & dev_oBMB[2:0] == 3'b100);     // any 110xxxxxx100 executes only on IOP4
+                                                    // any 110xxxxxx000 never executes
+
+    assign iopstart = iopsetcount == 13 & firstiop & ~ armwrite;    // IOP started 130nS ago, process the opcode in dev_oBMB, start driving busses
+    assign iopstop  = iopclrcount ==  7;                            // IOP finished 70nS ago, stop driving io busses (output zeroes)
 
     // teletype interfaces
 
@@ -1410,8 +1425,9 @@ module Zynq (
         ._ea      (xm_ea),              // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
         ._intinh  (xm_intinh),          // block interrupt delivery
 
-        .r_MA     (dev_r_MA),           //> gate memory address in from memory bus
-        .x_MEM    (dev_x_MEM),          //> gate memory data out to memory bus
+        .r_MA      (dev_r_MA),          //> gate memory address in from memory bus
+        .x_MEM     (dev_x_MEM),         //> gate memory data out to memory bus
+        .hizmembus (dev_hizmembus),     //> hi-Z MEMBUS lines
 
         .ldaddrsw (~ dev_o_KEY_LOAD),
         .ldaddfld ({ 2'b00, ~ dev_o_KEY_DF }),
@@ -1590,24 +1606,30 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                xmstate,
                 dev_oBTS_1,
                 dev_oBTS_3,
-                dev_oMEMSTART,
-                dev_i_STROBE,
-                dev_i_MEMDONE,
-                xmfield,
-                xbrenab,
-                xbrwena,
-                xbraddr,
-                xbrwdat
+                dev_oBIOP1,
+                dev_oBIOP2,
+                dev_oBIOP4,
+
+                hizmembus,
+                r_MA,
+                x_MEM,
+
+                x_INPUTBUS, // = hizpiobus
+                r_BAC,
+                r_BMB,
+
+                iopstart,
+                iopstop,
+                didio
             };
 
             ilaindex <= ilaindex + 1;
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (~ dev_o_B_BREAK) ilaarmed <= 0;
+            else if (dev_oBTS_1) ilaarmed <= 0;
         end
     end
 endmodule

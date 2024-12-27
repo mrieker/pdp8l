@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Thu Dec 26 18:20:38 2024
+--Date        : Fri Dec 27 13:08:58 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -178,13 +178,13 @@ architecture STRUCTURE of myboard_wrapper is
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
     iIO_SKIP_0 : out STD_LOGIC;
-    i_MEMINCR_0 : out STD_LOGIC;
     i_B36V1_0 : out STD_LOGIC;
     i_CA_INCRMNT_0 : out STD_LOGIC;
     i_D36B2_0 : out STD_LOGIC;
     i_DATA_IN_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     i_MEM_07_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;

@@ -63,7 +63,7 @@ module pdp8lxmem (
 
     input _bf_enab, _df_enab, exefet, _intack, jmpjms, ts1, ts3, tp3, _zf_enab,
     output _ea, _intinh,
-    output reg r_MA, x_MEM,
+    output reg r_MA, x_MEM, hizmembus,
 
     input ldaddrsw,                 // load address switch
     input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
@@ -89,6 +89,8 @@ module pdp8lxmem (
     reg[6:0] os8iszopcad;
     reg[4:0] xmstate;
 
+    wire xmmemenab, xmread, xmstrobe, xmwrite, xmmemdone;
+
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
     // so we save them at the end of previous TS3 so they are valid at start of TS1 through end of TS3 that they are needed for
@@ -100,9 +102,9 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1020 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1022 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 3'b0, xmstate } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmmemenab, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -113,7 +115,6 @@ module pdp8lxmem (
     // external memory controller
 
     // control the external memory
-    wire xmmemenab, xmread, xmstrobe, xmwrite, xmmemdone;
     pdp8lmemctl xmmemctl (
         .CLOCK (CLOCK),
         .CSTEP (CSTEP),
@@ -145,6 +146,7 @@ module pdp8lxmem (
                 ctlenab       <= 1;
                 ctllo4k       <= 0;
                 dfld          <= 0;
+                hizmembus     <= 1;
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 lastts3       <= 0;
@@ -318,11 +320,10 @@ module pdp8lxmem (
             //  external 32KW memory control  //
             ////////////////////////////////////
 
-            // wait for MEMSTART signal
-            // shortly followed by XMEMENAB
+            // wait for XMMEMENAB signal meaning PDP/sim wants to use external memory
             // latch 15-bit memory address into XBRADDR
             // wait for start of READ pulse
-            // gate read data out to PDP via MEMBUS
+            // gate read data out to PDP/sim via MEMBUS
             // - must keep sending original read data through to end of cycle
             //   defer with autoincrement (and maybe other stuff) depends on it
             // STROBE pulse comes and goes
@@ -330,67 +331,66 @@ module pdp8lxmem (
             // wait for start of WRITE pulse
             // wait 100nS then send 50nS write pulse to extmem memory
             // wait for MEMDONE pulse
-            // send 100nS MEMDONE pulse on to PDP
-            // stop sending read data out to PDP so it doesn't jam up MEMBUS
+            // send 100nS MEMDONE pulse on to PDP/sim
+            // stop sending read data out to PDP/sim so it doesn't jam up MEMBUS
 
             case (xmstate)
 
-                // wait for pdp to start a memory cycle
+                // wait for PDP/sim to start a memory cycle for external memory
                 0: begin
                     _mwdone <= 1;
                     x_MEM   <= 1;
-                    if (memstart) xmstate <= 1;
-                end
-
-                // wait 20nS for xmmemenab to update
-                // if enabled, gate processor's MA onto MEMBUS, else we wait here until we get an extmem cycle
-                2: if (xmmemenab) begin
-                    r_MA    <= 0;
-                    xmstate <= 3;
+                    if (xmmemenab) begin
+                        xmstate   <= 1;
+                        hizmembus <= 1;
+                    end else if (r_MA & x_MEM) begin
+                        hizmembus <= 0;
+                    end
                 end
 
                 // if before read pulse, latch in memory address from MEMBUS
                 // if at start of read pulse, stop gating MA onto MEMBUS
-                3: begin
-                    if (~ xmread) xbraddr <= { field, memaddr };
-                    else begin r_MA <= 1; xmstate <= 4; end
+                1: begin
+                    if (~ xmread) begin r_MA <= 0; xbraddr <= { field, memaddr }; end
+                    else begin r_MA <= 1; xmstate <= 2; end
                 end
 
                 // in read pulse, gate read data, strobe and memdone onto MEMBUS etc
                 // strobe pulse has come and gone by the end of the read pulse
-                4: begin
-                    memrdat <= xbrrdat;     // save latest value read from extmem ram
-                    x_MEM   <= 0;           // gate memrdat out to PDP via MEMBUS
+                2: begin
+                    memrdat   <= xbrrdat;   // save latest value read from extmem ram
+                    x_MEM     <= 0;         // gate memrdat out to PDP via MEMBUS
+                    hizmembus <= 0;
                     if (xmstrobe) begin     // if strobe pulse, stop clocking data from ram
-                        xmstate <= 5;       // ...then start looking for write pulse
+                        xmstate <= 3;       // ...then start looking for write pulse
                     end
                 end
 
                 // wait for start of write pulse
-                5: begin
-                    if (xmwrite) xmstate <= 6;
+                3: begin
+                    if (xmwrite) xmstate <= 4;
                 end
 
                 // 100nS into write pulse, output a 50nS write pulse to extmem ram
-                15: begin
+                14: begin
                     xbrwena <= 1;
-                    xmstate <= 16;
+                    xmstate <= 15;
                 end
-                20: begin
+                19: begin
                     xbrwena <= 0;
-                    xmstate <= 21;
+                    xmstate <= 20;
                 end
 
                 // if write complete, tell stepper (eg x8lmctrace.cc) cycle is complete (it can get write data)
-                21: if (xmmemdone & ~ armwrite) begin
+                20: if (xmmemdone & ~ armwrite) begin
                     mdstep  <= 0;
-                    xmstate <= 22;
+                    xmstate <= 21;
                 end
 
                 // wait for step enabled, then output 100nS write complete pulse to processor
-                22: if (~ mdhold | mdstep) begin
+                21: if (~ mdhold | mdstep) begin
                     _mwdone <= 0;
-                    xmstate <= 23;
+                    xmstate <= 22;
                 end
 
                 default: xmstate <= xmstate + 1;

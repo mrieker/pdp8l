@@ -28,7 +28,10 @@ module pdp8lmemctl (
     input memstart,
     input select,
 
-    output reg memenab,     // on throughout cycle when selected
+    // all timing relative to rising edge of memstart
+    // all signals zero if not selected
+    // memenab guaranteed to be off at least one FPGA clock at end of mem cycle
+    output reg memenab,     // 0.01..1.60 uS
     output reg read,        // 0.25..0.75 uS    read in progress
     output reg strobe,      // 0.50..0.60 uS    read complete
     output reg lock,        // 0.25..1.00 uS
@@ -40,30 +43,30 @@ module pdp8lmemctl (
 );
 
     reg[7:0] memdelay;
-    reg lastmemstart;
 
     always @(posedge CLOCK) begin
         if (RESET) begin
-            memdelay     <= 0;
-            lastmemstart <= 0;
-            memenab      <= 0;
-            read         <= 0;
-            strobe       <= 0;
-            lock         <= 0;
-            cycdone      <= 0;
-            cycle        <= 0;
-            inhibit      <= 0;
-            write        <= 0;
-            memdone      <= 0;
+            memdelay <= 0;
+            memenab  <= 0;
+            read     <= 0;
+            strobe   <= 0;
+            lock     <= 0;
+            cycdone  <= 0;
+            cycle    <= 0;
+            inhibit  <= 0;
+            write    <= 0;
+            memdone  <= 0;
         end else if (CSTEP) begin
-            if (~ lastmemstart & memstart) begin
-                memdelay <= select ? 1 : 0;
-                memdone  <= 0;
-                memenab  <= select ? 1 : 0;
-            end else if ((memdelay != 0) & (memdelay != 160)) begin
+            if (memdelay == 0) begin
+                if (memstart & select) begin
+                    memdelay <= 1;
+                    memenab  <= 1;
+                end
+            end else if (memdelay != 160) begin
                 memdelay <= memdelay + 1;
+            end else begin
+                memdelay <= 0;
             end
-            lastmemstart <= memstart;
 
             case (memdelay)
                  25: begin
@@ -101,6 +104,7 @@ module pdp8lmemctl (
                 end
                 160: begin
                     memdone <= 0;
+                    memenab <= 0;
                 end
             endcase
         end

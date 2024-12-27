@@ -116,6 +116,7 @@
 #define f_o_LOAD_SF      (1U << 23)
 #define f_o_SP_CYC_NEXT  (1U << 24)
 #define f_oD35B2         (1U << 25)
+#define f_didio          (1U << 26)
 
 #define g_lbBRK         (1U <<  0)
 #define g_lbCA          (1U <<  1)
@@ -186,6 +187,7 @@
 #define o_bDMABUSL (1U << 22)
 #define o_bDMABUSM (1U << 21)
 #define o_bDMABUSN (1U << 20)
+#define o_hizmembus  (1U << 7)
 #define o_r_BAC      (1U << 6)
 #define o_r_BMB      (1U << 5)
 #define o_r_MA       (1U << 4)
@@ -296,6 +298,7 @@
 #define XM_ENABLE (1U << 31)
 
 #define XM2_XMSTATE   (037U <<  0)
+#define XM2_XMMEMENAB   (1U <<  5)
 #define XM2_SAVEDIFLD   (7U <<  8)
 #define XM2_SAVEDDFLD   (7U << 11)
 #define XM2_IFLDAFJMP   (7U << 14)

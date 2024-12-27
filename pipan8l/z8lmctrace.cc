@@ -126,6 +126,7 @@ int main (int argc, char **argv)
         uint16_t xaddr = FIELD (Z_RL, l_xbraddr);   // get 15-bit address left in extmem ram address register
         uint16_t wdata = extmem[xaddr];             // read extmem directly to get what ended up in there
 
+        bool didio  = FIELD (Z_RF, f_didio);        // cycle did some i/o
         bool dmabrk = ! FIELD (Z_RF, f_o_B_BREAK);  // at end of a BRK cycle
         bool jmpjms = FIELD (Z_RF, f_oJMP_JMS);     // ir contains a jmp or jms opcode
 
@@ -133,7 +134,7 @@ int main (int argc, char **argv)
         if (dmabrk) shadowst = ST_BRK;
         else if (intack) shadowst = ST_INTACK;
         else if (wcca) shadowst = last_wcca ? ST_CA : ST_WC;
-        else if (last_dmabrk | last_intack) shadowst = ST_FETCH;
+        else if (didio | last_dmabrk | last_intack) shadowst = ST_FETCH;
         else if (! last_jmpjms & jmpjms) shadowst = ST_FETCH;
         else switch (shadowst) {
             case ST_FETCH: {
