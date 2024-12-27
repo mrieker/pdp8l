@@ -410,9 +410,6 @@
           "iIO_SKIP": {
             "direction": "O"
           },
-          "iMEMINCR": {
-            "direction": "O"
-          },
           "i_B36V1": {
             "direction": "O"
           },
@@ -429,6 +426,9 @@
             "direction": "O"
           },
           "i_MEMDONE": {
+            "direction": "O"
+          },
+          "i_MEMINCR": {
             "direction": "O"
           },
           "i_MEM_07": {
@@ -2326,7 +2326,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0xB0AD4CD39A155319",
+      "boundary_crc": "0x4FE9862634721597",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2728,11 +2728,6 @@
           "iIO_SKIP_0"
         ]
       },
-      "Zynq_0_iMEMINCR": {
-        "ports": [
-          "iMEMINCR_0"
-        ]
-      },
       "Zynq_0_i_B36V1": {
         "ports": [
           "i_B36V1_0"
@@ -2763,6 +2758,11 @@
         "ports": [
           "Zynq_0/i_MEMDONE",
           "i_MEMDONE_0"
+        ]
+      },
+      "Zynq_0_i_MEMINCR": {
+        "ports": [
+          "i_MEMINCR_0"
         ]
       },
       "Zynq_0_i_MEM_07": {
@@ -3283,9 +3283,6 @@
       "iIO_SKIP_0": {
         "direction": "O"
       },
-      "iMEMINCR_0": {
-        "direction": "O"
-      },
       "i_B36V1_0": {
         "direction": "O"
       },
@@ -3302,6 +3299,9 @@
         "direction": "O"
       },
       "i_MEMDONE_0": {
+        "direction": "O"
+      },
+      "i_MEMINCR_0": {
         "direction": "O"
       },
       "i_MEM_07_0": {

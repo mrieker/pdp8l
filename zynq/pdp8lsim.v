@@ -25,15 +25,15 @@ module pdp8lsim (
     input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
     input i_CA_INCRMNT,         // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
     input i_DATA_IN,            // C36-M2,p15 B-2,J11-32,,,
-    input[11:00] i_INPUTBUS,    // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
-    input iMEMINCR,             // C36-T2,p15 B-1,J11-18,,,
-    input[11:00] iMEM,          // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
-    input iMEM_P,               // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
+    input[11:00] iINPUTBUS,     // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
+    input i_MEMINCR,            // C36-T2,p15 B-1,J11-18,,,
+    input[11:00] i_MEM,         // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
+    input i_MEM_P,              // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
     input i3CYCLE,              // C35-K2,p15 A-3,J11-38,,C22,
     input iAC_CLEAR,            // D34-P2,p15 C-2,J12-27,,D33,gated out to CPU by x_INPUTBUS
     input iBRK_RQST,            // C36-K2,p15 B-3,J11-36,,,"used on p5 B-2, clocked by TP1"
-    input[11:00] i_DMAADDR,     // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
-    input[11:00] i_DMADATA,     // C35-B1,p15 A-8,DMABUSA,,,gated out to CPU by x_DMADATA
+    input[11:00] iDMAADDR,      // C36-B1,p15 B-8,DMABUSB,,,gated out to CPU by x_DMAADDR
+    input[11:00] iDMADATA,      // C35-B1,p15 A-8,DMABUSA,,,gated out to CPU by x_DMADATA
     input i_EA,                 // B34-B1,p18 C-8,J11-53,,B30,high: use CPU core stack for mem cycle; low: block using CPU core stack
     input iEMA,                 // B35-V2,p5 B-7,J11-51,,B29,goes to EA light bulb on front panel
     input iINT_INHIBIT,         // B36-L1,p9 B-3,J12-66,,,
@@ -250,10 +250,10 @@ module pdp8lsim (
     wire withio = (majstate == MS_FETCH) & iopea;
 
     // get incoming ac bits from io bus
-    wire[11:00] ioac = (iAC_CLEAR ? 0 : acum) | ~ i_INPUTBUS;
+    wire[11:00] ioac = (iAC_CLEAR ? 0 : acum) | iINPUTBUS;
 
     // data written back to memory during break cycle
-    wire[11:00] breakdata = (i_DATA_IN ? mbuf : ~ i_DMADATA) + { 11'b0, iMEMINCR };
+    wire[11:00] breakdata = (i_DATA_IN ? mbuf : iDMADATA) + { 11'b0, ~ i_MEMINCR };
 
     // major state following last cycle of current instruction
     always @(*) begin
@@ -336,7 +336,7 @@ module pdp8lsim (
 
                             // testing- handle DMA while halted
                             if (brkwhenhltd & iBRK_RQST) begin
-                                madr      <= ~ i_DMAADDR;
+                                madr      <= iDMAADDR;
                                 majstate  <= MS_BRKWH;      // do break then halt afterward
                                 nextmajst <= MS_BRKWH;      // cycles start with nextmajst = majstate
                             end
@@ -414,7 +414,7 @@ module pdp8lsim (
                         end
                     end else begin
                         if (! i_STROBE) begin
-                            mbuf      <= iMEM;
+                            mbuf      <= ~ i_MEM;
                             timedelay <= 0;
                             timestate <= TS_TP1BEG;
                         end
@@ -711,8 +711,8 @@ module pdp8lsim (
                         0: begin
                             case (nextmajst)
                                 MS_FETCH: madr <= pctr;
-                                MS_WC:    madr <= ~ i_DMAADDR;
-                                MS_BRK:   if (majstate != MS_CA) madr <= ~ i_DMAADDR;
+                                MS_WC:    madr <= iDMAADDR;
+                                MS_BRK:   if (majstate != MS_CA) madr <= iDMAADDR;
                                 MS_INTAK: begin
                                     intdelayed <= 0;
                                     intenabled <= 0;

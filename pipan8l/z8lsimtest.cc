@@ -608,6 +608,10 @@ int main (int argc, char **argv)
                                     if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
                                     clockit ();
                                 }
+
+                                // clear the random bits so it won't clock them again during nulled-out io pulses
+                                pdpat[Z_RA] = zrawrite &= ~ a_iAC_CLEAR & ~ a_iIO_SKIP;
+                                pdpat[Z_RC] = zrcwrite &= ~ c_iINPUTBUS;
                             }
 
                             // update our shadow registers
@@ -1001,10 +1005,10 @@ static void clockit ()
         //uint8_t saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
         //uint16_t os8step = (xmemat[3] & XM3_OS8STEP) / XM3_OS8STEP0;
 
-        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s oMEMSTART=%o i_STROBE=%o iMEM=%04o xbr[%05o] ce=%o we=%o rd=%04o wd=%04o\n",
+        printf ("clockit*: %9u timestate=%-7s timedelay=%2u majstate=%-5s nextmajst=%-5s oMEMSTART=%o i_STROBE=%o i_MEM=%04o xbr[%05o] ce=%o we=%o rd=%04o wd=%04o\n",
             clockno, timestatenames[timestate], FIELD(Z_RK,k_timedelay),
             majstatenames[FIELD(Z_RK,k_majstate)], majstatenames[FIELD(Z_RK,k_nextmajst)],
-            FIELD(Z_RF,f_oMEMSTART), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RC,c_iMEM),
+            FIELD(Z_RF,f_oMEMSTART), FIELD(Z_RA,a_i_STROBE), FIELD(Z_RC,c_i_MEM),
             FIELD(Z_RL,l_xbraddr), FIELD(Z_RL,l_xbrenab), FIELD(Z_RL,l_xbrwena), FIELD(Z_RM,m_xbrrdat), FIELD(Z_RM,m_xbrwdat));
     }
 }

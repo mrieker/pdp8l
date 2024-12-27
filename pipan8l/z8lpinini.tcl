@@ -435,22 +435,22 @@ proc readma {} {
     return [pin get oMA set r_MA 1]
 }
 
-# send memory read data out to iMEM via the MEM bus
-# iMEM gets gated out to MEMBUS as long as we have x_MEM=0
+# send memory read data out to i_MEM via the MEM bus
+# i_MEM gets gated out to MEMBUS as long as we have x_MEM=0
 proc sendmd {md} {
-    pin set r_MA 1 x_MEM 0 bareit 1 iMEM $md
+    pin set r_MA 1 x_MEM 0 bareit 1 i_MEM [expr {$md ^ 07777}]
 }
 
-# send dma address out to i_DMAADDR via the DMA bus
-# i_DMAADDR gets gated out to DMABUS as long as we have x_DMAADDR=0
+# send dma address out to iDMAADDR via the DMA bus
+# iDMAADDR gets gated out to DMABUS as long as we have x_DMAADDR=0
 proc sendmadr {addr} {
-    pin set x_DMADATA 1 x_DMAADDR 0 bareit 1 i_DMAADDR [expr {$addr ^ 07777}]
+    pin set x_DMADATA 1 x_DMAADDR 0 bareit 1 iDMAADDR $addr
 }
 
-# send dma data out to i_DMADATA via the DMA bus
-# i_DMADATA gets gated out to DMABUS as long as we have x_DMADATA=0
+# send dma data out to iDMADATA via the DMA bus
+# iDMADATA gets gated out to DMABUS as long as we have x_DMADATA=0
 proc sendmdat {data} {
-    pin set x_DMAADDR 1 x_DMADATA 0 bareit 1 i_DMADATA [expr {$data ^ 07777}]
+    pin set x_DMAADDR 1 x_DMADATA 0 bareit 1 iDMADATA $data
 }
 
 # turn both dmabus drivers off
@@ -502,10 +502,10 @@ proc loopintest {conn side} {
         set on 0
         set connpin [string range $cs 0 5]
         set signame [string range $cs 7 end]
-        if {[string range $signame 0 8] == "i_DMAADDR"} {pin set x_DMAADDR 0}
-        if {[string range $signame 0 8] == "i_DMADATA"} {pin set x_DMADATA 0}
-        if {[string range $signame 0 8] == "iINPUTBUS"} {pin set x_INPUTBUS 0}
-        if {[string range $signame 0 3] == "iMEM"}      {pin set x_MEM 0}
+        if {[string range $signame 0 7] == "iDMAADDR"}   {pin set x_DMAADDR 0}
+        if {[string range $signame 0 7] == "iDMADATA"}   {pin set x_DMADATA 0}
+        if {[string range $signame 0 9] == "i_INPUTBUS"} {pin set x_INPUTBUS 0}
+        if {[string range $signame 0 3] == "iMEM"}       {pin set x_MEM 0}
         while {! [ctrlcflag 0]} {
             set on [expr {1 - $on}]
             puts "  $connpin = $on  ($signame)"

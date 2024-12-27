@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Thu Dec 26 15:23:27 2024
+--Date        : Thu Dec 26 18:20:38 2024
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -82,13 +82,13 @@ entity myboard_wrapper is
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
     iIO_SKIP_0 : out STD_LOGIC;
-    iMEMINCR_0 : out STD_LOGIC;
     i_B36V1_0 : out STD_LOGIC;
     i_CA_INCRMNT_0 : out STD_LOGIC;
     i_D36B2_0 : out STD_LOGIC;
     i_DATA_IN_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     i_MEM_07_0 : out STD_LOGIC;
     i_STROBE_0 : out STD_LOGIC;
     oBIOP1_0 : in STD_LOGIC;
@@ -178,7 +178,7 @@ architecture STRUCTURE of myboard_wrapper is
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
     iIO_SKIP_0 : out STD_LOGIC;
-    iMEMINCR_0 : out STD_LOGIC;
+    i_MEMINCR_0 : out STD_LOGIC;
     i_B36V1_0 : out STD_LOGIC;
     i_CA_INCRMNT_0 : out STD_LOGIC;
     i_D36B2_0 : out STD_LOGIC;
@@ -315,13 +315,13 @@ myboard_i: component myboard
       iINT_INHIBIT_0 => iINT_INHIBIT_0,
       iINT_RQST_0 => iINT_RQST_0,
       iIO_SKIP_0 => iIO_SKIP_0,
-      iMEMINCR_0 => iMEMINCR_0,
       i_B36V1_0 => i_B36V1_0,
       i_CA_INCRMNT_0 => i_CA_INCRMNT_0,
       i_D36B2_0 => i_D36B2_0,
       i_DATA_IN_0 => i_DATA_IN_0,
       i_EA_0 => i_EA_0,
       i_MEMDONE_0 => i_MEMDONE_0,
+      i_MEMINCR_0 => i_MEMINCR_0,
       i_MEM_07_0 => i_MEM_07_0,
       i_STROBE_0 => i_STROBE_0,
       oBIOP1_0 => oBIOP1_0,

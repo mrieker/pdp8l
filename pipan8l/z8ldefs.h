@@ -43,15 +43,15 @@
 
 #define Z_N 17      // total number of register
 
-#define ZZ_RA (a_i_CA_INCRMNT | a_i_DATA_IN | a_i_EA | a_i_MEMDONE | a_i_STROBE | a_i_B36V1 | a_i_D36B2)
-#define ZZ_RC (c_i_INPUTBUS)
-#define ZZ_RD (d_i_DMAADDR | d_i_DMADATA)
+#define ZZ_RA (a_i_CA_INCRMNT | a_i_DATA_IN | a_i_MEMINCR | a_i_MEM_P | a_i_EA | a_i_MEMDONE | a_i_STROBE | a_i_B36V1 | a_i_D36B2)
+#define ZZ_RC (c_i_MEM)
+#define ZZ_RD 0
 
 #define a_iBEMA        (1U <<  0)
 #define a_i_CA_INCRMNT (1U <<  1)
 #define a_i_DATA_IN    (1U <<  2)
-#define a_iMEMINCR     (1U <<  3)
-#define a_iMEM_P       (1U <<  4)
+#define a_i_MEMINCR    (1U <<  3)
+#define a_i_MEM_P      (1U <<  4)
 #define a_i3CYCLE      (1U <<  5)
 #define a_iAC_CLEAR    (1U <<  6)
 #define a_iBRK_RQST    (1U <<  7)
@@ -77,10 +77,10 @@
 #define b_swSTART       (1U <<  9)
 #define b_swSR      (07777U << 20)
 
-#define c_i_INPUTBUS (07777U <<  0)
-#define c_iMEM       (07777U << 16)
-#define d_i_DMAADDR  (07777U <<  0)
-#define d_i_DMADATA  (07777U << 16)
+#define c_iINPUTBUS (07777U <<  0)
+#define c_i_MEM     (07777U << 16)
+#define d_iDMAADDR  (07777U <<  0)
+#define d_iDMADATA  (07777U << 16)
 
 #define e_simit         (1U <<  0)  //rw 0=real PDP-8/L; 1=pdp8lsim.v
 #define e_softreset     (1U <<  1)  //rw 0=normal; 1=power-on-reset (sim only)
@@ -153,10 +153,10 @@
 #define m_xbrwdat ( 07777U << 16)
 
 #define b_swSR0       (b_swSR       & - b_swSR)
-#define c_i_INPUTBUS0 (c_i_INPUTBUS & - c_i_INPUTBUS)
-#define c_iMEM0       (c_iMEM       & - c_iMEM)
-#define d_i_DMAADDR0  (d_i_DMAADDR  & - d_i_DMAADDR)
-#define d_i_DMADATA0  (d_i_DMADATA  & - d_i_DMADATA)
+#define c_iINPUTBUS0  (c_iINPUTBUS  & - c_iINPUTBUS)
+#define c_i_MEM0      (c_i_MEM      & - c_i_MEM)
+#define d_iDMAADDR0   (d_iDMAADDR   & - d_iDMAADDR)
+#define d_iDMADATA0   (d_iDMADATA   & - d_iDMADATA)
 #define g_lbIR0       (g_lbIR       & - g_lbIR)
 #define h_oBAC0       (h_oBAC       & - h_oBAC)
 #define h_oBMB0       (h_oBMB       & - h_oBMB)
