@@ -19,10 +19,10 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Tests the pdp8lsim.v PDP-8/L implementation by sending random instructions and data and verifying the results
-
-//  ./z8lsimtest
+// Can also similarly test a real PDP-8/L
 
 #include <fcntl.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -35,6 +35,8 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
+#define DOTJMPDOT 05252
+
 #define FIELD(index,mask) ((pdpat[index] & mask) / (mask & - mask))
 
 #define TESTOS8ZAP false
@@ -43,23 +45,25 @@ static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
 
 static bool brkrequest;
+static bool volatile ctrlcflag;
 static bool dma3cycle;
 static bool dmacainc;
 static bool dmadatain;
+static bool fullreal;
+static bool halfreal;
 static bool intdelayed;
 static bool intenabled;
 static bool intrequest;
 static bool linc;
 static bool memcycwcover;
 static bool perclock;
-static int nseqs;
+static bool realmode;
 static uint16_t acum;
 static uint16_t dmaaddr;
 static uint16_t dmafield;
 static uint16_t dmawdata;
 static uint16_t multquot;
 static uint16_t pctr;
-static uint16_t *seqs;
 static uint32_t clockno;
 static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
 static uint32_t volatile *extmemptr;
@@ -74,15 +78,16 @@ static uint8_t xmem_ifldafterjump;
 static uint8_t xmem_saveddfld;
 static uint8_t xmem_savedifld;
 
+static void sighand (int signum);
 static void doldad (uint16_t addr, uint16_t data);
 static void dostart ();
 static void docont ();
 static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t wdata);
 static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t rdbkdata, uint16_t wtbkdata, uint16_t vfywaddr, uint16_t vfywdata);
+static void requestdmaorint (uint32_t state, uint16_t rdata);
 static void debounce ();
 static void clockit ();
 static bool g2skip (uint16_t opcode);
-static uint16_t xrandbits (int nbits);
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg);
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg);
 static void fatalerr (char const *fmt, ...);
@@ -91,31 +96,6 @@ static void dumpstate ();
 int main (int argc, char **argv)
 {
     setlinebuf (stdout);
-
-    if ((argc > 1) && (strcmp (argv[1], "-?") == 0)) {
-        puts ("");
-        puts ("     Test pdp8lcmem.v, pdp8lsim.v, pdp8lxmem.v, sim parts of zynq.v code");
-        puts ("");
-        puts ("  ./z8lsimtest");
-        puts ("");
-        return 0;
-    }
-
-    // if numbers given on command line, use them instead of randoms
-    // exit when the randoms are used up
-    nseqs = -1;
-    if (argc > 1) {
-        char *p;
-        nseqs = argc - 1;
-        seqs = (uint16_t *) malloc (nseqs * sizeof *seqs);
-        for (int i = 0; ++ i < argc;) {
-            seqs[nseqs-i] = strtoul (argv[i], &p, 0);
-            if (*p != 0) {
-                fprintf (stderr, "z8lsimtest: bad number %s\n", argv[i]);
-                return -1;
-            }
-        }
-    }
 
     // access the zynq io page
     // hopefully it has our pdp8l.v code indicated by magic number in first word
@@ -128,6 +108,87 @@ int main (int argc, char **argv)
     printf ("CM version %08X\n", cmemat[0]);
     printf ("XM version %08X\n", xmemat[0]);
 
+    for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("     Generates random instructions and operands to test sim or PDP");
+            puts ("     Also generates random interrupt and DMA requests");
+            puts ("");
+            puts ("  ./z8lsimtest [-clear | -half | -real]");
+            puts ("");
+            puts ("    -clear = clear stepping mode from FPGA so PDP will run normally");
+            puts ("    -half = use sim but operate in same manner as using real mode");
+            puts ("    -real = test real PDP, just tests end-of-cycle memory contents");
+            puts ("");
+            puts ("    by default, tests sim in detail");
+            puts ("");
+            return 0;
+        }
+        if (strcasecmp (argv[1], "-clear") == 0) {
+
+            // do all the stuff as in the hardreset.tcl script
+            // ...seems to work
+
+            char temp[20];
+            fputs ("turn STEP switch ON, then press enter > ", stderr);
+            if (fgets (temp, sizeof temp, stdin) == NULL) return 0;
+
+            pdpat[Z_RA]  = ZZ_RA;
+            pdpat[Z_RO]  = o_r_BAC | o_r_BMB | o_r_MA | o_x_DMAADDR | o_x_DMADATA | o_x_INPUTBUS | o_x_MEM;
+            pdpat[Z_RE] |=   e_bareit;
+            pdpat[Z_RO]  = o_r_BAC | o_r_BMB | o_r_MA | o_x_DMAADDR | o_x_DMADATA | o_x_INPUTBUS;
+            pdpat[Z_RA]  = ZZ_RA & ~ a_i_MEMDONE;
+            usleep (10);
+            pdpat[Z_RA]  = ZZ_RA |   a_i_MEMDONE;
+            usleep (10);
+            pdpat[Z_RA]  = ZZ_RA & ~ a_i_STROBE;
+            usleep (10);
+            pdpat[Z_RA]  = ZZ_RA |   a_i_STROBE;
+            usleep (10);
+            pdpat[Z_RE] &= ~ e_bareit;
+            pdpat[Z_RO]  = o_r_BAC | o_r_BMB | o_r_MA | o_x_DMAADDR | o_x_DMADATA | o_x_INPUTBUS | o_x_MEM;
+            pdpat[Z_RA]  = ZZ_RA;
+
+            usleep (10);
+            pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_softreset;   // no e_simit
+            usleep (10);
+            pdpat[Z_RA] = ZZ_RA;
+            pdpat[Z_RB] = 0;
+            pdpat[Z_RC] = ZZ_RC;
+            pdpat[Z_RD] = ZZ_RD;
+            pdpat[Z_RF] = 0;
+            pdpat[Z_RG] = 0;
+            pdpat[Z_RH] = 0;
+            pdpat[Z_RI] = 0;
+            pdpat[Z_RJ] = 0;
+            pdpat[Z_RK] = 0;
+            xmemat[1]   = XM_ENABLE | XM_ENLO4K;
+            usleep (10);
+            pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
+                                    // omitting e_simit holds sim in power-on reset state
+            xmemat[1]   = XM_ENABLE | XM_ENLO4K;
+
+            fputs ("flick STOP switch, turn STEP switch OFF, then press enter > ", stderr);
+            if (fgets (temp, sizeof temp, stdin) == NULL) return 0;
+            return 0;
+        }
+
+        if (strcasecmp (argv[i], "-half") == 0) {
+            fullreal = false;
+            halfreal = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-real") == 0) {
+            fullreal = true;
+            halfreal = false;
+            continue;
+        }
+        fprintf (stderr, "unknown argument %s\n", argv[i]);
+        return 1;
+    }
+
+    realmode = (fullreal | halfreal);
+
     cmemat[1] = 0;  // disable outputs until we request a cycle
 
     // get pointer to the 32K-word ram
@@ -136,11 +197,14 @@ int main (int argc, char **argv)
     extmemptr = z8p.extmem ();
 
     // select simulator with manual clocking and reset the pdp8lsim.v processor
+    // if using real PDP, disable simulator (it stays in reset state)
     pdpat[Z_RA] = zrawrite = ZZ_RA;
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = zrcwrite = ZZ_RC;
     pdpat[Z_RD] = zrdwrite = ZZ_RD;
-    pdpat[Z_RE] = zrewrite = e_simit | e_softreset;
+    pdpat[Z_RE] = zrewrite =
+         fullreal ? e_softreset | e_nanocontin :
+        (halfreal ? e_simit | e_softreset | e_nanocontin : e_simit | e_softreset);
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
     pdpat[Z_RH] = 0;
@@ -152,30 +216,81 @@ int main (int argc, char **argv)
     for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
-    pdpat[Z_RE] = zrewrite = e_simit;
+    pdpat[Z_RE] = zrewrite &= ~ e_softreset;
     for (int i = 0; i < 5; i ++) clockit ();
 
     // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time
     // ...so we can directly access its contents via extmemptr, feeding in random numbers as needed
     // TESTOS8ZAP: also tell it to convert ISZ x / JMP .-1 to ISZ x / NOP ; x <= 0
+    // make sure XM_MDHOLD is clear from previous run so we can initialize
     xmemat[1] = XM_ENABLE | XM_ENLO4K | (TESTOS8ZAP ? XM_OS8ZAP : 0);
     for (int i = 0; i < 5; i ++) clockit ();
 
-    // get initial conditions
-    xmem_ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
-    xmem_dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
-    xmem_ifld = 0;
-    xmem_ifldafterjump = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
-    xmem_intdisableduntiljump = false;
-    xmem_savedifld = (xmemat[2] & XM2_SAVEDIFLD) / XM2_SAVEDIFLD0;
-    xmem_saveddfld = (xmemat[2] & XM2_SAVEDDFLD) / XM2_SAVEDDFLD0;
+    // if using a real PDP, user must manually halt it (or use pipan8l)
+    if (fullreal && ! FIELD (Z_RF, f_o_B_RUN)) {
+        fputs ("flick STOP switch to stop processor ", stderr);
+        for (int i = 0; ! FIELD (Z_RF, f_o_B_RUN); i ++) {
+            if (i == 5) fputs ("\nif fails to stop, try -clear ", stderr);
+            sleep (1);
+            fputc ('.', stderr);
+        }
+        fputc ('\n', stderr);
+    }
 
-    // set program counter to 01234
-    doldad (01234, 07654);
-    pctr = 01234;
+    // set up a DOT: JMP DOT instruction to begin with
+    extmemptr[DOTJMPDOT] = DOTJMPDOT;
+    pctr = DOTJMPDOT;
 
-    // flick the start switch to clear accumulator, link and start it running
-    dostart ();
+    // get processor started
+    if (fullreal) {
+
+        // set up to hold just before doing TP4 of the JMP instruction
+        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MDSTEP again
+        // ...causing the PDP to wait
+        // pdp8lxmem.v clears XM_MDSTEP when it has stopped the processor
+        xmemat[1] |= XM_MDHOLD | XM_MDSTEP;
+
+        // user must manually start it
+        fprintf (stderr, "set SR %04o ; LD ADDR ; START ", DOTJMPDOT);
+        while (FIELD (Z_RF, f_o_B_RUN)) {
+            sleep (1);
+            fputc ('.', stderr);
+        }
+        fputc ('\n', stderr);
+    } else if (halfreal) {
+
+        // put address in switch register and press load address switch
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
+
+        // clock some cycles to arm the debounce circuit
+        debounce ();
+
+        // release load address switch, leave address there
+        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
+
+        usleep (100);
+
+        // set up to hold just before doing TP4 of the JMP instruction
+        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MDSTEP again
+        // ...causing the sim (pdp8lsim.v) to wait
+        xmemat[1] |= XM_MDHOLD | XM_MDSTEP;
+
+        // flick the start switch to clear accumulator, link and start it running
+        dostart ();
+    } else {
+
+        // set program counter to DOTJMPDOT and tell processor what to read from there
+        // sim requires us to pulse e_nanotrigger to step it
+        doldad (DOTJMPDOT, DOTJMPDOT);
+
+        // flick the start switch to clear accumulator, link and start it running
+        dostart ();
+    }
+
+    // real PDP: holding before TP4 with PC=DOTJMPDOT
+    // simulator: just about to fetch the DOTJMPDOT with PC=DOTJMPDOT
+
+    signal (SIGINT, sighand);
 
     // run random instructions, verifying the cycles
     bool contforcesfetch = false;
@@ -197,27 +312,32 @@ int main (int argc, char **argv)
         uint16_t randsr  = 0;
 
         // maybe do a dma cycle
-        if (brkrequest && ! contforcesfetch) {
+        if (brkrequest && ! contforcesfetch &&
+            (! realmode || (dma3cycle ? ! FIELD (Z_RF, f_o_SP_CYC_NEXT) :
+                                        ! FIELD (Z_RF, f_o_BF_ENABLE)))) {
 
             printf ("DMA %d-cycle", (dma3cycle ? 3 : 1));
             if (dma3cycle) {
 
                 // WC state reads wordcount from dmaaddr, increments it and writes it back
                 // make wordcount overflow somewhat common for testing
-                uint16_t oldwordcount = xrandbits (12);
+                uint16_t oldwordcount = randbits (12);
                 if (oldwordcount & 04000) oldwordcount |= 07700;
                 uint16_t newwordcount = (oldwordcount + 1) & 07777;
                 printf ("  WC:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
                 memorycycle (g_lbWC, 0, dmaaddr, oldwordcount, newwordcount);
-                bool wcshouldover = (newwordcount == 0);
-                if (memcycwcover != wcshouldover) {
-                    fatalerr ("BWC OVERFLOW is %o should be %o\n", memcycwcover, wcshouldover);
+
+                if (! realmode) {
+                    bool wcshouldover = (newwordcount == 0);
+                    if (memcycwcover != wcshouldover) {
+                        fatalerr ("BWC OVERFLOW is %o should be %o\n", memcycwcover, wcshouldover);
+                    }
                 }
 
                 // CA state reads pointer from dmaaddr + 1, increments it and writes it back
                 // then we use the incremented pointer for the transfer address
-                dmaaddr  = (dmaaddr + 1) & 07777;
-                uint16_t oldcuraddr = xrandbits (12);
+                dmaaddr = (dmaaddr + 1) & 07777;
+                uint16_t oldcuraddr = randbits (12);
                 uint16_t newcuraddr = (oldcuraddr + dmacainc) & 07777;
                 printf ("  CA:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
                 memorycycle (g_lbCA, 0, dmaaddr, oldcuraddr, newcuraddr);
@@ -225,7 +345,7 @@ int main (int argc, char **argv)
             }
 
             // transfer word at address dmafield:dmaaddr
-            uint16_t dmardata = xrandbits (12);     // random value that will be sent to processor as content of memory location dmafield:dmaaddr
+            uint16_t dmardata = randbits (12);      // random value that will be sent to processor as content of memory location dmafield:dmaaddr
             if (! dmadatain) dmawdata = dmardata;   // if writing, write will be value written to CM_DATA; if reading, write will be same as dmardata
 
             printf ("  BRK:%o%04o / %04o => %04o", dmafield, dmaaddr, dmardata, dmawdata);
@@ -240,7 +360,8 @@ int main (int argc, char **argv)
             // maybe interrupt request is next
             uint16_t extfetaddr = 0xFFFFU;
             uint8_t datafield = xmem_ifld;
-            if (intrequest && ! xmem_intdisableduntiljump && intenabled && ! contforcesfetch) {
+            if (intrequest && ! xmem_intdisableduntiljump && intenabled && ! contforcesfetch &&
+                (! realmode || ! FIELD (Z_RF, f_o_LOAD_SF))) {
                 printf ("interrupt acknowledge");
 
                 intrequest = false; //TODO: drop request random number of cycles later
@@ -259,6 +380,9 @@ int main (int argc, char **argv)
                 opcode     = 04000;
             } else {
 
+                // stop when processor is ready to fetch
+                if (ctrlcflag) break;
+
                 // we are about to do the fetch after the cont switch
                 contforcesfetch = false;
 
@@ -268,16 +392,24 @@ int main (int argc, char **argv)
                 // send random opcode
                 // for IOs, only allow processor (600x) and xmem (62xx)
                 while (true) {
-                    opcode = xrandbits (12);
+                    opcode = randbits (12);
+                    if (realmode && ((opcode & 07400) == 07400)) {
+                        opcode &= 07770;            // don't do OSR,HLT,Group 3 in real mode
+                    }
+                    if (realmode && ((opcode & 07400) == 07000)) {
+                        if ((opcode & 016) == 002) continue;    // bsw
+                        if ((opcode & 014) == 014) continue;    // 6,7
+                    }
                     if ((opcode & 07000) != 06000) break;
-                    if ((opcode & 07770) == 06000) break;
+                    if (opcode == 06001) break;
+                    if (opcode == 06002) break;
                     if ((opcode & 07700) == 06200) break;
                 }
                 printf ("OP=%04o  %s", opcode, disassemble (opcode, pctr).c_str ());
 
                 // set random switch register contents if about to do an OSR instruction
                 if (((opcode & 07401) == 07400) && (opcode & 0004)) {
-                    randsr = xrandbits (12);
+                    randsr = randbits (12);
                     pdpat[Z_RB] = randsr * b_swSR0;
                 }
 
@@ -304,7 +436,7 @@ int main (int argc, char **argv)
                 if ((opcode & 07000) < 06000) {
                     printf (" =");
                     if (opcode & 0400) {
-                        uint16_t pointer = xrandbits (12);
+                        uint16_t pointer = randbits (12);
                         uint16_t autoinc = (pointer + ((effaddr & 07770) == 00010)) & 07777;
                         printf (" %o%04o /", xmem_ifld, effaddr);
                         memorycycle (g_lbDEF, xmem_ifld, effaddr, pointer, autoinc);
@@ -321,7 +453,7 @@ int main (int argc, char **argv)
 
                 // and, tad, isz, dca
                 case 0: case 1: case 2: case 3: {
-                    uint16_t operand = xrandbits (12);
+                    uint16_t operand = randbits (12);
                     printf (" %o%04o / %04o", datafield, effaddr, operand);
                     switch (opcode >> 9) {
                         case 0: {
@@ -376,7 +508,7 @@ int main (int argc, char **argv)
                 case 4: {
                     xmem_intdisableduntiljump = false;
                     xmem_ifld = xmem_ifldafterjump;
-                    uint16_t operand = xrandbits (12);
+                    uint16_t operand = randbits (12);
                     printf (" %o%04o / %04o <= %04o", xmem_ifld, effaddr, operand, pctr);
                     memorycycle (g_lbEXE, xmem_ifld, effaddr, operand, pctr);
                     pctr = (effaddr + 1) & 07777;
@@ -399,14 +531,20 @@ int main (int argc, char **argv)
                     for (uint16_t m = 1; m <= 4; m += m) {
                         if (opcode & m) {
 
-                            // wait for processor to assert IOPm
-                            for (int i = 0; ! (pdpat[Z_RF] & m); i ++) {
-                                if (i > 1000) fatalerr ("timed out waiting for IOP%u asserted\n", m);
-                                clockit ();
-                            }
+                            // if -half or -real, the processor is waiting just before TP4 so has already performed the I/O instruction
+                            //    so we can't wait for the IOPm pulses because they have already gone by
+                            // for full simulator mode, we manually clock it so will see the IOPm pulses
+                            if (! realmode) {
 
-                            // it should be sending the accumulator out
-                            verify12 (Z_RH, h_oBAC, acum, "AC invalid going out during IOP");
+                                // wait for processor to assert IOPm
+                                for (int i = 0; ! (pdpat[Z_RF] & m); i ++) {
+                                    if (i > 1000) fatalerr ("timed out waiting for IOP%u asserted\n", m);
+                                    clockit ();
+                                }
+
+                                // it should be sending the accumulator out
+                                verify12 (Z_RH, h_oBAC, acum, "AC invalid going out during IOP");
+                            }
 
                             // maybe it is an io opcode that some fpga device we have enabled processes
                             bool acclear    = false;
@@ -416,12 +554,12 @@ int main (int argc, char **argv)
                             // - pdp8lsim.v itself processes these io opcodes
                             if (opcode == 06001) {
                                 intdelayed = true;
-                                goto norand;
+                                goto iodone;
                             }
                             if (opcode == 06002) {
                                 intdelayed = false;
                                 intenabled = false;
-                                goto norand;
+                                goto iodone;
                             }
 
                             // - pdp8lxmem.v processes these io opcodes (manipulate memory field bits)
@@ -454,30 +592,27 @@ int main (int argc, char **argv)
                                         }
                                     }
                                 }
-                                goto norand;
+                                goto iodone;
                             }
 
-                            // no enabled io device for this opcode, get random bits for acclear, ioskip, acbits
-                            acclear = xrandbits  (1);
-                            ioskip  = xrandbits  (1);
-                            acbits  = xrandbits (12);
+                            // those are the only I/O instructions we know how to process
+                            ABORT ();
 
-                            // send resultant random bits to the processor cuz there's no device sending them
-                            pdpat[Z_RA] = zrawrite = (zrawrite & ~ a_i_AC_CLEAR & ~ a_i_IO_SKIP) | (acclear ? 0 : a_i_AC_CLEAR) | (ioskip ? 0 : a_i_IO_SKIP);
-                            pdpat[Z_RC] = zrcwrite = (zrcwrite | c_i_INPUTBUS) & ~ (acbits * c_i_INPUTBUS0);
-
-                        norand:;
+                        iodone:;
                             printf (" => IOP%o => %c%c%04o", m, (acclear ? 'C' : ' '), (ioskip ? 'S' : ' '), acbits);
 
-                            // wait for processor to drop IOPm
-                            for (int i = 0; pdpat[Z_RF] & m; i ++) {
-                                if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
-                                clockit ();
-                            }
+                            if (! realmode) {
 
-                            // clear the random bits so it won't clock them again during nulled-out io pulses
-                            pdpat[Z_RA] = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
-                            pdpat[Z_RC] = zrcwrite |= c_i_INPUTBUS;
+                                // wait for processor to drop IOPm
+                                for (int i = 0; pdpat[Z_RF] & m; i ++) {
+                                    if (i > 1000) fatalerr ("timed out waiting for IOP%u negated\n", m);
+                                    clockit ();
+                                }
+
+                                // clear the random bits so it won't clock them again during nulled-out io pulses
+                                pdpat[Z_RA] = zrawrite |= a_i_AC_CLEAR | a_i_IO_SKIP;
+                                pdpat[Z_RC] = zrcwrite |= c_i_INPUTBUS;
+                            }
 
                             // update our shadow registers
                             if (acclear) acum = 0;
@@ -490,7 +625,9 @@ int main (int argc, char **argv)
 
                 // opr
                 case 7: {
-                    verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
+                    if (! realmode) {   // can't verify cuz instruction has already executed (we are just before TP4)
+                        verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
+                    }
                     if (! (opcode & 0400)) {
                         if (opcode & 00200) acum  = 0;
                         if (opcode & 00100) linc  = false;
@@ -559,22 +696,46 @@ int main (int argc, char **argv)
             }
         }
 
-        // step to TS_TSIDLE so we know everything has been updated
-        for (int i = 0; FIELD (Z_RK, k_timestate) != TS_TSIDLE; i ++) {
-            if (i > 1000) fatalerr ("timed out clocking to TS_TSIDLE\n");
-            clockit ();
+        if (realmode) {
+            printf ("\n");
+        } else {
+
+            // step to TS_TSIDLE so we know everything has been updated
+            for (int i = 0; FIELD (Z_RK, k_timestate) != TS_TSIDLE; i ++) {
+                if (i > 1000) fatalerr ("timed out clocking to TS_TSIDLE\n");
+                clockit ();
+            }
+
+            // print how many cycles it took (each clock is 10nS)
+            uint32_t clocks = clockno - startclockno;
+            printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
+
+            // the accumulator and link should be up to date
+            verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
+            verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
         }
+    }
 
-        // the accumulator and link should be up to date
-        verify12  (Z_RI, i_lbAC,   acum, "AC mismatch at end of cycle");
-        verifybit (Z_RG, g_lbLINK, linc, "LINK mismatch at end of cycle");
-
-        // print how many cycles it took (each clock is 10nS)
-        uint32_t clocks = clockno - startclockno;
-        printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
+    fprintf (stderr, "stopping for control-C\n");
+    if (realmode) {
+        memorycycle (g_lbFET, xmem_ifld, pctr, 07402, 07402);
+        xmemat[1] &= ~ XM_MDHOLD & ~ XM_MDSTEP;
+        usleep (20);
+        if (! FIELD (Z_RF, f_o_B_RUN)) {
+            fprintf (stderr, "processor failed to halt, probably need to do -clear\n");
+        }
     }
 
     return 0;
+}
+
+static void sighand (int signum)
+{
+    if (ctrlcflag) {
+        dprintf (STDERR_FILENO, "\naborting from control-C\n");
+        exit (1);
+    }
+    ctrlcflag = true;
 }
 
 // do a 'load address' operation, verifying the memory access
@@ -605,8 +766,6 @@ static void dostart ()
         clockit ();
     }
 
-    printf ("dostart*: start switch on\n");
-
     // press start switch
     pdpat[Z_RB] |= b_swSTART;
 
@@ -614,7 +773,6 @@ static void dostart ()
     debounce ();
 
     // release start switch
-    printf ("dostart*: start switch off\n");
     pdpat[Z_RB] &= ~ b_swSTART;
 
     // clock until the run flipflop sets
@@ -622,7 +780,6 @@ static void dostart ()
         if (i > 1000) fatalerr ("timed out waiting for RUN after flicking START switch\n");
         clockit ();
     }
-    printf ("dostart*: running\n");
 
     verify12 (Z_RI, i_lbAC, 0, "AC not zero after START switch");
     if (FIELD (Z_RG, g_lbLINK)) fatalerr ("LINK not zero after START switch\n");
@@ -676,46 +833,108 @@ static void memorycycle (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
 // - vfywdata = data that should be at vfywaddr
 static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t rdata, uint16_t rdbkdata, uint16_t wtbkdata, uint16_t vfywaddr, uint16_t vfywdata)
 {
-    // clock until we see TS1
-    for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS1 asserted\n");
-        clockit ();
+    if (realmode) {
+
+        // holding just before TP4 of previous cycle
+
+        requestdmaorint (state, rdata);
+
+        // write the read data to the given address so PDP can read it
+        // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
+        // and because it is the only way we can hold the PDP
+        uint16_t xaddr = (field << 12) | addr;
+        extmemptr[xaddr] = rdata;
+
+        // tell pdp8lxmem.v to let the PDP execute TP4 of the previous cycle up to just before TP4 of this cycle
+        xmemat[1] |= XM_MDHOLD | XM_MDSTEP;
+        for (int i = 0; xmemat[1] & XM_MDSTEP; i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for MDSTEP to clear\n");
+        }
+
+        // holding just before TP4 of this cycle
+
+        // verify the memory contents after writeback
+        ASSERT (vfywaddr <= 077777);
+        uint16_t vdata = extmemptr[vfywaddr];
+        if (vdata != vfywdata) {
+            fatalerr ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
+        }
+    } else {
+
+        // clock until we see TS1
+        for (int i = 0; ! FIELD (Z_RF, f_oBTS_1); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for TS1 asserted\n");
+            clockit ();
+        }
+
+        // we should have MEMSTART now
+        if (! FIELD (Z_RF, f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
+
+        // cpu should be outputting address we expect
+        verify12 (Z_RI, i_oMA, addr, "MA bad at beginning of mem cycle");
+        uint8_t actualfield = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
+        if (actualfield != field) {
+            fatalerr ("actual memory field %o expected %o", actualfield, field);
+        }
+
+        // should now be fully transitioned to the major state
+        if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
+
+        // write the read data to the given address so cpu can read it
+        // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
+        // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
+        // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
+        uint16_t xaddr = (field << 12) | addr;
+        extmemptr[xaddr] = rdata;
+
+        // end of TS1 means it finished reading that memory location into MB
+        for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for TS1 negated\n");
+            clockit ();
+        }
+
+        // MB should now have the value we wrote to the memory location
+        verify12 (Z_RH, h_oBMB, rdbkdata, "MB during read");
+
+        requestdmaorint (state, rdata);
+
+        // wait for it to enter TS3, meanwhile cpu (pdp8lsim.v) should possibly be modifying
+        // the value and sending the value (modified or not) back to the memory
+        for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting fot TS3 asserted\n");
+            clockit ();
+        }
+
+        // beginning of TS3, MB should now have the possibly modified value
+        verify12 (Z_RH, h_oBMB, wtbkdata, "MB during writeback");
+
+        // BWC_OVERFLOW is valid
+        // - clocked with TP2 (vol 2, p5 D-5)
+        // - cleared with TP3
+        memcycwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
+
+        // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
+        for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
+            clockit ();
+        }
+
+        // verify the memory contents
+        ASSERT (vfywaddr <= 077777);
+        uint16_t vdata = extmemptr[vfywaddr];
+        if (vdata != vfywdata) {
+            fatalerr ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
+        }
     }
+}
 
-    // we should have MEMSTART now
-    if (! FIELD (Z_RF, f_oMEMSTART)) fatalerr ("MEMSTART missing at beginning of TS1\n");
-
-    // cpu should be outputting address we expect
-    verify12 (Z_RI, i_oMA, addr, "MA bad at beginning of mem cycle");
-    uint8_t actualfield = (xmemat[2] & XM2_FIELD) / XM2_FIELD0;
-    if (actualfield != field) {
-        fatalerr ("actual memory field %o expected %o", actualfield, field);
-    }
-
-    // should now be fully transitioned to the major state
-    if ((state != 0) && ! FIELD (Z_RG, state)) fatalerr ("not in state %08X during mem cycle\n", state);
-
-    // write the read data to the given address so cpu can read it
-    // we have to use pdp8lxmem.v's low 4K because we can access it directly from the arm processor
-    // the pip8lsim.v's 4K memory can only be accessed via front panel switches and lights
-    // ...(analagous to real PDP-8/L's core memory, slow and processor would have to be halted)
-    uint16_t xaddr = (field << 12) | addr;
-    extmemptr[xaddr] = rdata;
-
-    // end of TS1 means it finished reading that memory location into MB
-    for (int i = 0; FIELD (Z_RF, f_oBTS_1); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS1 negated\n");
-        clockit ();
-    }
-
-    // MB should now have the value we wrote to the memory location
-    verify12 (Z_RH, h_oBMB, rdbkdata, "MB during read");
-
-    // maybe request dma or interrupt
-    // processor samples it at end of TS3
+// maybe request dma or interrupt
+// processor samples it at end of TS3
+static void requestdmaorint (uint32_t state, uint16_t rdata)
+{
     if ((state == g_lbWC) || (state == g_lbCA) || (state == g_lbBRK)) brkrequest = false;
     else if (! brkrequest) {
-        brkrequest = xrandbits (8) == 0;
+        brkrequest = randbits (8) == 0;
         if (brkrequest) {
             dmafield  = randbits (3);
             dmaaddr   = randbits (12);
@@ -736,39 +955,11 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
     }
     if (! brkrequest) pdpat[Z_RA] = zrawrite |= a_i_BRK_RQST;
     if (! intrequest && ((state != g_lbFET) || ((rdata & 07403) != 07402))) {
-        intrequest = xrandbits (6) == 0;
+        intrequest = randbits (10) == 0;
         if (intrequest) {
             printf ("  <<intreq=1 intena=%d>>  ", intenabled);
             pdpat[Z_RA] = zrawrite &= ~ a_i_INT_RQST;
         }
-    }
-
-    // wait for it to enter TS3, meanwhile cpu (pdp8lsim.v) should possibly be modifying
-    // the value and sending the value (modified or not) back to the memory
-    for (int i = 0; ! FIELD (Z_RF, f_oBTS_3); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting fot TS3 asserted\n");
-        clockit ();
-    }
-
-    // beginning of TS3, MB should now have the possibly modified value
-    verify12 (Z_RH, h_oBMB, wtbkdata, "MB during writeback");
-
-    // BWC_OVERFLOW is valid
-    // - clocked with TP2 (vol 2, p5 D-5)
-    // - cleared with TP3
-    memcycwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
-
-    // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
-    for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
-        if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
-        clockit ();
-    }
-
-    // verify the memory contents
-    ASSERT (vfywaddr <= 077777);
-    uint16_t vdata = extmemptr[vfywaddr];
-    if (vdata != vfywdata) {
-        fatalerr ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
     }
 }
 
@@ -823,25 +1014,6 @@ static bool g2skip (uint16_t opcode)
     return skip;
 }
 
-// generate a random number
-static uint16_t xrandbits (int nbits)
-{
-    if (nseqs > 0) {
-        uint16_t randval = seqs[--nseqs];
-        if (randval >= 1U << nbits) {
-            fprintf (stderr, "xrandbits: value 0%o too big for %d bits\n", randval, nbits);
-            ABORT ();
-        }
-        return randval;
-    }
-    if (nseqs == 0) {
-        printf ("\nxrandbits: end of numbers on command line\n");
-        exit (0);
-    }
-
-    return randbits (nbits);
-}
-
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg)
 {
     uint16_t actual = FIELD (index, mask);
@@ -863,7 +1035,7 @@ static void fatalerr (char const *fmt, ...)
     printf ("\n");
     va_list ap;
     va_start (ap, fmt);
-    vprintf (fmt, ap);
+    vfprintf (stderr, fmt, ap);
     va_end (ap);
     dumpstate ();
     ABORT ();
@@ -875,10 +1047,10 @@ static void dumpstate ()
     uint32_t timestate = FIELD (Z_RK, k_timestate);
     uint32_t timedelay = FIELD (Z_RK, k_timedelay);
     uint32_t ir = FIELD (Z_RG, g_lbIR);
-    printf ("clockno=%u ir=%o majstate=%s timestate=%s timedelay=%u\n",
+    fprintf (stderr, "clockno=%u ir=%o majstate=%s timestate=%s timedelay=%u\n",
         clockno, ir, majstatenames[majstate], timestatenames[timestate], timedelay);
     uint8_t dfld = (xmemat[2] & XM2_DFLD) / XM2_DFLD0;
     uint8_t ifld = (xmemat[2] & XM2_IFLD) / XM2_IFLD0;
     uint8_t ifaj = (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0;
-    printf ("  dfld=%o ifld=%o ifaj=%o\n", dfld, ifld, ifaj);
+    fprintf (stderr, "  dfld=%o ifld=%o ifaj=%o\n", dfld, ifld, ifaj);
 }
