@@ -59,7 +59,7 @@
     )
     (pad_to_mask_clearance 0)
     (pcbplotparams
-      (layerselection 0x003d0ff_ffffffff)
+      (layerselection 0x003f0ff_ffffffff)
       (plot_on_all_layers_selection 0x0000000_00000000)
       (disableapertmacros false)
       (usegerberextensions false)
@@ -1360,7 +1360,7 @@
     (stroke (width 0.1) (type default)) (layer "Edge.Cuts") (tstamp e252cf84-a6a4-41df-9b19-ee1d41fbd792))
   (gr_line (start 59.69 53.975) (end 0 53.975)
     (stroke (width 0.1) (type default)) (layer "Edge.Cuts") (tstamp e7ea9706-d18a-4535-92f3-db46a8c2f077))
-  (gr_text "PDP8L-ZTURN34D-2024-12-18" (at 57.15 50.8 90) (layer "F.SilkS") (tstamp ab78f0de-3d00-4d2f-aacb-2b9dd4d8d8ca)
+  (gr_text "PDP8L-ZTURN34D-2024-12-30" (at 57.15 50.8 90) (layer "F.SilkS") (tstamp ab78f0de-3d00-4d2f-aacb-2b9dd4d8d8ca)
     (effects (font (size 1.27 1.27) (thickness 0.15)) (justify left bottom))
   )
 
