@@ -18,13 +18,10 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Runs PIPan8L on a Zynq board programmed with 8/L simulation code (pdp8lsim.v)
-// We get signals that look a lot like the front panel signals of a real PDP-8/L
-// Start PIPan8L via z8lsim script, eg,
-//  $ z8lsim testmem.tcl
-//  pipan8l> looptest testrands
+// Runs on a Zynq card to access PDP-8/L front panel (real PDP or simulated)
 
-// Use regular pipan8l's i2clib.cc running on RasPI for real PDP-8/L
+// use ./z8lsim to use the pdp8lsim.v simulator on the zynq
+// use ./z8lfp to access the real PDP-8/L front panel via I2C bus connected to PIPAN8L board
 
 #include <pthread.h>
 #include <signal.h>
@@ -130,16 +127,21 @@ static char const *const msnames[] = { MS_NAMES };
 
 Z8LLib::Z8LLib ()
 {
-    z8p   = NULL;
-    pdpat = NULL;
+    i2clib = NULL;
+    pdpat  = NULL;
+    z8p    = NULL;
 }
 
 Z8LLib::~Z8LLib ()
 {
+    if (i2clib != NULL) {
+        delete i2clib;
+        i2clib = NULL;
+    }
     if (z8p != NULL) {
         delete z8p;
-        z8p   = NULL;
         pdpat = NULL;
+        z8p   = NULL;
     }
 }
 
@@ -152,57 +154,87 @@ void Z8LLib::openpads ()
     pdpat = z8p->findev ("8L", NULL, NULL, true);
     fprintf (stderr, "Z8LLib::openpads: 8L version %08X\n", pdpat[0]);
 
-    // load initial registers
-    for (int i = 0; i < Z_N; i ++) {
-        pdpat[i] = forceons[i];
+    char const *fpenv = getenv ("z8llib_fp");
+    if ((fpenv != 0) && (fpenv[0] & 1)) {
+
+        // access real PDP-8/L front panel via I2C bus connected to PIPAN8L board
+        uint32_t volatile *fpat = z8p->findev ("FP", NULL, NULL, true);
+        fprintf (stderr, "Z8LLib::openpads: FP version %08X\n", fpat[0]);
+        i2clib = new I2CLib ();
+        i2clib->openpads (fpat);
     }
 
-    // enable extended memory io instruction processing (to set data field, instruciton field, etc)
-    uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
-    fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
-    uint32_t xm = XM_ENABLE;
-    char const *enlo4k = getenv ("z8llib_enlo4k");
-    if ((enlo4k != NULL) && (enlo4k[0] & 1)) xm |= XM_ENLO4K;
-    char const *os8zap = getenv ("z8llib_os8zap");
-    if ((os8zap != NULL) && (os8zap[0] & 1)) xm |= XM_OS8ZAP;
-    fprintf (stderr, "Z8LLib::openpads: enlo4k=%o os8zap=%o\n", (xm & XM_ENLO4K) / XM_ENLO4K, (xm & XM_OS8ZAP) / XM_OS8ZAP);
-    xmemat[1] = xm;
+    else {
+
+        // access pdp8lsim.v simulator front panel
+
+        // load initial registers
+        for (int i = 0; i < Z_N; i ++) {
+            pdpat[i] = forceons[i];
+        }
+
+        // enable extended memory io instruction processing (to set data field, instruciton field, etc)
+        uint32_t volatile *xmemat = z8p->findev ("XM", NULL, NULL, true);
+        fprintf (stderr, "Z8LLib::openpads: XM version %08X\n", xmemat[0]);
+        uint32_t xm = XM_ENABLE;
+        char const *enlo4k = getenv ("z8llib_enlo4k");
+        if ((enlo4k != NULL) && (enlo4k[0] & 1)) xm |= XM_ENLO4K;
+        char const *os8zap = getenv ("z8llib_os8zap");
+        if ((os8zap != NULL) && (os8zap[0] & 1)) xm |= XM_OS8ZAP;
+        fprintf (stderr, "Z8LLib::openpads: enlo4k=%o os8zap=%o\n", (xm & XM_ENLO4K) / XM_ENLO4K, (xm & XM_OS8ZAP) / XM_OS8ZAP);
+        xmemat[1] = xm;
+    }
 }
 
-// read switches and lightbulbs from zynq pdp8l.v
 void Z8LLib::readpads (uint16_t *pads)
 {
-    uint32_t z8ls[Z_N];
-    for (int i = 0; i < Z_N; i ++) {
-        z8ls[i] = pdpat[i];
+    if (i2clib != NULL) {
+
+        // read switches and lightbulbs from real PDP-8/L via zynq pdp8lfp.v
+        i2clib->readpads (pads);
+    } else {
+
+        // read switches and lightbulbs from zynq pdp8lsim.v
+
+        uint32_t z8ls[Z_N];
+        for (int i = 0; i < Z_N; i ++) {
+            z8ls[i] = pdpat[i];
+        }
+
+        memset (pads, 0, P_NU16S * sizeof *pads);
+
+        for (int i = 0; ztop[i*3] != 0; i ++) {
+            uint32_t zi = ztop[i*3+0];
+            uint32_t zm = ztop[i*3+1];
+
+            if (z8ls[zi] & zm) {
+                uint32_t pb = ztop[i*3+2];
+                uint32_t pi = pb >> 4;
+                uint16_t pm = 1U << (pb & 15);
+                pads[pi] |= pm;
+            }
+        }
     }
+}
 
-    memset (pads, 0, P_NU16S * sizeof *pads);
+void Z8LLib::writepads (uint16_t const *pads)
+{
+    if (i2clib != NULL) {
 
-    for (int i = 0; ztop[i*3] != 0; i ++) {
-        uint32_t zi = ztop[i*3+0];
-        uint32_t zm = ztop[i*3+1];
+        // write switches to real PDP-8/L via zynq pdp8lfp.v
+        i2clib->writepads (pads);
+    } else {
 
-        if (z8ls[zi] & zm) {
+        // write switches to zynq pdp8lsim.v
+        uint32_t zrb = 0;   // all switches are in Z_RB
+        for (int i = 0; ztop[i*3] == Z_RB; i ++) {
             uint32_t pb = ztop[i*3+2];
             uint32_t pi = pb >> 4;
             uint16_t pm = 1U << (pb & 15);
-            pads[pi] |= pm;
+            if (pads[pi] & pm) {
+                zrb |= ztop[i*3+1];
+            }
         }
+        pdpat[Z_RB] = zrb;
     }
-}
-
-// write switches to zynq pdp8l.v
-void Z8LLib::writepads (uint16_t const *pads)
-{
-    uint32_t zrb = 0;   // all switches are in Z_RB
-    for (int i = 0; ztop[i*3] == Z_RB; i ++) {
-        uint32_t pb = ztop[i*3+2];
-        uint32_t pi = pb >> 4;
-        uint16_t pm = 1U << (pb & 15);
-        if (pads[pi] & pm) {
-            zrb |= ztop[i*3+1];
-        }
-    }
-    pdpat[Z_RB] = zrb;
 }

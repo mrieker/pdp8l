@@ -45,10 +45,13 @@ struct I2CLib : PadLib {
     virtual int readpin (int pinnum);
     virtual int writepin (int pinnum, int pinval);
 
+    void openpads (uint32_t volatile *fpat);
+
 private:
     int i2cfd;
-    uint32_t volatile *zynqpage;
+    uint32_t volatile *fpat;
 
+    void initmcps ();
     uint8_t read8 (uint8_t addr, uint8_t reg);
     void write8 (uint8_t addr, uint8_t reg, uint8_t byte);
     uint16_t read16 (uint8_t addr, uint8_t reg);
@@ -125,6 +128,7 @@ struct Z8LLib : PadLib {
     virtual void writepads (uint16_t const *pads);
 
 private:
+    I2CLib *i2clib;
     uint32_t volatile *pdpat;
     Z8LPage *z8p;
 };

@@ -1,0 +1,16 @@
+#!/bin/bash
+#
+#  Start pipan8l on the zturn board plugged into real PDP-8/L
+#  with I2C connection to PIPAN8L board plugged into real PDP-8/L
+#
+dd=`dirname $0`
+$dd/loadmod.sh
+export z8llib_fp=1
+export pipan8lini=$dd/z8lfpini.tcl
+dbg=
+if [ "$1" == "-gdb" ]
+then
+    dbg='-gdb'
+    shift
+fi
+exec ./pipan8l $dbg -z8l "$@"

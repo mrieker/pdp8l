@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4106;
+    localparam VERSION = 32'h384C4073;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -317,7 +317,6 @@ module Zynq (
     wire qBTP3;
     wire qBTS_1;
     wire qBTS_3;
-    wire qC36B2;
     wire qD35B2;
     wire qE_SET_F_SET;
     wire qLINE_LOW;
@@ -382,6 +381,9 @@ module Zynq (
     wire[31:00] rkardata;
     wire[11:00] rkibus;
     wire rkacclr, rkintrq, rkioskp;
+
+    // front panel i2c interface
+    wire[31:00] fpi2crdata;
 
     // extended memory interface wires
     wire[31:00] xmardata;
@@ -456,31 +458,33 @@ module Zynq (
         (readaddr        == 10'b0000010011) ? { 32'b0                  } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
-        (readaddr[11:04] ==  8'b00001100)   ? ttardata   :  // 00001100xx00
-        (readaddr[11:04] ==  8'b00001101)   ? tt40ardata :  // 00001101xx00
-        (readaddr[11:04] ==  8'b00001110)   ? xmardata   :  // 00001110xx00
-        (readaddr[11:04] ==  8'b00001111)   ? cmardata   :  // 00001111xx00
-        (readaddr[11:04] ==  8'b00010000)   ? eaardata   :  // 00010000xx00
-        (readaddr[11:04] ==  8'b00010001)   ? tt42ardata :  // 00010001xx00
-        (readaddr[11:04] ==  8'b00010010)   ? tt44ardata :  // 00010010xx00
-        (readaddr[11:04] ==  8'b00010011)   ? tt46ardata :  // 00010011xx00
-        (readaddr[11:03] ==  9'b000101000)  ? tcardata   :  // 000101000x00
-        (readaddr[11:03] ==  9'b000101001)  ? prardata   :  // 000101001x00
+        (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
+        (readaddr[11:04] ==  8'b00001110)   ? ttardata   :  // 00001110xx00
+        (readaddr[11:04] ==  8'b00001111)   ? tt40ardata :  // 00001111xx00
+        (readaddr[11:04] ==  8'b00010000)   ? xmardata   :  // 00010000xx00
+        (readaddr[11:04] ==  8'b00010001)   ? cmardata   :  // 00010001xx00
+        (readaddr[11:04] ==  8'b00010010)   ? eaardata   :  // 00010010xx00
+        (readaddr[11:04] ==  8'b00010011)   ? tt42ardata :  // 00010011xx00
+        (readaddr[11:04] ==  8'b00010100)   ? tt44ardata :  // 00010100xx00
+        (readaddr[11:04] ==  8'b00010101)   ? tt46ardata :  // 00010101xx00
+        (readaddr[11:03] ==  9'b000101100)  ? tcardata   :  // 000101100x00
+        (readaddr[11:03] ==  9'b000101101)  ? prardata   :  // 000101101x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
     wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;    // 0000100xxx00
     wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;    // 0000101xxx00
-    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001100;   // 00001100xx00
-    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001101;   // 00001101xx00
-    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
-    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
-    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
-    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
-    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
-    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
-    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101000;  // 000101000x00
-    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101001;  // 000101001x00
+    wire fpi2cwrite = armwrite & writeaddr[11:05] == 7'b0000110;    // 0000110xxx00
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
+    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
+    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
+    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
+    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
+    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
+    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101100;  // 000101100x00
+    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101101;  // 000101101x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -656,7 +660,6 @@ module Zynq (
     synk synkp3 (CLOCK, qBTP3,         oBTP3);
     synk synkt1 (CLOCK, qBTS_1,        oBTS_1);
     synk synkt3 (CLOCK, qBTS_3,        oBTS_3);
-    synk synkc3 (CLOCK, qC36B2,        oC36B2);
     synk synkd3 (CLOCK, qD35B2,        oD35B2);
     synk synkef (CLOCK, qE_SET_F_SET,  oE_SET_F_SET);
     synk synkll (CLOCK, qLINE_LOW,     oLINE_LOW);
@@ -1676,8 +1679,24 @@ module Zynq (
         .viddatab (viddatab)
     );
 
-    // paper tape reader interface
+    // real PDP-8/L front panel i2c interface
+    // connects to pipan8l/pcb board i2c interface
+    pdp8lfpi2c fpi2cinst (
+        .CLOCK (CLOCK),
+        .RESET (pwronreset),
 
+        .armwrite (fpi2cwrite),
+        .armraddr (readaddr[4:2]),
+        .armwaddr (writeaddr[4:2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (fpi2crdata),
+
+        .i2cclk (iB36V1),
+        .i2cdao (iD36B2),
+        .i2cdai (oC36B2)
+    );
+
+    // paper tape reader interface
     pdp8lptr prinst (
         .CLOCK (CLOCK),
         .CSTEP (nanocstep),

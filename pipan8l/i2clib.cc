@@ -97,6 +97,20 @@
 #define OLATA    0x14   // output pin latch
 #define OLATB    0x15
 
+#define ZPI2CCMD 1      // i2cmaster.v command register (64 bits)
+#define ZPI2CSTS 3      // i2cmaster.v status register (64 bits)
+#define ZYNQWR 3ULL     // write command (2 bits)
+#define ZYNQRD 2ULL     // read command (2 bits)
+#define ZYNQST 1ULL     // send restart bit (2 bits)
+#define I2CWR 0ULL      // 8th address bit indicating write
+#define I2CRD 1ULL      // 8th address bit indicating read
+#define ZCLEAR  4
+#define ZSTEPON 2       // turn on manual stepping for debug
+#define ZSTEPIT 1
+
+static uint8_t capture[100000];
+static int capcount;
+
 // which of the pins are outputs (switches)
 static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
 // active low outputs
@@ -104,27 +118,28 @@ static uint16_t const wrrevs[P_NU16S] = { P0_WREV, P1_WREV, P2_WREV, P3_WREV, P4
 // active low inputs + active low outputs (so we can read the outputs back)
 static uint16_t const rdwrrevs[P_NU16S] = { P0_RREV | P0_WREV, P1_RREV | P1_WREV, P2_RREV | P2_WREV, P3_RREV | P3_WREV, P4_RREV | P4_WREV };
 
+static void printcap ();
+static void printbit (char const *name, uint8_t bit);
+
 
 
 I2CLib::I2CLib ()
 {
+    fpat = NULL;
     i2cfd = -1;
-    zynqpage = NULL;
 }
 
 I2CLib::~I2CLib ()
 {
-    munmap ((void *) zynqpage, 4096);
     close (i2cfd);
-    zynqpage = NULL;
     i2cfd = -1;
+    fpat = NULL;
 }
 
 void I2CLib::openpads ()
 {
-    munmap ((void *) zynqpage, 4096);
     close (i2cfd);
-    zynqpage = NULL;
+    fpat = NULL;
     i2cfd = -1;
 
     char *i2cenv = getenv ("i2clibdev");
@@ -133,66 +148,63 @@ void I2CLib::openpads ()
         ABORT ();
     }
 
-    if (strcasecmp (i2cenv, "zynq") == 0) {
-
-        // use the i2cmaster.v module in the fpga to access the i2c bus
-        i2cfd = open ("/proc/zynqpdp8l", O_RDWR);
-        if (i2cfd < 0) {
-            fprintf (stderr, "I2CLib::openpads: error opening /proc/zynqpdp8l: %m\n");
+    // pulse GPIO<16> = PIN[36] to reset the MCP23017s
+    int gpiofd = open ("/dev/gpiomem", O_RDWR);
+    if ((gpiofd >= 0) || (errno != ENOENT)) {
+        if (gpiofd < 0) {
+            fprintf (stderr, "I2CLib::openpads: error opening /dev/gpiomem: %m\n");
             ABORT ();
         }
-
-        void *zynqptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, i2cfd, 0);
-        if (zynqptr == MAP_FAILED) {
-            fprintf (stderr, "I2CLib::openpads: error mmapping /proc/zynqpdp8l: %m\n");
+        void *gpioptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, gpiofd, 0);
+        if (gpioptr == MAP_FAILED) {
+            fprintf (stderr, "I2CLib::openpads: error mmapping /dev/gpiomem: %m\n");
             ABORT ();
         }
-        zynqpage = (uint32_t volatile *) zynqptr;
-        fprintf (stderr, "I2CLib::openpads: zynq version %08X\n", zynqpage[3]);
-    } else {
+        uint32_t volatile *gpiopage = (uint32_t volatile *) gpioptr;
 
-        // pulse GPIO<16> = PIN[36] to reset the MCP23017s
-        int gpiofd = open ("/dev/gpiomem", O_RDWR);
-        if ((gpiofd >= 0) || (errno != ENOENT)) {
-            if (gpiofd < 0) {
-                fprintf (stderr, "I2CLib::openpads: error opening /dev/gpiomem: %m\n");
-                ABORT ();
-            }
-            void *gpioptr = mmap (NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, gpiofd, 0);
-            if (gpioptr == MAP_FAILED) {
-                fprintf (stderr, "I2CLib::openpads: error mmapping /dev/gpiomem: %m\n");
-                ABORT ();
-            }
-            uint32_t volatile *gpiopage = (uint32_t volatile *) gpioptr;
+        // set GPIO<16> (pin[36]) to output mode
+        gpiopage[GPIO_FSEL0+1] = (gpiopage[GPIO_FSEL0+1] & 037770777777) | 000001000000;
 
-            // set GPIO<16> (pin[36]) to output mode
-            gpiopage[GPIO_FSEL0+1] = (gpiopage[GPIO_FSEL0+1] & 037770777777) | 000001000000;
+        // turn bit<16> on
+        gpiopage[GPIO_SET0] = 1U << 16;
 
-            // turn bit<16> on
-            gpiopage[GPIO_SET0] = 1U << 16;
+        // let it soak in
+        usleep (10);
 
-            // let it soak in
-            usleep (10);
+        // turn bit<16> off
+        gpiopage[GPIO_CLR0] = 1U << 16;
 
-            // turn bit<16> off
-            gpiopage[GPIO_CLR0] = 1U << 16;
+        // let it soak in
+        usleep (10);
 
-            // let it soak in
-            usleep (10);
-
-            // all done with GPIO
-            munmap (gpioptr, 4096);
-            close (gpiofd);
-        }
-
-        // open I2C bus #1 which is on GPIO connector : SDA=GPIO<02>=PIN[03] SCL=GPIO<03>=PIN[05]
-        i2cfd = open (i2cenv, O_RDWR);
-        if (i2cfd < 0) {
-            fprintf (stderr, "I2CLib::openpads: error opening %s: %m\n", i2cenv);
-            ABORT ();
-        }
+        // all done with GPIO
+        munmap (gpioptr, 4096);
+        close (gpiofd);
     }
 
+    // open I2C bus #1 which is on GPIO connector : SDA=GPIO<02>=PIN[03] SCL=GPIO<03>=PIN[05]
+    i2cfd = open (i2cenv, O_RDWR);
+    if (i2cfd < 0) {
+        fprintf (stderr, "I2CLib::openpads: error opening %s: %m\n", i2cenv);
+        ABORT ();
+    }
+
+    initmcps ();
+}
+
+// running on a zynq board
+//  fpat = pointer to pdp8lfpi2c.v registers
+void I2CLib::openpads (uint32_t volatile *fpat)
+{
+    this->fpat = fpat;
+    fpat[5] = ZSTEPON | ZCLEAR;
+    usleep (1);
+    fpat[5] = ZSTEPON;
+    initmcps ();
+}
+
+void I2CLib::initmcps ()
+{
     // set output mode for output pins
     // also enable weak pullups (ignored for output pins)
     for (int pad = 0; pad < P_NU16S; pad ++) {
@@ -203,14 +215,6 @@ void I2CLib::openpads ()
         write16 (I2CBA + pad, GPPUA, 0xFFFF);
     }
 }
-
-#define ZPI2CCMD 0x14   // i2cmaster.v command register (64 bits)
-#define ZPI2CSTS 0x16   // i2cmaster.v status register (64 bits)
-#define ZYNQWR 3ULL     // write command (2 bits)
-#define ZYNQRD 2ULL     // read command (2 bits)
-#define ZYNQST 1ULL     // send restart bit (2 bits)
-#define I2CWR 0ULL      // 8th address bit indicating write
-#define I2CRD 1ULL      // 8th address bit indicating read
 
 // read values from all 5 MCP23017s
 // flip the pins we consider to be active low so caller only sees active high
@@ -259,7 +263,8 @@ int I2CLib::writepin (int pinnum, int pinval)
 // read 8-bit value from mcp23017 reg at addr
 uint8_t I2CLib::read8 (uint8_t addr, uint8_t reg)
 {
-    if (zynqpage != NULL) {
+    fprintf (stderr, "read8*:\n");
+    if (fpat != NULL) {
         // build 64-bit command
         //  send-8-bits-to-i2cbus 7-bit-address 0=write
         //  send-8-bits-to-i2cbus 8-bit-register-number
@@ -274,13 +279,12 @@ uint8_t I2CLib::read8 (uint8_t addr, uint8_t reg)
             (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
             (ZYNQRD << 30);
         // writing high-order word triggers i/o, so write low-order first
-        zynqpage[ZPI2CCMD+0] = cmd;
-        zynqpage[ZPI2CCMD+1] = cmd >> 32;
-        // give busy bit plenty of time to set, should take well under 100nS
-        usleep (1);
+        fpat[ZPI2CCMD+0] = cmd;
+        fpat[ZPI2CCMD+1] = cmd >> 32;
         // wait for busy bit to clear, should take less than 12uS
         for (int i = 1000000; -- i >= 0;) {
-            uint32_t sts = zynqpage[ZPI2CSTS+1];
+            fpat[5] = ZSTEPON | ZSTEPIT;
+            uint32_t sts = fpat[ZPI2CSTS+1];
             if (! (sts & (1U << 31))) {
                 // make sure ack was received from mcp23017.v
                 if (sts & (1U << 30)) {
@@ -288,7 +292,7 @@ uint8_t I2CLib::read8 (uint8_t addr, uint8_t reg)
                     ABORT ();
                 }
                 // value in low 8 bits of status register
-                sts = zynqpage[ZPI2CSTS+0];
+                sts = fpat[ZPI2CSTS+0];
                 return (uint8_t) sts;
             }
         }
@@ -328,7 +332,8 @@ uint8_t I2CLib::read8 (uint8_t addr, uint8_t reg)
 // write 8-bit value to mcp23017 reg at addr
 void I2CLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
 {
-    if (zynqpage != NULL) {
+    fprintf (stderr, "write8*:\n");
+    if (fpat != NULL) {
         // build 64-bit command
         //  send-8-bits-to-i2cbus 7-bit-address 0=write
         //  send-8-bits-to-i2cbus 8-bit-register-number
@@ -339,13 +344,12 @@ void I2CLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
             (ZYNQWR << 52) | ((uint64_t) reg << 44) |
             (ZYNQWR << 42) | ((uint64_t) byte << 34);
         // writing high-order word triggers i/o, so write low-order first
-        zynqpage[ZPI2CCMD+0] = cmd;
-        zynqpage[ZPI2CCMD+1] = cmd >> 32;
-        // give busy bit plenty of time to set, should take well under 100nS
-        usleep (1);
+        fpat[ZPI2CCMD+0] = cmd;
+        fpat[ZPI2CCMD+1] = cmd >> 32;
         // wait for busy bit to clear, should take less than 12uS
         for (int i = 1000000; -- i >= 0;) {
-            uint32_t sts = zynqpage[ZPI2CSTS+1];
+            fpat[5] = ZSTEPON | ZSTEPIT;
+            uint32_t sts = fpat[ZPI2CSTS+1];
             if (! (sts & (1U << 31))) {
                 // make sure ack was received from mcp23017.v
                 if (sts & (1U << 30)) {
@@ -393,7 +397,8 @@ void I2CLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
 //           [15:08] = reg+1 contents
 uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
 {
-    if (zynqpage != NULL) {
+    fprintf (stderr, "read16*:  addr=%02X reg=%02X\n", addr, reg);
+    if (fpat != NULL) {
         // build 64-bit command
         //  send-8-bits-to-i2cbus 7-bit-address 0=write
         //  send-8-bits-to-i2cbus 8-bit-register-number
@@ -410,14 +415,15 @@ uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
             (ZYNQRD << 30) |
             (ZYNQRD << 28);
         // writing high-order word triggers i/o, so write low-order first
-        zynqpage[ZPI2CCMD+0] = cmd;
-        zynqpage[ZPI2CCMD+1] = cmd >> 32;
-        // give busy bit plenty of time to set, should take well under 100nS
-        usleep (1);
+        fpat[ZPI2CCMD+0] = cmd;
+        fpat[ZPI2CCMD+1] = cmd >> 32;
         // wait for busy bit to clear, should take less than 12uS
         for (int i = 1000000; -- i >= 0;) {
-            uint32_t sts = zynqpage[ZPI2CSTS+1];
+            fpat[5] = ZSTEPON | ZSTEPIT;
+            uint32_t sts = fpat[ZPI2CSTS+1];
             if (! (sts & (1U << 31))) {
+                fprintf (stderr, "read16*:  sts1=%08X\n", sts);
+                printcap ();
                 // make sure ack was received from mcp23017.v
                 if (sts & (1U << 30)) {
                     fprintf (stderr, "I2CLib::read16: i2c I/O error\n");
@@ -426,7 +432,8 @@ uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
                 // values in low 16 bits of status register
                 //  <15:08> = reg+0
                 //  <07:00> = reg+1
-                uint32_t sts0 = zynqpage[ZPI2CSTS+0];
+                uint32_t sts0 = fpat[ZPI2CSTS+0];
+                fprintf (stderr, "read16*:  sts0=%08X\n", sts0);
                 return (uint16_t) ((sts0 << 8) | ((sts0 >> 8) & 0xFFU));
             }
         }
@@ -477,7 +484,8 @@ uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
 //          word[15:08] => reg+1
 void I2CLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
 {
-    if (zynqpage != NULL) {
+    fprintf (stderr, "write16*: addr=%02X reg=%02X word=%04X\n", addr, reg, word);
+    if (fpat != NULL) {
         // build 64-bit command
         //  send-8-bits-to-i2cbus 7-bit-address 1=read
         //  send-8-bits-to-i2cbus 8-bit-register-number
@@ -490,22 +498,26 @@ void I2CLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
             (ZYNQWR << 42) | ((uint64_t) (word & 0xFFU) << 34) |
             (ZYNQWR << 32) | ((uint64_t) (word >> 8) << 24);
         // writing high-order word triggers i/o, so write low-order first
-        zynqpage[ZPI2CCMD+0] = cmd;
-        zynqpage[ZPI2CCMD+1] = cmd >> 32;
-        // give busy bit plenty of time to set, should take well under 100nS
-        usleep (1);
+        fpat[ZPI2CCMD+0] = cmd;
+        fpat[ZPI2CCMD+1] = cmd >> 32;
         // wait for busy bit to clear, should take less than 12uS
-        for (int i = 1000000; -- i >= 0;) {
-            uint32_t sts = zynqpage[ZPI2CSTS+1];
+        capcount = 0;
+        for (int i = 20000; -- i >= 0;) {
+            capture[capcount++] = fpat[5] >> 24;
+            fpat[5] = ZSTEPON | ZSTEPIT;
+            uint32_t sts = fpat[ZPI2CSTS+1];
             if (! (sts & (1U << 31))) {
+                fprintf (stderr, "write16*: sts1=%08X\n", sts);
                 // make sure ack was received from mcp23017.v
                 if (sts & (1U << 30)) {
                     fprintf (stderr, "I2CLib::write16: i2c I/O error\n");
+                    printcap ();
                     ABORT ();
                 }
                 return;
             }
         }
+        printcap ();
         fprintf (stderr, "I2CLib::write16: i2c I/O timeout\n");
         ABORT ();
     } else {
@@ -534,4 +546,43 @@ void I2CLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
             ABORT ();
         }
     }
+}
+
+static void printcap ()
+{
+    printbit ("SCL", 0x80);
+    printbit ("SDO", 0x40);
+    printbit ("SDI", 0x20);
+}
+
+static void printbit (char const *name, uint8_t bit)
+{
+    bool lastbit, thisbit, nextbit;
+
+    putchar ('\n');
+
+    fputs ("   ", stdout);
+
+    lastbit = (capture[0] & bit) != 0;
+    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
+        thisbit = (capture[i+0] & bit) != 0;
+        nextbit = (capture[i+1] & bit) != 0;
+        putchar ((thisbit & lastbit & nextbit) ? '_' : ' ');
+        lastbit = thisbit;
+    }
+    putchar ('\n');
+
+    fputs (name, stdout);
+
+    lastbit = (capture[0] & bit) != 0;
+    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
+        thisbit = (capture[i+0] & bit) != 0;
+        nextbit = (capture[i+1] & bit) != 0;
+        if (! lastbit &   nextbit) putchar ('/');
+        if (  lastbit & ! nextbit) putchar ('\\');
+        if (! lastbit & ! nextbit) putchar ('_');
+        if (  lastbit &   nextbit) putchar (' ');
+        lastbit = thisbit;
+    }
+    putchar ('\n');
 }

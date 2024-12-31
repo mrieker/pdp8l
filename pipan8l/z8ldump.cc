@@ -73,6 +73,7 @@ int main (int argc, char **argv)
     setvbuf (stdout, stdoutbuf, _IOFBF, sizeof stdoutbuf);
 
     bool oncemode = false;
+    bool pagemode = false;
     bool stepmode = false;
     char const *eol = EOL;
     XMemRange **lxmemrange, *xmemrange, *xmemranges;
@@ -83,8 +84,9 @@ int main (int argc, char **argv)
             puts ("     Dump ZTurn FPGA state");
             puts ("     Does not alter the state");
             puts ("");
-            puts ("  ./z8ldump.armv7l [-once | -step] [-xmem <lo>..<hi>]...");
+            puts ("  ./z8ldump.armv7l [-once | -page | -step] [-xmem <lo>..<hi>]...");
             puts ("     -once : just print the state once, else update continually");
+            puts ("     -page : just dump the raw page then exit");
             puts ("     -step : prompt between updates");
             puts ("     -xmem : dump the given extended memory range instead of register state");
             puts ("             may be given more than once");
@@ -96,6 +98,10 @@ int main (int argc, char **argv)
         if (strcasecmp (argv[i], "-once") == 0) {
             eol = "\n";
             oncemode = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-page") == 0) {
+            pagemode = true;
             continue;
         }
         if (strcasecmp (argv[i], "-step") == 0) {
@@ -131,6 +137,23 @@ int main (int argc, char **argv)
 
     Z8LPage z8p;
     uint32_t volatile *pdpat = z8p.findev ("8L", NULL, NULL, false);
+
+    // maybe just dump the page and exit
+    if (pagemode) {
+        uint32_t words[1024];
+        for (int i = 0; i < 1024; i ++) words[i] = pdpat[i];
+        int k;
+        for (k = 1024; words[--k] == 0xDEADBEEF;) { }
+        for (int i = 0; i <= k; i += 8) {
+            printf ("%03X:", i);
+            for (int j = 0; j < 8; j ++) {
+                printf (" %08X", words[i+j]);
+            }
+            printf ("\n");
+        }
+        return 0;
+    }
+
     uint32_t volatile *extmem = (xmemranges == NULL) ? NULL : z8p.extmem ();
 
     if (stepmode) {

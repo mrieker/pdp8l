@@ -99,14 +99,11 @@ int main (int argc, char **argv)
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
     uint32_t xm = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0) | (os8zap ? XM_OS8ZAP : 0);
-    printf ("main*:%d %08X\n", __LINE__, xm);
     xmemat[1]   = xm;
-    printf ("main*:%d %08X\n", __LINE__, xmemat[1]);
     usleep (10);
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
                             // omitting e_simit holds sim in power-on reset state
     xmemat[1]   = xm;
-    printf ("main*:%d %08X\n", __LINE__, xmemat[1]);
 
     // all devices are enabled at this point
     // turn off tty 03 if not wanted
