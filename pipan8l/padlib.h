@@ -22,7 +22,6 @@
 #define _PADLIB_H
 
 #include "pindefs.h"
-#include "z8lutil.h"
 
 struct PadLib {
     virtual ~PadLib () { }
@@ -45,11 +44,8 @@ struct I2CLib : PadLib {
     virtual int readpin (int pinnum);
     virtual int writepin (int pinnum, int pinval);
 
-    void openpads (uint32_t volatile *fpat);
-
 private:
     int i2cfd;
-    uint32_t volatile *fpat;
 
     void initmcps ();
     uint8_t read8 (uint8_t addr, uint8_t reg);
@@ -115,22 +111,6 @@ private:
     void doioinst ();
     void polltty ();
     char const *ststr ();
-};
-
-// access Zynq PDP-8/L code
-// the Zynq contains an emulated PDP-8/L in pdp8lsim.v
-struct Z8LLib : PadLib {
-    Z8LLib ();
-    virtual ~Z8LLib ();
-    virtual char const *libname () { return "z8l"; }
-    virtual void openpads ();
-    virtual void readpads (uint16_t *pads);
-    virtual void writepads (uint16_t const *pads);
-
-private:
-    I2CLib *i2clib;
-    uint32_t volatile *pdpat;
-    Z8LPage *z8p;
 };
 
 #endif

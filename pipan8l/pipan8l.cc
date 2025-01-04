@@ -79,7 +79,7 @@ static TclFunDef const fundefs[] = {
     { cmd_getpin,     "getpin",     "get gpio pin" },
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
-    { cmd_libname,    "libname",    "get library name i2c,sim,z8l" },
+    { cmd_libname,    "libname",    "get library name i2c,sim" },
     { cmd_readchar,   "readchar",   "read character with timeout" },
     { cmd_setpin,     "setpin",     "set gpio pin" },
     { cmd_setsw,      "setsw",      "set switch value" },
@@ -135,24 +135,18 @@ int main (int argc, char **argv)
     setlinebuf (stdout);
 
     bool simit = false;
-    bool z8lit = false;
     char const *logname = NULL;
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
         if (strcmp (argv[i], "-?") == 0) {
             puts ("");
-            puts ("  ./pipan8l [-log <logfile>] [-sim | -z8l] [<scriptfile.tcl>]");
+            puts ("  ./pipan8l [-log <logfile>] [-sim] [<scriptfile.tcl>]");
             puts ("     access pdp-8/l front panel");
             puts ("     -log : record output to given log file");
             puts ("     -sim : access c-module simulator");
             puts ("            invoke via ./pipan8l script");
             puts ("            runs on pc, raspi, zturn");
             puts ("            only has internal tty");
-            puts ("            does not need to be plugged into pdp");
-            puts ("     -z8l : access zturn simulator front panel");
-            puts ("            invoke via ./z8lsim script");
-            puts ("            runs on zturn only");
-            puts ("            has all zturn devices");
             puts ("            does not need to be plugged into pdp");
             puts ("     ...otherwise access real pdp front panel");
             puts ("            invoke via ./pipan8l script");
@@ -180,23 +174,17 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-sim") == 0) {
             simit = true;
-            z8lit = false;
-            continue;
-        }
-        if (strcasecmp (argv[i], "-z8l") == 0) {
-            simit = false;
-            z8lit = true;
             continue;
         }
         if (argv[i][0] == '-') {
-            fprintf (stderr, "usage: %s [-log <logfilename>] [-sim | -z8l] [<tclfilename> ...]\n", argv[0]);
+            fprintf (stderr, "unknown option %s\n", argv[i]);
             return 1;
         }
         tclargs = i;
         break;
     }
 
-    padlib = z8lit ? (PadLib *) new Z8LLib () : simit ? (PadLib *) new SimLib () : (PadLib *) new I2CLib ();
+    padlib = simit ? (PadLib *) new SimLib () : (PadLib *) new I2CLib ();
     padlib->openpads ();
     // initialize switches from existing switch states
     padlib->readpads (rdpads);
@@ -668,8 +656,6 @@ static void flushit ()
 
 // continuously display what would be on the PDP-8/L front panel
 // reads panel lights and switches from pipan8l via udp
-
-// with -z8l, reads lights & switches from pdp8lsim.v simulator running in zynq
 
 #define ESC_NORMV "\033[m"             /* go back to normal video */
 #define ESC_REVER "\033[7m"            /* turn reverse video on */

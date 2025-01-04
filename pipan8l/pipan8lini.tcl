@@ -649,12 +649,31 @@ proc octal {val} {
 ;# - using pipan8l on zynq with pdp8ltty.v (started via z8lsim): overridden by z8lsimini.tcl
 proc openttypipes {} {
     global wrkbpipe rdprpipe
-    set rdprpipe [open "pipan8l_ttypr" "r"]
-    set wrkbpipe [open "pipan8l_ttykb" "w"]
-    chan configure $rdprpipe -translation binary
-    chan configure $wrkbpipe -translation binary
-    chan configure $rdprpipe -blocking 0
-    while {[readttychartimed 500] != ""} { }
+    if {[libname] == "i2cz"} {
+
+        # running as z8lpanel on zynq chip plugged into PDP-8/L
+        # access the TTY port by spawning ./z8ltty and connect it to pipes
+        lassign [chan pipe] rdkbpipe wrkbpipe
+        lassign [chan pipe] rdprpipe wrprpipe
+        chan configure $rdkbpipe -translation binary
+        chan configure $wrkbpipe -translation binary
+        chan configure $rdprpipe -translation binary
+        chan configure $wrprpipe -translation binary
+        chan configure $rdprpipe -blocking 0
+        set ttypid [exec ./z8ltty -cps 30 -killit <@ $rdkbpipe >@ $wrprpipe &]
+        atexit "exec kill $ttypid"
+    } else {
+
+        # running as pipan8l on raspi chip either plugged into PDP-8/L front panel or simulating PDP-8/L
+        # if real PDP-8/L, pipan8l_ttypr and pipan8l_ttykb must be softlinked to the serial port connected to the PDPs TTY boards
+        # if simulating (pipan8l -sim), simlib.cc creates named pipes and we just access them
+        set rdprpipe [open "pipan8l_ttypr" "r"]
+        set wrkbpipe [open "pipan8l_ttykb" "w"]
+        chan configure $rdprpipe -translation binary
+        chan configure $wrkbpipe -translation binary
+        chan configure $rdprpipe -blocking 0
+        while {[readttychartimed 500] != ""} { }
+    }
 }
 
 # increment a variable but return its previous value
@@ -885,7 +904,9 @@ proc zeromem {start stop} {
 }
 
 # milliseconds to hold a momentary switch on
-set bncyms [getenv bncyms [expr {([libname] == "sim") ? 1 : 120}]]
+set bncyms [expr {([libname] == "sim") ? 1 : 120}]
+if {([libname] == "i2cz") && [pin get simit]} {set bncyms 20}
+set bncyms [getenv bncyms $bncyms]
 
 # message displayed as part of help command
 return "also, 'helpini' will print help for pipan8lini.tcl commands"

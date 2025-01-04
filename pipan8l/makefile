@@ -29,7 +29,6 @@ lib.$(MACH).a: \
 		readprompt.$(MACH).o \
 		simlib.$(MACH).o \
 		tclmain.$(MACH).o \
-		z8llib.$(MACH).o \
 		z8lutil.$(MACH).o
 	rm -f lib.$(MACH).a
 	ar rc $@ $^

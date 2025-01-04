@@ -97,20 +97,6 @@
 #define OLATA    0x14   // output pin latch
 #define OLATB    0x15
 
-#define ZPI2CCMD 1      // i2cmaster.v command register (64 bits)
-#define ZPI2CSTS 3      // i2cmaster.v status register (64 bits)
-#define ZYNQWR 3ULL     // write command (2 bits)
-#define ZYNQRD 2ULL     // read command (2 bits)
-#define ZYNQST 1ULL     // send restart bit (2 bits)
-#define I2CWR 0ULL      // 8th address bit indicating write
-#define I2CRD 1ULL      // 8th address bit indicating read
-#define ZCLEAR  4
-#define ZSTEPON 2       // turn on manual stepping for debug
-#define ZSTEPIT 1
-
-static uint8_t capture[100000];
-static int capcount;
-
 // which of the pins are outputs (switches)
 static uint16_t const wrmsks[P_NU16S] = { P0_WMSK, P1_WMSK, P2_WMSK, P3_WMSK, P4_WMSK };
 // active low outputs
@@ -118,14 +104,10 @@ static uint16_t const wrrevs[P_NU16S] = { P0_WREV, P1_WREV, P2_WREV, P3_WREV, P4
 // active low inputs + active low outputs (so we can read the outputs back)
 static uint16_t const rdwrrevs[P_NU16S] = { P0_RREV | P0_WREV, P1_RREV | P1_WREV, P2_RREV | P2_WREV, P3_RREV | P3_WREV, P4_RREV | P4_WREV };
 
-static void printcap ();
-static void printbit (char const *name, uint8_t bit);
-
 
 
 I2CLib::I2CLib ()
 {
-    fpat = NULL;
     i2cfd = -1;
 }
 
@@ -133,13 +115,11 @@ I2CLib::~I2CLib ()
 {
     close (i2cfd);
     i2cfd = -1;
-    fpat = NULL;
 }
 
 void I2CLib::openpads ()
 {
     close (i2cfd);
-    fpat = NULL;
     i2cfd = -1;
 
     char *i2cenv = getenv ("i2clibdev");
@@ -189,22 +169,6 @@ void I2CLib::openpads ()
         ABORT ();
     }
 
-    initmcps ();
-}
-
-// running on a zynq board
-//  fpat = pointer to pdp8lfpi2c.v registers
-void I2CLib::openpads (uint32_t volatile *fpat)
-{
-    this->fpat = fpat;
-    fpat[5] = ZSTEPON | ZCLEAR;
-    usleep (1);
-    fpat[5] = ZSTEPON;
-    initmcps ();
-}
-
-void I2CLib::initmcps ()
-{
     // set output mode for output pins
     // also enable weak pullups (ignored for output pins)
     for (int pad = 0; pad < P_NU16S; pad ++) {
@@ -263,128 +227,60 @@ int I2CLib::writepin (int pinnum, int pinval)
 // read 8-bit value from mcp23017 reg at addr
 uint8_t I2CLib::read8 (uint8_t addr, uint8_t reg)
 {
-    fprintf (stderr, "read8*:\n");
-    if (fpat != NULL) {
-        // build 64-bit command
-        //  send-8-bits-to-i2cbus 7-bit-address 0=write
-        //  send-8-bits-to-i2cbus 8-bit-register-number
-        //  send restart bit
-        //  send-8-bits-to-i2cbus 7-bit-address 1=read
-        //  read-8-bits-from-i2cbus
-        //  0...
-        uint64_t cmd =
-            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-            (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-            (ZYNQST << 42) |
-            (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
-            (ZYNQRD << 30);
-        // writing high-order word triggers i/o, so write low-order first
-        fpat[ZPI2CCMD+0] = cmd;
-        fpat[ZPI2CCMD+1] = cmd >> 32;
-        // wait for busy bit to clear, should take less than 12uS
-        for (int i = 1000000; -- i >= 0;) {
-            fpat[5] = ZSTEPON | ZSTEPIT;
-            uint32_t sts = fpat[ZPI2CSTS+1];
-            if (! (sts & (1U << 31))) {
-                // make sure ack was received from mcp23017.v
-                if (sts & (1U << 30)) {
-                    fprintf (stderr, "I2CLib::read8: i2c I/O error\n");
-                    ABORT ();
-                }
-                // value in low 8 bits of status register
-                sts = fpat[ZPI2CSTS+0];
-                return (uint8_t) sts;
-            }
-        }
-        fprintf (stderr, "I2CLib::read8: i2c I/O timeout\n");
+    struct i2c_rdwr_ioctl_data msgset;
+    struct i2c_msg iomsgs[2];
+    uint8_t wbuf[1], rbuf[1];
+
+    memset (&msgset, 0, sizeof msgset);
+    memset (iomsgs, 0, sizeof iomsgs);
+
+    wbuf[0] = reg;              // MCP23017 register number
+    iomsgs[0].addr  = addr;
+    iomsgs[0].flags = 0;        // write
+    iomsgs[0].buf   = wbuf;
+    iomsgs[0].len   = 1;
+
+    iomsgs[1].addr  = addr;
+    iomsgs[1].flags = I2C_M_RD; // read
+    iomsgs[1].buf   = rbuf;
+    iomsgs[1].len   = 1;
+
+    msgset.msgs = iomsgs;
+    msgset.nmsgs = 2;
+
+    int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
+    if (rc < 0) {
+        fprintf (stderr, "I2CLib::read8: error reading from %02X.%02X: %m\n", addr, reg);
         ABORT ();
-    } else {
-        struct i2c_rdwr_ioctl_data msgset;
-        struct i2c_msg iomsgs[2];
-        uint8_t wbuf[1], rbuf[1];
-
-        memset (&msgset, 0, sizeof msgset);
-        memset (iomsgs, 0, sizeof iomsgs);
-
-        wbuf[0] = reg;              // MCP23017 register number
-        iomsgs[0].addr  = addr;
-        iomsgs[0].flags = 0;        // write
-        iomsgs[0].buf   = wbuf;
-        iomsgs[0].len   = 1;
-
-        iomsgs[1].addr  = addr;
-        iomsgs[1].flags = I2C_M_RD; // read
-        iomsgs[1].buf   = rbuf;
-        iomsgs[1].len   = 1;
-
-        msgset.msgs = iomsgs;
-        msgset.nmsgs = 2;
-
-        int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
-        if (rc < 0) {
-            fprintf (stderr, "I2CLib::read8: error reading from %02X.%02X: %m\n", addr, reg);
-            ABORT ();
-        }
-        return rbuf[0];
     }
+    return rbuf[0];
 }
 
 // write 8-bit value to mcp23017 reg at addr
 void I2CLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
 {
-    fprintf (stderr, "write8*:\n");
-    if (fpat != NULL) {
-        // build 64-bit command
-        //  send-8-bits-to-i2cbus 7-bit-address 0=write
-        //  send-8-bits-to-i2cbus 8-bit-register-number
-        //  send-8-bits-to-i2cbus 8-bit-register-value
-        //  0...
-        uint64_t cmd =
-            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-            (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-            (ZYNQWR << 42) | ((uint64_t) byte << 34);
-        // writing high-order word triggers i/o, so write low-order first
-        fpat[ZPI2CCMD+0] = cmd;
-        fpat[ZPI2CCMD+1] = cmd >> 32;
-        // wait for busy bit to clear, should take less than 12uS
-        for (int i = 1000000; -- i >= 0;) {
-            fpat[5] = ZSTEPON | ZSTEPIT;
-            uint32_t sts = fpat[ZPI2CSTS+1];
-            if (! (sts & (1U << 31))) {
-                // make sure ack was received from mcp23017.v
-                if (sts & (1U << 30)) {
-                    fprintf (stderr, "I2CLib::write8: i2c I/O error\n");
-                    ABORT ();
-                }
-                return;
-            }
-        }
-        fprintf (stderr, "I2CLib::write8: i2c I/O timeout\n");
+    struct i2c_rdwr_ioctl_data msgset;
+    struct i2c_msg iomsgs[1];
+    uint8_t buf[2];
+
+    memset (&msgset, 0, sizeof msgset);
+    memset (iomsgs, 0, sizeof iomsgs);
+
+    buf[0] = reg;               // MCP23017 register number
+    buf[1] = byte;              // byte for reg+0
+
+    iomsgs[0].addr  = addr;
+    iomsgs[0].flags = 0;        // write
+    iomsgs[0].buf   = buf;
+    iomsgs[0].len   = 2;
+
+    msgset.msgs  = iomsgs;
+    msgset.nmsgs = 1;
+
+    int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
+    if (rc < 0) {
+        fprintf (stderr, "I2CLib::write8: error writing to %02X.%02X: %m\n", addr, reg);
         ABORT ();
-    } else {
-        struct i2c_rdwr_ioctl_data msgset;
-        struct i2c_msg iomsgs[1];
-        uint8_t buf[2];
-
-        memset (&msgset, 0, sizeof msgset);
-        memset (iomsgs, 0, sizeof iomsgs);
-
-        buf[0] = reg;               // MCP23017 register number
-        buf[1] = byte;              // byte for reg+0
-
-        iomsgs[0].addr  = addr;
-        iomsgs[0].flags = 0;        // write
-        iomsgs[0].buf   = buf;
-        iomsgs[0].len   = 2;
-
-        msgset.msgs  = iomsgs;
-        msgset.nmsgs = 1;
-
-        int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
-        if (rc < 0) {
-            fprintf (stderr, "I2CLib::write8: error writing to %02X.%02X: %m\n", addr, reg);
-            ABORT ();
-        }
     }
 }
 
@@ -397,82 +293,38 @@ void I2CLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
 //           [15:08] = reg+1 contents
 uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
 {
-    fprintf (stderr, "read16*:  addr=%02X reg=%02X\n", addr, reg);
-    if (fpat != NULL) {
-        // build 64-bit command
-        //  send-8-bits-to-i2cbus 7-bit-address 0=write
-        //  send-8-bits-to-i2cbus 8-bit-register-number
-        //  send restart bit
-        //  send-8-bits-to-i2cbus 7-bit-address 1=read
-        //  read-8-bits-from-i2cbus (reg+0)
-        //  read-8-bits-from-i2cbus (reg+1)
-        //  0...
-        uint64_t cmd =
-            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-            (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-            (ZYNQST << 42) |
-            (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
-            (ZYNQRD << 30) |
-            (ZYNQRD << 28);
-        // writing high-order word triggers i/o, so write low-order first
-        fpat[ZPI2CCMD+0] = cmd;
-        fpat[ZPI2CCMD+1] = cmd >> 32;
-        // wait for busy bit to clear, should take less than 12uS
-        for (int i = 1000000; -- i >= 0;) {
-            fpat[5] = ZSTEPON | ZSTEPIT;
-            uint32_t sts = fpat[ZPI2CSTS+1];
-            if (! (sts & (1U << 31))) {
-                fprintf (stderr, "read16*:  sts1=%08X\n", sts);
-                printcap ();
-                // make sure ack was received from mcp23017.v
-                if (sts & (1U << 30)) {
-                    fprintf (stderr, "I2CLib::read16: i2c I/O error\n");
-                    ABORT ();
-                }
-                // values in low 16 bits of status register
-                //  <15:08> = reg+0
-                //  <07:00> = reg+1
-                uint32_t sts0 = fpat[ZPI2CSTS+0];
-                fprintf (stderr, "read16*:  sts0=%08X\n", sts0);
-                return (uint16_t) ((sts0 << 8) | ((sts0 >> 8) & 0xFFU));
-            }
+    struct i2c_rdwr_ioctl_data msgset;
+    struct i2c_msg iomsgs[2];
+    uint8_t wbuf[1], rbuf[2];
+
+    memset (&msgset, 0, sizeof msgset);
+    memset (iomsgs, 0, sizeof iomsgs);
+
+    for (int retry = 0; retry < 3; retry ++) {
+        wbuf[0] = reg;              // MCP23017 register number
+        iomsgs[0].addr  = addr;
+        iomsgs[0].flags = 0;        // write
+        iomsgs[0].buf   = wbuf;
+        iomsgs[0].len   = 1;
+
+        iomsgs[1].addr  = addr;
+        iomsgs[1].flags = I2C_M_RD; // read
+        iomsgs[1].buf   = rbuf;
+        iomsgs[1].len   = 2;
+
+        msgset.msgs = iomsgs;
+        msgset.nmsgs = 2;
+
+        int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
+        if (rc >= 0) {
+            if (retry > 0) fprintf (stderr, "I2CLib::read16: reading recovered\n");
+            // reg+1 in upper byte; reg+0 in lower byte
+            return (rbuf[1] << 8) | rbuf[0];
         }
-        fprintf (stderr, "I2CLib::read16: i2c I/O timeout\n");
-        ABORT ();
-    } else {
-        struct i2c_rdwr_ioctl_data msgset;
-        struct i2c_msg iomsgs[2];
-        uint8_t wbuf[1], rbuf[2];
 
-        memset (&msgset, 0, sizeof msgset);
-        memset (iomsgs, 0, sizeof iomsgs);
-
-        for (int retry = 0; retry < 3; retry ++) {
-            wbuf[0] = reg;              // MCP23017 register number
-            iomsgs[0].addr  = addr;
-            iomsgs[0].flags = 0;        // write
-            iomsgs[0].buf   = wbuf;
-            iomsgs[0].len   = 1;
-
-            iomsgs[1].addr  = addr;
-            iomsgs[1].flags = I2C_M_RD; // read
-            iomsgs[1].buf   = rbuf;
-            iomsgs[1].len   = 2;
-
-            msgset.msgs = iomsgs;
-            msgset.nmsgs = 2;
-
-            int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
-            if (rc >= 0) {
-                if (retry > 0) fprintf (stderr, "I2CLib::read16: reading recovered\n");
-                // reg+1 in upper byte; reg+0 in lower byte
-                return (rbuf[1] << 8) | rbuf[0];
-            }
-
-            fprintf (stderr, "I2CLib::read16: error reading from %02X.%02X: %m\n", addr, reg);
-        }
-        ABORT ();
+        fprintf (stderr, "I2CLib::read16: error reading from %02X.%02X: %m\n", addr, reg);
     }
+    ABORT ();
 }
 
 // write 16-bit value to MCP23017 registers on I2C bus
@@ -484,105 +336,28 @@ uint16_t I2CLib::read16 (uint8_t addr, uint8_t reg)
 //          word[15:08] => reg+1
 void I2CLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
 {
-    fprintf (stderr, "write16*: addr=%02X reg=%02X word=%04X\n", addr, reg, word);
-    if (fpat != NULL) {
-        // build 64-bit command
-        //  send-8-bits-to-i2cbus 7-bit-address 1=read
-        //  send-8-bits-to-i2cbus 8-bit-register-number
-        //  send-8-bits-to-i2cbus 8-bit-reg+0-value
-        //  send-8-bits-to-i2cbus 8-bit-reg+1-value
-        //  0...
-        uint64_t cmd =
-            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-            (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-            (ZYNQWR << 42) | ((uint64_t) (word & 0xFFU) << 34) |
-            (ZYNQWR << 32) | ((uint64_t) (word >> 8) << 24);
-        // writing high-order word triggers i/o, so write low-order first
-        fpat[ZPI2CCMD+0] = cmd;
-        fpat[ZPI2CCMD+1] = cmd >> 32;
-        // wait for busy bit to clear, should take less than 12uS
-        capcount = 0;
-        for (int i = 20000; -- i >= 0;) {
-            capture[capcount++] = fpat[5] >> 24;
-            fpat[5] = ZSTEPON | ZSTEPIT;
-            uint32_t sts = fpat[ZPI2CSTS+1];
-            if (! (sts & (1U << 31))) {
-                fprintf (stderr, "write16*: sts1=%08X\n", sts);
-                // make sure ack was received from mcp23017.v
-                if (sts & (1U << 30)) {
-                    fprintf (stderr, "I2CLib::write16: i2c I/O error\n");
-                    printcap ();
-                    ABORT ();
-                }
-                return;
-            }
-        }
-        printcap ();
-        fprintf (stderr, "I2CLib::write16: i2c I/O timeout\n");
+    struct i2c_rdwr_ioctl_data msgset;
+    struct i2c_msg iomsgs[1];
+    uint8_t buf[3];
+
+    memset (&msgset, 0, sizeof msgset);
+    memset (iomsgs, 0, sizeof iomsgs);
+
+    buf[0] = reg;               // MCP23017 register number
+    buf[1] = word;              // byte for reg+0
+    buf[2] = word >> 8;         // byte for reg+1
+
+    iomsgs[0].addr  = addr;
+    iomsgs[0].flags = 0;        // write
+    iomsgs[0].buf   = buf;
+    iomsgs[0].len   = 3;
+
+    msgset.msgs  = iomsgs;
+    msgset.nmsgs = 1;
+
+    int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
+    if (rc < 0) {
+        fprintf (stderr, "I2CLib::write16: error writing to %02X.%02X: %m\n", addr, reg);
         ABORT ();
-    } else {
-        struct i2c_rdwr_ioctl_data msgset;
-        struct i2c_msg iomsgs[1];
-        uint8_t buf[3];
-
-        memset (&msgset, 0, sizeof msgset);
-        memset (iomsgs, 0, sizeof iomsgs);
-
-        buf[0] = reg;               // MCP23017 register number
-        buf[1] = word;              // byte for reg+0
-        buf[2] = word >> 8;         // byte for reg+1
-
-        iomsgs[0].addr  = addr;
-        iomsgs[0].flags = 0;        // write
-        iomsgs[0].buf   = buf;
-        iomsgs[0].len   = 3;
-
-        msgset.msgs  = iomsgs;
-        msgset.nmsgs = 1;
-
-        int rc = ioctl (i2cfd, I2C_RDWR, &msgset);
-        if (rc < 0) {
-            fprintf (stderr, "I2CLib::write16: error writing to %02X.%02X: %m\n", addr, reg);
-            ABORT ();
-        }
     }
-}
-
-static void printcap ()
-{
-    printbit ("SCL", 0x80);
-    printbit ("SDO", 0x40);
-    printbit ("SDI", 0x20);
-}
-
-static void printbit (char const *name, uint8_t bit)
-{
-    bool lastbit, thisbit, nextbit;
-
-    putchar ('\n');
-
-    fputs ("   ", stdout);
-
-    lastbit = (capture[0] & bit) != 0;
-    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
-        thisbit = (capture[i+0] & bit) != 0;
-        nextbit = (capture[i+1] & bit) != 0;
-        putchar ((thisbit & lastbit & nextbit) ? '_' : ' ');
-        lastbit = thisbit;
-    }
-    putchar ('\n');
-
-    fputs (name, stdout);
-
-    lastbit = (capture[0] & bit) != 0;
-    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
-        thisbit = (capture[i+0] & bit) != 0;
-        nextbit = (capture[i+1] & bit) != 0;
-        if (! lastbit &   nextbit) putchar ('/');
-        if (  lastbit & ! nextbit) putchar ('\\');
-        if (! lastbit & ! nextbit) putchar ('_');
-        if (  lastbit &   nextbit) putchar (' ');
-        lastbit = thisbit;
-    }
-    putchar ('\n');
 }
