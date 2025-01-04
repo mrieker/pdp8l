@@ -70,9 +70,11 @@ module pdp8lfpi2c (
             case (armwaddr)
                 1: commandlo <= armwdata;       // save lo-order command word
                 5: begin
-                    stepon <= armwdata[1];      // save stepon mode bit
-                    clear  <= armwdata[2];
-                    manual <= armwdata[3];
+                    stepon <= armwdata[01];     // save stepon mode bit
+                    clear  <= armwdata[02];
+                    manual <= armwdata[03];
+                    manclk <= armwdata[31];
+                    mandao <= armwdata[30];
                 end
             endcase
         end

@@ -42,13 +42,12 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
     output reg[63:00] comand;
     output reg[63:00] status;
 
-    reg[7:0] count;
-    wire[2:0] countlo;
-    wire[4:0] counthi;
+    reg[13:00] count;
     reg[2:0] state;
 
-    assign countlo = count[2:0];
-    assign counthi = count[7:3];
+    wire[8:0] countlo = count[08:00];
+    wire[4:0] counthi = count[13:09];
+    wire countend = countlo == 511;
 
     localparam[2:0] IDLE  = 0;
     localparam[2:0] START = 1;
@@ -76,14 +75,14 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
             case (state)
 
                 // send out start bit, starts with clock and data both high
-                // wait 80nS, data down
-                // wait 80nS, clock down
+                // wait 5uS, data down
+                // wait 5uS, clock down
             START:
                 begin
-                    if (countlo != 7) begin
+                    if (~ countend) begin
                         count <= count + 1;
                     end else begin
-                        case (count[6:3])
+                        case (counthi)
                         0:
                             begin
                                 count <= count + 1;
@@ -135,15 +134,15 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
 
                 // send stop bit
                 // clock, count and data all zero to start
-                // wait 80nS, clock up
-                // wait 80nS, data up
-                // wait 80nS, done
+                // wait 5uS, clock up
+                // wait 5uS, data up
+                // wait 5uS, done
             STOP:
                 begin
-                    if (countlo != 7) begin
+                    if (~ countend) begin
                         count <= count + 1;
                     end else begin
-                        case (count[6:3])
+                        case (counthi)
                         0:
                             begin
                                 count <= count + 1;
@@ -166,16 +165,16 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                 // clock and count all zero to start
                 // data is one to start
                 // repeat 7 times:
-                //  wait 80nS, clock up
-                //  wait 80nS, clock down, shift in data bits 7..1
-                // wait 80nS, clock up
-                // wait 80nS, clock down, shift in data bit 0, data down
-                // wait 80nS, clock up
-                // wait 80nS, clock down
-                // wait 80nS, done
+                //  wait 5uS, clock up
+                //  wait 5uS, clock down, shift in data bits 7..1
+                // wait 5uS, clock up
+                // wait 5uS, clock down, shift in data bit 0, data down
+                // wait 5uS, clock up
+                // wait 5uS, clock down
+                // wait 5uS, done
             READ:
                 begin
-                    if (countlo != 7) begin
+                    if (~ countend) begin
                         count <= count + 1;
                     end else begin
                         case (counthi)
@@ -218,22 +217,22 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                 // clock and count all zero to start
                 // data is data bit 7 to start
                 // repeat 7 times:
-                //  wait 80nS, clock up
-                //  wait 80nS, clock down
-                //  wait 80nS, send data bits 6..0
-                // wait 80nS, clock up
-                // wait 80nS, clock down
-                // wait 80nS, data up
-                // wait 80nS, clock up
-                // wait 80nS, if data up
+                //  wait 5uS, clock up
+                //  wait 5uS, clock down
+                //  wait 5uS, send data bits 6..0
+                // wait 5uS, clock up
+                // wait 5uS, clock down
+                // wait 5uS, data up
+                // wait 5uS, clock up
+                // wait 5uS, if data up
                 //              clear busy
                 //              set error
                 //              go idle
                 //            clock down
-                // wait 80nS, done
+                // wait 5uS, done
             WRITE:
                 begin
-                    if (countlo != 7) begin
+                    if (~ countend) begin
                         count <= count + 1;
                     end else begin
                         case (counthi)
@@ -285,7 +284,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
 
             STOP:
                 begin
-                    if (countlo != 7) begin
+                    if (~ countend) begin
                         count <= count + 1;
                     end else begin
                         case (counthi)
