@@ -147,11 +147,12 @@
 #define k_cyclectr  (01777U << 15)
 #define k_nextmajst (  017U << 25)
 
-#define l_xbraddr (077777U <<  0)
-#define l_xbrwena (     1U << 16)
-#define l_xbrenab (     1U << 20)
-#define m_xbrrdat ( 07777U <<  0)
-#define m_xbrwdat ( 07777U << 16)
+#define l_xbraddr  (077777U <<  0)
+#define l_xbrwena  (     1U << 16)
+#define l_xbrenab  (     1U << 20)
+#define l_meminprog (01777U << 22)
+#define m_xbrrdat  ( 07777U <<  0)
+#define m_xbrwdat  ( 07777U << 16)
 
 #define b_swSR0       (b_swSR       & - b_swSR)
 #define c_iINPUTBUS0  (c_iINPUTBUS  & - c_iINPUTBUS)
@@ -171,6 +172,7 @@
 #define l_xbraddr0    (l_xbraddr    & - l_xbraddr)
 #define l_xbrwena0    (l_xbrwena    & - l_xbrwena)
 #define l_xbrenab0    (l_xbrenab    & - l_xbrenab)
+#define l_meminprog0  (l_meminprog  & - l_meminprog)
 #define m_xbrrdat0    (m_xbrrdat    & - m_xbrrdat)
 #define m_xbrwdat0    (m_xbrwdat    & - m_xbrwdat)
 

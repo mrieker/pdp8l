@@ -158,7 +158,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4105;
+    localparam VERSION = 32'h384C4106;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -290,9 +290,10 @@ module Zynq (
     wire[11:00] iINPUTBUS;               // io data going out to real PDP-8/L INPUTBUS via our PIOBUS
     wire[11:00] i_MEM;                   // extended memory data going to real PDP-8/L MEM via our MEMBUS
     wire i_MEM_P;                        // extended memory parity going to real PDP-8/L MEM_P via our MEMBUSA
-    wire[11:00] oBAC;                    // real PDP-8/L AC contents, valid only during first half of io pulse
-    reg[11:00] oBMB;                     // real PDP-8/L MB contents, theoretically always valid (latched during io pulse)
-    wire[11:00] oMA;                     // real PDP-8/L MA contents, used by PDP-8/L to access extended memory
+    reg[11:00] oBAC;                     // sampled real PDP-8/L AC contents, used during i/o pulse processing
+    reg[11:00] oBMB;                     // sampled real PDP-8/L MB contents, used for i/o opcode, writing extended memory, reading core memory
+    reg[11:00] oMA;                      // sampled real PDP-8/L MA contents, used by PDP-8/L to access extended memory
+    reg[9:0] meminprog;
 
     reg bareit, simit, lastts1, lastts3, didio;
     reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
@@ -440,7 +441,7 @@ module Zynq (
         (readaddr        == 10'b0000001001) ? regctli    :
         (readaddr        == 10'b0000001010) ? regctlj    :
         (readaddr        == 10'b0000001011) ? regctlk    :
-        (readaddr        == 10'b0000001100) ? { 11'b0, xbrenab, 3'b0, xbrwena, 1'b0, xbraddr } :
+        (readaddr        == 10'b0000001100) ? { meminprog, 1'b0, xbrenab, 3'b0, xbrwena, 1'b0, xbraddr } :
         (readaddr        == 10'b0000001101) ? { 4'b0, xbrwdat, 4'b0, xbrrdat } :
         (readaddr        == 10'b0000001110) ? memcycctr  :
         (readaddr        == 10'b0000001111) ? {
@@ -878,6 +879,23 @@ module Zynq (
         end
     end
 
+    // see if PDP is doing stuff with the busses
+    // everything the PDP does begins with a MEMSTART pulse and lasts less than 5uS
+    // so we start a counter at 1023 at memstart and count it down to 0 (taking 10.23uS)
+    // ...restarting whenever we see memstart
+    // this is kind of like RUN, but takes into account cycles initiated by the console
+    always @(posedge CLOCK) begin
+        if (pwronreset) begin
+            meminprog <= 0;
+        end else if (nanocstep) begin
+            if (dev_oMEMSTART) begin
+                meminprog <= 1023;
+            end else if (meminprog != 0) begin
+                meminprog <= meminprog - 1;
+            end
+        end
+    end
+
     ////////////////////////
     //  multiplex DMABUS  //
     ////////////////////////
@@ -936,11 +954,6 @@ module Zynq (
     //  r_MA is asserted during first half of TS1 of an extended memory cycle
     //  x_MEM is asserted from middle of TS1 to end of TS4 for extended memory cycle
 
-    assign oMA = {
-        bMEMBUSH, bMEMBUSA, bMEMBUSB,  bMEMBUSJ, bMEMBUSE, bMEMBUSM,
-        bMEMBUSN, bMEMBUSF, bMEMBUSK,  bMEMBUSC, bMEMBUSL, bMEMBUSD
-    };
-
     assign r_MA  = bareit ? arm_r_MA  : dev_r_MA;
     assign x_MEM = bareit ? arm_x_MEM : dev_x_MEM;
     assign hizmembus = bareit ? arm_hizmembus : dev_hizmembus;
@@ -973,12 +986,6 @@ module Zynq (
     //   - PIOBUS must be zeroes if none of our devices are selected during this time
     //     so we don't jam up the j_INPUTBUS going to the PDP
 
-    // receive AC contents from PIOBUS, but it is valid only during first half of io pulse
-    // (ie, when r_BAC is asserted), garbage otherwise
-    assign oBAC = {
-        bPIOBUSA, bPIOBUSH, bPIOBUSB, bPIOBUSJ, bPIOBUSC, bPIOBUSK,
-        bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
-
     // gate INPUTBUS out to PIOBUS whenever it is enabled (from second half of io pulse to 40nS afterward)
     // note that iINPUTBUS will be all zeroes if none of our devices are selected cuz it is or of all device outputs
     // ...which causes all PIOBUS lines to be zero and open-draining all the j_INPUTBUS transistors
@@ -997,25 +1004,102 @@ module Zynq (
 
     // latch MB contents from piobus when not in io pulse
     // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
-    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes (eg, writing extended memory or reading core memory)
+    // clock it continuously when outside of io pulse so it tracks MB contents for other purposes
+    //  (eg, writing extended memory or reading core memory)
+
+    //  if (it as been a while since end of io pulses) begin
+    //    make sure we aren't sending INPUTBUS out over the PIOBUS
+    //    if (processor can possibly be doing a memory cycle) begin
+    //      if (within a few fpga cycles after TS3 dropped) begin
+    //        use PIOBUS to update local copy of AC
+    //      end else begin
+    //        use PIOBUS to update local copy of MB
+    //      end
+    //    end else begin
+    //      use PIOBUS to update local copy of AC
+    //      use PIOBUS to update local copy of MB
+    //    end
+    //  end else if (within first part of io pulse) begin
+    //    use PIOBUS to update local copy of AC
+    //  end else if (within rest of io pulse or a little after) begin
+    //    use PIOBUS to send INPUTBUS out over the PIOBUS
+    //  end else begin
+    //    use PIOBUS to update local copy of MB
+    //  end
+
+    reg[2:0] sincets3;
+
     always @(posedge CLOCK) begin
         if (pwronreset) begin
             dev_r_BAC <= 1;
             dev_r_BMB <= 1;
             dev_x_INPUTBUS <= 1;
+            sincets3  <= 0;
         end else if (nanocstep) begin
             if ((iopsetcount == 0) & (iopclrcount == 7)) begin
-                // not doing any io, continuously clock in MB contents
-                dev_r_BAC <= 1;
-                dev_r_BMB <= 0;
+
+                // not doing any i/o, stop sending reply back to PDP
                 dev_x_INPUTBUS <= 1;
-                oBMB <= {
-                    bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
-                    bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
+
+                // see if PDP is doing a memory cycle (either running or console)
+                if (meminprog[9:4] != 0) begin
+
+                    // grab copy of AC in first few cycles after any TS3 ends
+                    //  the AC is updated for AND TAD DCA OPR by posedge TP3
+                    //  so should be updated by the time we see TS3 drop
+                    // this is just used for console display of AC contents
+                    // if the TS3 is for an IOT, this should be over long before first i/o pulse
+                    if (lastts3 & ~ dev_oBTS_3) begin
+                        sincets3  <= 1;
+                        dev_r_BAC <= 1;
+                        dev_r_BMB <= 1;
+                    end else if (sincets3 == 1) begin
+                        sincets3  <= 2;
+                        dev_r_BAC <= 0;
+                    end else if (sincets3 == 6) begin
+                        sincets3  <= 7;
+                        dev_r_BAC <= 1;
+                    end else if (sincets3 == 7) begin
+                        sincets3  <= 0;
+                        dev_r_BMB <= 0;
+                    end else if (sincets3 != 0) begin
+                        sincets3  <= sincets3 + 1;
+                    end
+
+                    // otherwise continuously clock in MB contents
+                    else begin
+                        dev_r_BAC <= 1;
+                        dev_r_BMB <= 0;
+                    end
+                end
+
+                // last 160nS well after a memory cycle ended without a new one starting
+                // processor is assumed to be stopped and not doing any console memory cycle
+                // get final update of AC and MB registers
+                // we can get yanked out of this sequence at any time by the processor starting a memory cycle
+                else begin
+                    case (meminprog[3:0])
+                        15: begin
+                            dev_r_BAC <= 1;         // turn everything on PIOBUS off for 10nS
+                            dev_r_BMB <= 1;
+                            dev_x_INPUTBUS <= 1;
+                        end
+                        14: begin
+                            dev_r_BAC <= 0;         // gate AC onto PIOBUS and start capturing
+                        end
+                         7: begin
+                            dev_r_BAC <= 1;         // turn AC off and stop capturing
+                        end
+                         6: begin
+                            dev_r_BMB <= 0;         // gate MB onto PIOBUS and start capturing
+                        end
+                    endcase
+                end
             end else if (iopsetcount ==  1 & iopclrcount == 0) begin
                 // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
                 // ...and leave oBMB contents as they were (contains io opcode)
                 dev_r_BMB <= 1;
+                sincets3  <= 0;
             end else if (iopsetcount ==  2 & iopclrcount == 0) begin
                 // ... then turn on receiving AC from PIOBUS
                 dev_r_BAC <= 0;
@@ -1028,6 +1112,36 @@ module Zynq (
             end else if (iopsetcount ==  0 & iopclrcount == 4) begin
                 // ... then turn off sending io results to PIOBUS
                 dev_x_INPUTBUS <= 1;
+            end
+
+            // update local copy of AC whenever it is gated onto PIOBUS
+            // might get a couple false readings when dev_r_BAC first asserted but should catch up
+            // - updates during first part of i/o pulses so it is valid for i/o opcode processing
+            // - also updates just after end of TS3 so AC is updated for console while running
+            // - also updates when PDP stops for console while stopped
+            if (~ dev_r_BAC) begin
+                oBAC <= {
+                    bPIOBUSA, bPIOBUSH, bPIOBUSB, bPIOBUSJ, bPIOBUSC, bPIOBUSK,
+                    bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
+            end
+
+            // likewise with MB
+            // - updates when not updating AC and not sending i/o input data out to PDP
+            //   so it has i/o opcode for IOT instructions
+            //   and data read from memory for DMA cycles
+            //   and data to write to memory for external memory cycles
+            //   and is also up-to-date for console
+            if (~ dev_r_BMB) begin
+                oBMB <= {
+                    bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
+                    bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
+            end
+
+            // likewise with MA while we're at it
+            if (~ dev_r_MA) begin
+                oMA <= {
+                    bMEMBUSH, bMEMBUSA, bMEMBUSB,  bMEMBUSJ, bMEMBUSE, bMEMBUSM,
+                    bMEMBUSN, bMEMBUSF, bMEMBUSK,  bMEMBUSC, bMEMBUSL, bMEMBUSD };
             end
         end
     end
@@ -1425,6 +1539,7 @@ module Zynq (
         ._ea      (xm_ea),              // _EA=1 use 4K core stack and cpu's controller; _EA=0 use this controller
         ._intinh  (xm_intinh),          // block interrupt delivery
 
+        .meminprog (meminprog),         //> counts down fpga cycles after memstart
         .r_MA      (dev_r_MA),          //> gate memory address in from memory bus
         .x_MEM     (dev_x_MEM),         //> gate memory data out to memory bus
         .hizmembus (dev_hizmembus),     //> hi-Z MEMBUS lines

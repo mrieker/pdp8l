@@ -63,6 +63,7 @@ module pdp8lxmem (
 
     input _bf_enab, _df_enab, exefet, _intack, jmpjms, ts1, ts3, tp3, _zf_enab,
     output _ea, _intinh,
+    input[9:0] meminprog,
     output reg r_MA, x_MEM, hizmembus,
 
     input ldaddrsw,                 // load address switch
@@ -338,18 +339,36 @@ module pdp8lxmem (
 
                 // wait for PDP/sim to start a memory cycle for external memory
                 0: begin
-                    _mwdone <= 1;
-                    x_MEM   <= 1;
+                    _mwdone <= 1;                           // make sure PDP/sim knows we are done with lsat cycle's write
+                    x_MEM   <= 1;                           // make sure we aren't gating any read data onto FPGAs MEMBUS
+
+                    // check for starting an external memory cycle
                     if (xmmemenab) begin
-                        xmstate   <= 1;
-                        hizmembus <= 1;
-                    end else if (r_MA & x_MEM) begin
-                        hizmembus <= 0;
+                        xmstate   <= 1;                     // start processing external memory cycle
+                        hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
                     end
+
+                    // if PDP is busy, send zeroes out to FPGAs MEMBUS to open-drain the transistors
+                    // ...so they don't jam up the PDPs MEM bus while it uses its core stack
+                    // this runs continuously while the PDP is doing an internal memory cycle
+                    if (meminprog[9:3] != 0) begin
+                        if (r_MA & x_MEM) hizmembus <= 0;
+                        else r_MA <= 1;
+                    end
+
+                    // it has been a while since any MEMSTART pulse so assume the PDP is stopped
+                    // clock in the PDPs MA register so it shows up on console
+                    else case (meminprog[2:0])
+                        7: hizmembus <= 1;                  // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
+                        6: r_MA <= 0;                       // gate PDPs MA onto FPGAs MEMBUS
+                                                            // zynq.v clocks it into its oMA
+                        0: r_MA <= 1;                       // should be soaked in by now
+                    endcase
                 end
 
-                // if before read pulse, latch in memory address from MEMBUS
-                // if at start of read pulse, stop gating MA onto MEMBUS
+                // doing external memory cycle:
+                //   if before read pulse, latch in memory address from MEMBUS
+                //   if at start of read pulse, stop gating PDPs MA onto MEMBUS
                 1: begin
                     if (~ xmread) begin r_MA <= 0; xbraddr <= { field, memaddr }; end
                     else begin r_MA <= 1; xmstate <= 2; end
