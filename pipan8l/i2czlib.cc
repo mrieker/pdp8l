@@ -68,11 +68,19 @@ I2CZLib::I2CZLib ()
 I2CZLib::~I2CZLib ()
 { }
 
-void I2CZLib::openpads ()
+void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
 {
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
     fpat  = z8p->findev ("FP", NULL, NULL, false);
+
+    uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
+    if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
+    if (enlo4k)  xmat[1] |=   XM_ENLO4K;
+
+    if (real) pdpat[Z_RE] &= ~ e_simit;
+    if (sim)  pdpat[Z_RE] |=   e_simit;
+    pdpat[Z_RE] |= e_nanocontin;
 }
 
 // read light bulbs and switches
@@ -89,8 +97,8 @@ void I2CZLib::readpads (Z8LPanel *pads)
     pads->light.ma  = (zri & i_oMA)  / i_oMA0;
     pads->light.mb  = (zrh & h_oBMB) / h_oBMB0;
     pads->light.ac  = (zrh & h_oBAC) / h_oBAC0;
-    pads->light.ema = (zra & a_i_EMA) == 0;
-    pads->light.run = (zrf & f_o_B_RUN) == 0;
+    pads->light.ema = (zra & a_iEMA) != 0;
+    pads->light.run = (zrf & f_oB_RUN) != 0;
     pads->light.brk = (zrf & f_o_B_BREAK) == 0;
 
     // if using simulator, get everything else from pdp8lsim.v

@@ -40,6 +40,7 @@
 #include <unistd.h>
 
 #include "assemble.h"
+#include "cmd_pin.h"
 #include "disassemble.h"
 #include "i2czlib.h"
 #include "readprompt.h"
@@ -51,6 +52,7 @@ static Tcl_ObjCmdProc cmd_assemop;
 static Tcl_ObjCmdProc cmd_disasop;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
+static Tcl_ObjCmdProc cmd_libname;
 static Tcl_ObjCmdProc cmd_readchar;
 static Tcl_ObjCmdProc cmd_relsw;
 static Tcl_ObjCmdProc cmd_setsw;
@@ -60,6 +62,8 @@ static TclFunDef const fundefs[] = {
     { cmd_disasop,    "disasop",    "disassemble instruction" },
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
+    { cmd_libname,    "libname",    "get library name i2c,sim,z8l" },
+    { CMD_PIN },
     { cmd_readchar,   "readchar",   "read character with timeout" },
     { cmd_relsw,      "relsw",      "release control of switch" },
     { cmd_setsw,      "setsw",      "set switch value" },
@@ -106,14 +110,22 @@ int main (int argc, char **argv)
 
     setlinebuf (stdout);
 
+    bool dislo4k = false;
+    bool enlo4k  = false;
+    bool real    = false;
+    bool sim     = false;
     char const *logname = NULL;
     int tclargs = argc;
     for (int i = 0; ++ i < argc;) {
         if (strcmp (argv[i], "-?") == 0) {
             puts ("");
-            puts ("  ./z8lpanel [-log <logfile>] [<scriptfile.tcl>]");
+            puts ("  ./z8lpanel [-dislo4k | -enlo4k] [-log <logfile>] [-real | -sim] [<scriptfile.tcl>]");
             puts ("     access pdp-8/l front panel");
+            puts ("     -dislo4k : use pdp-8/l core stack for low 4K");
+            puts ("     -enlo4k : use fpga-provided ram for low 4K");
             puts ("     -log : record output to given log file");
+            puts ("     -real : use real pdp-8/l");
+            puts ("     -sim : simulate the pdp-8/l");
             puts ("     <scriptfile.tcl> : execute script then exit");
             puts ("                 else : read and process commands from stdin");
             puts ("");
@@ -124,12 +136,32 @@ int main (int argc, char **argv)
             puts ("");
             return 0;
         }
+        if (strcasecmp (argv[i], "-dislo4k") == 0) {
+            dislo4k = true;
+            enlo4k  = false;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-enlo4k") == 0) {
+            dislo4k = false;
+            enlo4k  = true;
+            continue;
+        }
         if (strcasecmp (argv[i], "-log") == 0) {
             if ((++ i >= argc) || (argv[i][0] == '-')) {
                 fprintf (stderr, "missing filename after -log\n");
                 return 1;
             }
             logname = argv[i];
+            continue;
+        }
+        if (strcasecmp (argv[i], "-real") == 0) {
+            real = true;
+            sim  = false;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-sim") == 0) {
+            real = false;
+            sim  = true;
             continue;
         }
         if (argv[i][0] == '-') {
@@ -141,7 +173,7 @@ int main (int argc, char **argv)
     }
 
     padlib = new I2CZLib ();
-    padlib->openpads ();
+    padlib->openpads (dislo4k, enlo4k, real, sim);
 
     // create udp server thread
     {
@@ -345,6 +377,14 @@ static int cmd_getsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
     return TCL_ERROR;
 }
 
+// get library name
+static int cmd_libname (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    static char libname[] = "i2cz";
+    Tcl_SetResult (interp, libname, TCL_STATIC);
+    return TCL_OK;
+}
+
 // read character with timeout as an integer
 // returns null string if timeout, else decimal integer
 //  readchar file timeoutms
@@ -444,12 +484,11 @@ static int cmd_setsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
             for (Switch const *sw = switches; sw->name != NULL; sw ++) {
                 if (strcasecmp (swname, sw->name) == 0) {
                     uint16_t mask = (1 << sw->nbits) - 1;
-                    if ((swval < 0) || (swval >= mask)) {
+                    if ((swval < 0) || (swval > mask)) {
                         Tcl_SetResultF (interp, "value %d out of range for switch %s", swval, swname);
                         return TCL_ERROR;
                     }
                     if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
-                    Z8LPanel pads;
                     padlib->readpads (&pads);
                     if (sw->bvalptr != NULL) *(sw->bvalptr) = swval;
                     if (sw->wvalptr != NULL) *(sw->wvalptr) = swval;

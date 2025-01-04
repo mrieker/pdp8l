@@ -259,18 +259,35 @@ proc escapechr {ch} {
 }
 
 # flick momentary switch on then off
-proc flicksw {swname} {
-    global bncyms
-    setsw $swname 1
-    flushit
-    setsw bncy 1
-    flushit
-    after $bncyms
-    setsw bncy 0
-    flushit
-    setsw $swname 0
-    flushit
-    after $bncyms
+if {[libname] == "i2cz"} {
+    # z8lpanel does not have flushit or bncy
+    proc flicksw {swname} {
+        global bncyms
+        setsw $swname 1
+        after $bncyms
+        setsw $swname 0
+        after $bncyms
+    }
+} else {
+    # pipan8l has flushit and bncy
+    proc flicksw {swname} {
+        global bncyms
+        setsw $swname 1
+        flushit
+        setsw bncy 1
+        flushit
+        after $bncyms
+        setsw bncy 0
+        flushit
+        setsw $swname 0
+        flushit
+        after $bncyms
+    }
+}
+
+# dummy flushit function for z8lpanel
+if {[libname] == "i2cz"} {
+    proc flushit {} { }
 }
 
 # get environment variable, return default value if not defined
