@@ -844,18 +844,5 @@ proc zeromem {start stop} {
 # milliseconds to hold a momentary switch on
 set bncyms [getenv bncyms [expr {([libname] == "sim") ? 1 : 120}]]
 
-# make sure processor is stopped
-# and turn off all the other switches
-setsw cont  0
-setsw dep   0
-setsw dfld  0
-setsw exam  0
-setsw ifld  0
-setsw ldad  0
-setsw mprt  0
-setsw start 0
-setsw step  0
-flicksw stop
-
 # message displayed as part of help command
 return "also, 'helpini' will print help for pipan8lini.tcl commands"
