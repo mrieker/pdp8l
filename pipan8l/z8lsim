@@ -11,4 +11,4 @@ then
     dbg='-gdb'
     shift
 fi
-exec ./pipan8l $dbg -z8l "$@"
+exec $dd/pipan8l $dbg -z8l "$@"

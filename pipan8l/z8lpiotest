@@ -4,7 +4,7 @@ $dd/loadmod.sh
 dbg=
 if [ "$1" == "-gdb" ]
 then
-    dbg='-gdb'
+    dbg='gdb --args'
     shift
 fi
-exec $0.`uname -m` $dbg "$@"
+exec $dbg $0.`uname -m` "$@"

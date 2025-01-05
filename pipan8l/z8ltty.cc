@@ -63,6 +63,7 @@ static bool punchquiet;
 static bool punchstat;
 static bool readerquiet;
 static bool readerstat;
+static bool upcase;
 static int punchfile = -1;
 static int readerfile = -1;
 static struct termios term_original;
@@ -92,7 +93,7 @@ int main (int argc, char **argv)
             puts ("");
             puts ("     Access TTY");
             puts ("");
-            puts ("  ./z8ltty [-cps <charspersec>] [-killit] [-nokb] [<octalportnumber>] [-tcl [<scriptfilename> [<scriptargs...>]]]");
+            puts ("  ./z8ltty [-cps <charspersec>] [-killit] [-nokb] [<octalportnumber>] [-tcl [-upcase] [<scriptfilename> [<scriptargs...>]]]");
             puts ("     -cps    : set chars per second, default 10");
             puts ("     -killit : kill other process that is processing this tty port");
             puts ("     -nokb   : do not pass stdin keyboard to pdp");
@@ -101,6 +102,7 @@ int main (int argc, char **argv)
             puts ("               if <scriptfilename> [<scriptargs...>] given, process from that script");
             puts ("               otherwise read and process commands from stdin");
             puts ("               needed for loading papertape files");
+            puts ("     -upcase : convert all keyboard to upper case");
             puts ("");
             puts ("     Can access TTY 03 only if -entty03 given to z8lreal or using z8lsim simulator");
             puts ("");
@@ -130,6 +132,10 @@ int main (int argc, char **argv)
             dotcl = true;
             tclargs = i + 1;
             break;
+        }
+        if (strcasecmp (argv[i], "-upcase") == 0) {
+            upcase = true;
+            continue;
         }
         if (argv[i][0] == '-') {
             fprintf (stderr, "unknown option %s\n", argv[i]);
@@ -568,6 +574,7 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                 if ((rc == 0) && ! stdintty) break;
                 if (rc <= 0) ABORT ();
                 if ((kbchar == '\\' - '@') && stdintty) break;
+                if (upcase && (kbchar >= 'a') && (kbchar <= 'z')) kbchar -= 'a' - 'A';
                 ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | 0200 | kbchar;
                 readnextkbat = nowus + 1000000 / cps;
             } else if (readerfile >= 0) {
