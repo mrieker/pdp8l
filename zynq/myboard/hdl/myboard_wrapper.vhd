@@ -1,7 +1,7 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Tue Dec 31 16:17:23 2024
+--Date        : Mon Jan  6 12:58:23 2025
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -49,6 +49,7 @@ entity myboard_wrapper is
     bDMABUSL_0 : inout STD_LOGIC;
     bDMABUSM_0 : inout STD_LOGIC;
     bDMABUSN_0 : inout STD_LOGIC;
+    bFPI2CDATA_0 : inout STD_LOGIC;
     bMEMBUSA_0 : inout STD_LOGIC;
     bMEMBUSB_0 : inout STD_LOGIC;
     bMEMBUSC_0 : inout STD_LOGIC;
@@ -79,6 +80,8 @@ entity myboard_wrapper is
     iBRK_RQST_0 : out STD_LOGIC;
     iEMA_0 : out STD_LOGIC;
     iEXTDMAADD_12_0 : out STD_LOGIC;
+    iFPI2CCLK_0 : out STD_LOGIC;
+    iFPI2CDDIR_0 : out STD_LOGIC;
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
     iIO_SKIP_0 : out STD_LOGIC;
@@ -87,6 +90,7 @@ entity myboard_wrapper is
     i_D36B2_0 : out STD_LOGIC;
     i_DATA_IN_0 : out STD_LOGIC;
     i_EA_0 : out STD_LOGIC;
+    i_FPI2CDENA_0 : out STD_LOGIC;
     i_MEMDONE_0 : out STD_LOGIC;
     i_MEMINCR_0 : out STD_LOGIC;
     i_MEM_07_0 : out STD_LOGIC;
@@ -240,7 +244,11 @@ architecture STRUCTURE of myboard_wrapper is
     FIXED_IO_ddr_vrp : inout STD_LOGIC;
     FIXED_IO_ps_srstb : inout STD_LOGIC;
     FIXED_IO_ps_clk : inout STD_LOGIC;
-    FIXED_IO_ps_porb : inout STD_LOGIC
+    FIXED_IO_ps_porb : inout STD_LOGIC;
+    bFPI2CDATA_0 : inout STD_LOGIC;
+    i_FPI2CDENA_0 : out STD_LOGIC;
+    iFPI2CCLK_0 : out STD_LOGIC;
+    iFPI2CDDIR_0 : out STD_LOGIC
   );
   end component myboard;
 begin
@@ -282,6 +290,7 @@ myboard_i: component myboard
       bDMABUSL_0 => bDMABUSL_0,
       bDMABUSM_0 => bDMABUSM_0,
       bDMABUSN_0 => bDMABUSN_0,
+      bFPI2CDATA_0 => bFPI2CDATA_0,
       bMEMBUSA_0 => bMEMBUSA_0,
       bMEMBUSB_0 => bMEMBUSB_0,
       bMEMBUSC_0 => bMEMBUSC_0,
@@ -312,6 +321,8 @@ myboard_i: component myboard
       iBRK_RQST_0 => iBRK_RQST_0,
       iEMA_0 => iEMA_0,
       iEXTDMAADD_12_0 => iEXTDMAADD_12_0,
+      iFPI2CCLK_0 => iFPI2CCLK_0,
+      iFPI2CDDIR_0 => iFPI2CDDIR_0,
       iINT_INHIBIT_0 => iINT_INHIBIT_0,
       iINT_RQST_0 => iINT_RQST_0,
       iIO_SKIP_0 => iIO_SKIP_0,
@@ -320,6 +331,7 @@ myboard_i: component myboard
       i_D36B2_0 => i_D36B2_0,
       i_DATA_IN_0 => i_DATA_IN_0,
       i_EA_0 => i_EA_0,
+      i_FPI2CDENA_0 => i_FPI2CDENA_0,
       i_MEMDONE_0 => i_MEMDONE_0,
       i_MEMINCR_0 => i_MEMINCR_0,
       i_MEM_07_0 => i_MEM_07_0,

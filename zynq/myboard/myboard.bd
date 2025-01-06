@@ -311,6 +311,9 @@
           "bDMABUSN": {
             "direction": "IO"
           },
+          "bFPI2CDATA": {
+            "direction": "IO"
+          },
           "bMEMBUSA": {
             "direction": "IO"
           },
@@ -401,6 +404,12 @@
           "iEXTDMAADD_12": {
             "direction": "O"
           },
+          "iFPI2CCLK": {
+            "direction": "O"
+          },
+          "iFPI2CDDIR": {
+            "direction": "O"
+          },
           "iINT_INHIBIT": {
             "direction": "O"
           },
@@ -423,6 +432,9 @@
             "direction": "O"
           },
           "i_EA": {
+            "direction": "O"
+          },
+          "i_FPI2CDENA": {
             "direction": "O"
           },
           "i_MEMDONE": {
@@ -2326,7 +2338,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0x4FE9862634721597",
+      "boundary_crc": "0x8D87908819F12D47",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2628,6 +2640,12 @@
           "Zynq_0/bPIOBUSN"
         ]
       },
+      "Net36": {
+        "ports": [
+          "bFPI2CDATA_0",
+          "Zynq_0/bFPI2CDATA"
+        ]
+      },
       "Net4": {
         "ports": [
           "bDMABUSE_0",
@@ -2684,36 +2702,55 @@
       },
       "Zynq_0_i3CYCLE": {
         "ports": [
+          "Zynq_0/i3CYCLE",
           "i3CYCLE_0"
         ]
       },
       "Zynq_0_iAC_CLEAR": {
         "ports": [
+          "Zynq_0/iAC_CLEAR",
           "iAC_CLEAR_0"
         ]
       },
       "Zynq_0_iBEMA": {
         "ports": [
+          "Zynq_0/iBEMA",
           "iBEMA_0"
         ]
       },
       "Zynq_0_iBRK_RQST": {
         "ports": [
+          "Zynq_0/iBRK_RQST",
           "iBRK_RQST_0"
         ]
       },
       "Zynq_0_iEMA": {
         "ports": [
+          "Zynq_0/iEMA",
           "iEMA_0"
         ]
       },
       "Zynq_0_iEXTDMAADD_12": {
         "ports": [
+          "Zynq_0/iEXTDMAADD_12",
           "iEXTDMAADD_12_0"
+        ]
+      },
+      "Zynq_0_iFPI2CCLK": {
+        "ports": [
+          "Zynq_0/iFPI2CCLK",
+          "iFPI2CCLK_0"
+        ]
+      },
+      "Zynq_0_iFPI2CDDIR": {
+        "ports": [
+          "Zynq_0/iFPI2CDDIR",
+          "iFPI2CDDIR_0"
         ]
       },
       "Zynq_0_iINT_INHIBIT": {
         "ports": [
+          "Zynq_0/iINT_INHIBIT",
           "iINT_INHIBIT_0"
         ]
       },
@@ -2725,26 +2762,31 @@
       },
       "Zynq_0_iIO_SKIP": {
         "ports": [
+          "Zynq_0/iIO_SKIP",
           "iIO_SKIP_0"
         ]
       },
       "Zynq_0_i_B36V1": {
         "ports": [
+          "Zynq_0/i_B36V1",
           "i_B36V1_0"
         ]
       },
       "Zynq_0_i_CA_INCRMNT": {
         "ports": [
+          "Zynq_0/i_CA_INCRMNT",
           "i_CA_INCRMNT_0"
         ]
       },
       "Zynq_0_i_D36B2": {
         "ports": [
+          "Zynq_0/i_D36B2",
           "i_D36B2_0"
         ]
       },
       "Zynq_0_i_DATA_IN": {
         "ports": [
+          "Zynq_0/i_DATA_IN",
           "i_DATA_IN_0"
         ]
       },
@@ -2752,6 +2794,12 @@
         "ports": [
           "Zynq_0/i_EA",
           "i_EA_0"
+        ]
+      },
+      "Zynq_0_i_FPI2CDENA": {
+        "ports": [
+          "Zynq_0/i_FPI2CDENA",
+          "i_FPI2CDENA_0"
         ]
       },
       "Zynq_0_i_MEMDONE": {
@@ -2762,11 +2810,13 @@
       },
       "Zynq_0_i_MEMINCR": {
         "ports": [
+          "Zynq_0/i_MEMINCR",
           "i_MEMINCR_0"
         ]
       },
       "Zynq_0_i_MEM_07": {
         "ports": [
+          "Zynq_0/i_MEM_07",
           "i_MEM_07_0"
         ]
       },
@@ -3184,6 +3234,9 @@
       "bDMABUSN_0": {
         "direction": "IO"
       },
+      "bFPI2CDATA_0": {
+        "direction": "IO"
+      },
       "bMEMBUSA_0": {
         "direction": "IO"
       },
@@ -3274,6 +3327,12 @@
       "iEXTDMAADD_12_0": {
         "direction": "O"
       },
+      "iFPI2CCLK_0": {
+        "direction": "O"
+      },
+      "iFPI2CDDIR_0": {
+        "direction": "O"
+      },
       "iINT_INHIBIT_0": {
         "direction": "O"
       },
@@ -3296,6 +3355,9 @@
         "direction": "O"
       },
       "i_EA_0": {
+        "direction": "O"
+      },
+      "i_FPI2CDENA_0": {
         "direction": "O"
       },
       "i_MEMDONE_0": {

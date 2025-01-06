@@ -138,6 +138,12 @@ module Zynq (
     output videnaba, vidwrena, videnabb,
     input[21:00] viddatab,
 
+    // i2c interface to front panel
+    inout      bFPI2CDATA,      // bi-dir data bus
+    output reg i_FPI2CDENA,     // low to turn on bi-dir driver; high to shut off
+    output     iFPI2CCLK,       // clock
+    output reg iFPI2CDDIR,      // high when sending; low when receiving
+
     // arm processor memory bus interface (AXI)
     // we are a slave for accessing the control registers (read and write)
     input[11:00]  saxi_ARADDR,
@@ -158,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4073;
+    localparam VERSION = 32'h384C4074;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -1681,6 +1687,40 @@ module Zynq (
 
     // real PDP-8/L front panel i2c interface
     // connects to pipan8l/pcb board i2c interface
+    reg fpi2cinhiz;
+    wire fpi2cdao;
+
+    assign bFPI2CDATA = fpi2cinhiz ? 1'bZ : 1'b0;   // FPGA data pin is always either in hi-Z or sending a zero
+
+    always @(posedge CLOCK) begin
+        if (pwronreset) begin
+            fpi2cinhiz  <= 1;                       // hi-Z FPGA pin during reset
+            i_FPI2CDENA <= 1;                       // hi-Z 74AXP4T245 during reset
+            iFPI2CDDIR  <= 1;                       // direct away from FPGA and toward open-collector bus
+        end else begin
+
+            // send out a zero whenever dataout is zero
+            if (~ fpi2cdao) begin
+                if (~ iFPI2CDDIR) begin
+                    iFPI2CDDIR  <= 1;               // 74AXP4T245 was receiving, change to sending first
+                end else begin
+                    fpi2cinhiz  <= 0;               // now it is safe to turn on FPGA pin and drive a zero
+                    i_FPI2CDENA <= 0;               // make sure 74AXP4T245 is turned on
+                end
+            end
+
+            // receive whenever dataout is one
+            else begin
+                if (~ fpi2cinhiz) begin
+                    fpi2cinhiz  <= 1;               // FPGA was sending, change to receiving first
+                end else begin
+                    iFPI2CDDIR  <= 0;               // make sure 74AXP4T245 is receiving
+                    i_FPI2CDENA <= 0;               // make sure 74AXP4T245 is turned on
+                end
+            end
+        end
+    end
+
     pdp8lfpi2c fpi2cinst (
         .CLOCK (CLOCK),
         .RESET (pwronreset),
@@ -1691,9 +1731,9 @@ module Zynq (
         .armwdata (saxi_WDATA),
         .armrdata (fpi2crdata),
 
-        .i2cclk (iB36V1),
-        .i2cdao (iD36B2),
-        .i2cdai (oC36B2)
+        .i2cclk (iFPI2CCLK),
+        .i2cdao (fpi2cdao),
+        .i2cdai (bFPI2CDATA)
     );
 
     // paper tape reader interface

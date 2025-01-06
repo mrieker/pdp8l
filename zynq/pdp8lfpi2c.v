@@ -18,7 +18,7 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// PDP-8/L VC-8 interface
+// PDP-8/L front panel interface
 
 module pdp8lfpi2c (
     input CLOCK, RESET,
@@ -38,7 +38,7 @@ module pdp8lfpi2c (
     wire autclk, autdao;
     wire[63:00] comand, status;
 
-    assign armrdata = (armraddr == 0) ? 32'h46502006 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h46502007 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { comand[31:00] } :
                       (armraddr == 2) ? { comand[63:32] } :
                       (armraddr == 3) ? { status[31:00] } :
@@ -70,11 +70,11 @@ module pdp8lfpi2c (
             case (armwaddr)
                 1: commandlo <= armwdata;       // save lo-order command word
                 5: begin
-                    stepon <= armwdata[01];     // save stepon mode bit
-                    clear  <= armwdata[02];
-                    manual <= armwdata[03];
-                    manclk <= armwdata[31];
-                    mandao <= armwdata[30];
+                    stepon <= armwdata[01];     // 0=clock i2cmaster normally; 1=clock i2cmaster with armwdata[00]
+                    clear  <= armwdata[02];     // reset i2cmaster module
+                    manual <= armwdata[03];     // 0=use i2cmaster module for cli2ck,i2cdao; 1=use manclk,mandao bits
+                    manclk <= armwdata[31];     // if manual mode, use this for i2cclk
+                    mandao <= armwdata[30];     // if manual mode, use this for i2cdao
                 end
             endcase
         end
