@@ -24,7 +24,7 @@
 //   CLOCK = fpga clock
 //   CSTEP = clock step
 //   wrcmd = comand being written by arm processor
-//   comand[63:62] = 00: done; 01: restart; 10: read; 11: write [61:54]
+//   command[63:62] = 00: done; 01: restart; 10: read; 11: write [61:54]
 //     10: shifts 8 bits from i2c bus into bottom of status register
 //     11: followed by 8 bits to send to i2c bus
 //   sdai = i2c bus data input
@@ -149,7 +149,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                         0:
                             begin
                                 count <= counthiinc;
-                                sclo <= 1;
+                                sclo  <= 1;
                             end
                         1:
                             begin

@@ -22,6 +22,7 @@
 // via I2C bus to PCB3 piggy-backed on backplane
 
 #include <string.h>
+#include <unistd.h>
 
 #include "i2czlib.h"
 #include "z8ldefs.h"
@@ -58,9 +59,13 @@
 #define ZYNQST 1ULL     // send restart bit (2 bits)
 #define I2CWR 0ULL      // 8th address bit indicating write
 #define I2CRD 1ULL      // 8th address bit indicating read
-#define ZCLEAR  4
-#define ZSTEPON 2       // turn on manual stepping for debug
-#define ZSTEPIT 1
+#define SCLK 0x80000000U
+#define SDAO 0x40000000U
+#define SDAI 0x20000000U
+#define MANUAL  8U      // 1=use SCLK,SDAO directly; 0=use i2cmaster.v
+#define ZCLEAR  4U      // reset i2cmaster.v
+#define ZSTEPON 2U      // 1=use ZSTEPIT to clock i2cmaster.v; 0=use 100MHz FPAG clock
+#define ZSTEPIT 1U
 
 I2CZLib::I2CZLib ()
 { }
@@ -73,6 +78,7 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
     fpat  = z8p->findev ("FP", NULL, NULL, false);
+    fpat[5] = ZCLEAR;
 
     uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
     if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
@@ -81,6 +87,8 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
     if (real) pdpat[Z_RE] &= ~ e_simit;
     if (sim)  pdpat[Z_RE] |=   e_simit;
     pdpat[Z_RE] |= e_nanocontin;
+
+    fpat[5] = 0;
 }
 
 // read light bulbs and switches
@@ -212,9 +220,18 @@ void I2CZLib::readpads (Z8LPanel *pads)
 }
 
 // write overidden switches
+//  buttons are overidden whenever being asserted
+//          the real switch is assumed to be negated during this time
+//            ie, no one is pressing any of the switches
+//          so there are no transistors on the lines
+//  toggles are overidden whenever togovr is true
+//          real switch will be overidden regardless of real switch position
+//          a transistor is used when outputting a '1' in case it is overriding a switch of '0'
 void I2CZLib::writepads (Z8LPanel const *pads)
 {
     if (pdpat[Z_RE] & e_simit) {
+
+        // using pdp8lsim.v sinulator - set switch bits directly
         pdpat[Z_RB] =
             (pads->button.stop  ? b_swSTOP  : 0) |
             (pads->button.cont  ? b_swCONT  : 0) |
@@ -228,12 +245,20 @@ void I2CZLib::writepads (Z8LPanel const *pads)
             (pads->togval.step  ? b_swSTEP  : 0) |
             ((pads->togval.sr * b_swSR0) & b_swSR);
     } else {
+
+        // using real pdp, set switches via z8lpanel board on i2c bus
+
+        // read current sttings
         uint16_t dirs[4], vals[4];
         for (int i = 0; i < 4; i ++) {
             dirs[i] = read16 (I2CBA + i, IODIRA);
-            vals[i] = read16 (I2CBA + i, GPIOA);
+            vals[i] = read16 (I2CBA + i, OLATA);
         }
 
+        // buttons are all active low
+        // when asserted, drive the line low overriding the presumed high state of physical switch
+        //   should be < 10mA each well under 25mA per pin limit, and even if all on, 60mA well within 125mA per-chip limit
+        // when negated, hi-Z the pin, allowing phys switch to operate, and so readpads() can read phys switch state
         writebut (dirs, vals, pads->button.stop,  3, 003);
         writebut (dirs, vals, pads->button.cont,  3, 014);
         writebut (dirs, vals, pads->button.start, 3, 002);
@@ -241,27 +266,37 @@ void I2CZLib::writepads (Z8LPanel const *pads)
         writebut (dirs, vals, pads->button.exam,  3, 016);
         writebut (dirs, vals, pads->button.dep,   3, 000);
 
-        writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, 1, 004, 0, 017);
-        writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, 0, 000, 0, 015);
-        writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, 0, 002, 0, 001);
-        writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, 0, 005, 0, 004);
-        writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, 0, 003, 0, 014);
-        writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, 2, 013, 2, 003);
-        writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, 2, 012, 2, 005);
-        writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, 2, 006, 2, 011);
-        writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, 2, 010, 2, 007);
-        writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, 1, 003, 1, 001);
-        writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, 1, 002, 1, 000);
-        writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, 3, 004, 3, 007);
+        // toggles are all active high
+        // if not overriding, base line driven high to shut off transistor and value line put in hi-Z
+        // if outputting 0, base line driven high to shut off transistor and value line driven low to output 0
+        //   should be < 10mA each well under 25mA per pin limit, and even if all on, 60mA well within 125mA per-chip limit
+        // if outputting 1, base line driven low to turn on transistor and value line driven low to hi-Z
+        //   would be > 15mA each, and if all on, 90mA would push the per-chip 125mA total limit, so we use a transistor
 
-        writetog (dirs, vals, pads->togval.mprt, pads->togovr.mprt, 0, 010, 0, 011);
-        writetog (dirs, vals, pads->togval.dfld, pads->togovr.dfld, 0, 012, 0, 007);
-        writetog (dirs, vals, pads->togval.ifld, pads->togovr.ifld, 0, 006, 0, 013);
-        writetog (dirs, vals, pads->togval.step, pads->togovr.step, 3, 001, 3, 017);
+        // phase 1: hi-Z things; 2: drive things
+        for (int phase = 1; phase <= 2; phase ++) {
+            writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, 1, 004, 0, 017);
+            writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, 0, 000, 0, 015);
+            writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, 0, 002, 0, 001);
+            writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, 0, 005, 0, 004);
+            writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, 0, 003, 0, 014);
+            writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, 2, 013, 2, 003);
+            writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, 2, 012, 2, 005);
+            writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, 2, 006, 2, 011);
+            writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, 2, 010, 2, 007);
+            writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, 1, 003, 1, 001);
+            writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, 1, 002, 1, 000);
+            writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, 3, 004, 3, 007);
 
-        for (int i = 0; i < 4; i ++) {
-            write16 (I2CBA + i, IODIRA, dirs[i]);
-            write16 (I2CBA + i, GPIOA,  vals[i]);
+            writetog (dirs, vals, pads->togval.mprt, pads->togovr.mprt, 0, 010, 0, 011);
+            writetog (dirs, vals, pads->togval.dfld, pads->togovr.dfld, 0, 012, 0, 007);
+            writetog (dirs, vals, pads->togval.ifld, pads->togovr.ifld, 0, 006, 0, 013);
+            writetog (dirs, vals, pads->togval.step, pads->togovr.step, 3, 001, 3, 017);
+
+            for (int i = 0; i < 4; i ++) {
+                write16 (I2CBA + i, IODIRA, dirs[i]);
+                write16 (I2CBA + i, OLATA,  vals[i]);
+            }
         }
     }
 }
@@ -287,24 +322,54 @@ void I2CZLib::writebut (uint16_t *dirs, uint16_t *vals,
 }
 
 // write toggle pins (active high)
+//  there is a PNP transistor for each toggle switch
+//  for each transistor we have
+//   a pin going through a resistor to its base
+//   a pin going to its collector then going to the switch line
+//  all the emitters go to +5
+//  to let the real switch operate:
+//   drive base high (turn off transistor)
+//   hi-Z the collector line
+//  to drive switch line low:
+//   drive base high (turn off transistor)
+//   drive the collector line low (5mA if real switch on)
+//  to drive switch line high:
+//   drive base low (turn on transistor, 18mA if real switch off)
+//   hi-Z the collector line
 //  input:
 //   ovr = true: drive the output pin with 'val'
 //        false: hi-Z the output pin
 //   val = value to drive if ovr
+//  output:
+//   dirs<base> = 0, ie, always driving base with vals<base>
+//   vals<base> = 0: driving collector pin high; 1: deferring to collector pin settings
+//   dirs<coll> = 0: driving collector pin with vals<coll>; 1: sensing real switch with collector pin
+//   vals<coll> = 0: driving collector pin low; 1: driving collector pin high
+//  note:
+//   cannot have the transistor on (base low) and driving collector line low at same time
+//   or it will cook the collector line, so writelog() must be called twice to do transition
 void I2CZLib::writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr,
     int baseidx, int basebit, int collidx, int collbit)
 {
-    dirs[baseidx] &= ~ (1U << basebit);     // base line is always an output
-    vals[collidx] &= ~ (1U << collbit);     // collector line is always 0 or hi-Z
+    uint16_t basemsk = 1U << basebit;
+    uint16_t collmsk = 1U << collbit;
+    dirs[baseidx] &= ~ basemsk;             // base line is always an output
+    vals[collidx] &= ~ collmsk;             // collector line is always 0 or hi-Z
     if (! ovr) {
-        dirs[collidx] |= 1U << collbit;     // hi-Z the collector line
-        vals[baseidx] |= 1U << basebit;     // drive base line high to shut off transistor
+        dirs[collidx] |= collmsk;           // hi-Z the collector line
+        vals[baseidx] |= basemsk;           // drive base line high to shut off transistor
     } else if (val) {
-        dirs[collidx] |=    1U << collbit;  // hi-Z the collector line
-        vals[baseidx] &= ~ (1U << basebit); // drive base line low to turn on transistor
+        if (dirs[collidx] & collmsk) {      // see if collector line already hi-Z
+            vals[baseidx] &= ~ basemsk;     // drive base line low to turn on transistor
+        } else {
+            dirs[collidx] |= collmsk;       // hi-Z the collector line
+        }
     } else {
-        dirs[collidx] &= ~ (1U << collbit); // turn on collector line, value is always 0
-        vals[baseidx] |=    1U << basebit;  // drive base line high to shut off transistor
+        if (vals[baseidx] & basemsk) {      // see if transistor already shut off
+            dirs[collidx] &= ~ collmsk;     // turn on collector line, value is always 0
+        } else {
+            vals[baseidx] |= basemsk;       // drive base line high to shut off transistor
+        }
     }
 }
 
@@ -325,11 +390,10 @@ uint8_t I2CZLib::read8 (uint8_t addr, uint8_t reg)
         (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
         (ZYNQRD << 30);
 
-    doi2ccycle (cmd);
+    uint64_t sts = doi2ccycle (cmd);
 
     // value in low 8 bits of status register
-    uint32_t sts0 = fpat[ZPI2CSTS+0];
-    return (uint8_t) sts0;
+    return (uint8_t) sts;
 }
 
 // write 8-bit value to mcp23017 reg at addr
@@ -373,13 +437,12 @@ uint16_t I2CZLib::read16 (uint8_t addr, uint8_t reg)
         (ZYNQRD << 30) |
         (ZYNQRD << 28);
 
-    doi2ccycle (cmd);
+    uint64_t sts = doi2ccycle (cmd);
 
     // values in low 16 bits of status register
     //  <15:08> = reg+0
     //  <07:00> = reg+1
-    uint32_t sts0 = fpat[ZPI2CSTS+0];
-    return (uint16_t) ((sts0 << 8) | ((sts0 >> 8) & 0xFFU));
+    return (uint16_t) ((sts << 8) | ((sts >> 8) & 0xFFU));
 }
 
 // write 16-bit value to MCP23017 registers on I2C bus
@@ -406,9 +469,141 @@ void I2CZLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
     doi2ccycle (cmd);
 }
 
-// send command to MCP23017 via pdp8lfpi2c.v and wait for response
-uint32_t I2CZLib::doi2ccycle (uint64_t cmd)
+static void bitdelay ()
 {
+    uint32_t beg, now;
+    asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (beg));
+    do asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (now));
+    while (now - beg < 3333);   // 5uS
+}
+
+// send command to MCP23017 via pdp8lfpi2c.v then read response
+uint64_t I2CZLib::doi2ccycle (uint64_t cmd)
+{
+#if 111
+    // starts with SCLK=1, SDAO=1
+    // make sure SCLK=1, SDAO=1
+    // wait 5uS, clear SDAT
+    // wait 5uS, clear SCLK
+    // ends with SCLK=0, SDAO=0
+    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+    bitdelay ();
+    if (! (fpat[5] & SDAI)) {
+        fprintf (stderr, "I2CZLib::doi2ccycle: i2c bus jammed\n");
+        ABORT ();
+    }
+    fpat[5] = SCLK | MANUAL | ZCLEAR;
+    bitdelay ();
+    fpat[5] = MANUAL | ZCLEAR;
+
+    uint64_t sts = 0;
+    while (true) {
+        switch (cmd >> 62) {
+
+            // send stop bit and return status
+            // starts with SCLK=0, SDAO=0
+            // wait 5uS, set SCLK
+            // wait 5uS, set SDAT
+            // ends with SCLK=1, SDAO=1
+            case 0: {
+                bitdelay ();
+                fpat[5] = SCLK | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+                return sts;
+            }
+
+            // send a restart bit
+            // starts with SCLK=0, SDAO=0
+            // wait 5uS, set SDAO
+            // wait 5uS, set SCLK
+            // wait 5uS, clear SDAO
+            // wait 5uS, clear SCLK
+            // ends with SCLK=0, SDAO=0
+            case ZYNQST: {
+                bitdelay ();
+                fpat[5] = SDAO | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = SCLK | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = MANUAL | ZCLEAR;
+                break;
+            }
+
+            // read 8 bits then send ack bit
+            // starts with SCLK=0, SDAO=0
+            // wait 5uS, set SDAT to open-drain the data line
+            // repeat 8 times:
+            //   wait 5uS, set SCLK
+            //   wait 5uS, shift SDAI into sts, clear SCLK
+            // wait 5uS, clear SDAT to send ACK bit
+            // wait 5uS, set SCLK
+            // wait 5uS, clear SCLK
+            // ends with SCLK=0, SDAO=0
+            case ZYNQRD: {
+                bitdelay ();
+                fpat[5] = SDAO | MANUAL | ZCLEAR;
+                for (int i = 0; i < 8; i ++) {
+                    bitdelay ();
+                    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+                    bitdelay ();
+                    sts = (sts << 1) | ((fpat[5] / SDAI) & 1);
+                    fpat[5] = SDAO | MANUAL | ZCLEAR;
+                }
+                bitdelay ();
+                fpat[5] = MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = SCLK | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = MANUAL | ZCLEAR;
+                break;
+            }
+
+            // write 8 bits then send ack bit
+            // starts with SCLK=0, SDAO=0
+            // repeat 8 times:
+            //   wait 5uS, set SDAO to top data bit
+            //   wait 5uS, set SCLK
+            //   wait 5uS, clear SCLK
+            // wait 5uS, set SDAT to recv ACK bit
+            // wait 5uS, set SCLK
+            // wait 5uS, check SDAI is low, clear SCLK
+            // wait 5uS, clear SDAO
+            // ends with SCLK=0, SDAO=0
+            case ZYNQWR: {
+                for (int i = 0; i < 8; i ++) {
+                    uint32_t x = ((cmd >> 61) & 1) * SDAO | MANUAL | ZCLEAR;
+                    bitdelay ();
+                    fpat[5] = x;
+                    bitdelay ();
+                    fpat[5] = SCLK | x;
+                    bitdelay ();
+                    fpat[5] = x;
+                    cmd <<= 1;
+                }
+                bitdelay ();
+                fpat[5] = SDAO | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+                bitdelay ();
+                if (fpat[5] & SDAI) {
+                    fprintf (stderr, "I2CZLib::doi2ccycle: mcp23017 did not respond\n");
+                    ABORT ();
+                }
+                fpat[5] = SDAO | MANUAL | ZCLEAR;
+                bitdelay ();
+                fpat[5] = MANUAL | ZCLEAR;
+                break;
+            }
+
+            default: ABORT ();
+        }
+        cmd <<= 2;
+    }
+#endif
+#if 000
     // writing high-order word triggers i/o, so write low-order first
     fpat[ZPI2CCMD+0] = cmd;
     fpat[ZPI2CCMD+1] = cmd >> 32;
@@ -423,11 +618,14 @@ uint32_t I2CZLib::doi2ccycle (uint64_t cmd)
                 fprintf (stderr, "I2CZLib::doi2ccycle: mcp23017 did not respond\n");
                 ABORT ();
             }
-            return sts1;
+
+            uint32_t sts0 = fpat[ZPI2CSTS+0];
+            return (((uint64_t) sts1) << 32) | sts0;
         }
     }
     fprintf (stderr, "I2CZLib::write16: i2c I/O timeout\n");
     ABORT ();
+#endif
 }
 
 /***

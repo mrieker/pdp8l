@@ -33,8 +33,8 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-#define DEPTH 4096  // total number of elements in ilaarray
-#define AFTER 4000  // number of samples to take after sample containing trigger
+#define DEPTH 32768  // total number of elements in ilaarray
+#define AFTER 32700  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
@@ -76,22 +76,17 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o  %o %o %o  %o %o %o  %o %o %o  %o %o %o\n",
+            printf ("%6.2f  %o %o %o  %o  %o %o  %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,    // trigger shows as 0.00uS
-                (unsigned) (thisentry >> 13) & 1,
-                (unsigned) (thisentry >> 12) & 1,
-                (unsigned) (thisentry >> 11) & 1,
-                (unsigned) (thisentry >> 10) & 1,
-                (unsigned) (thisentry >>  9) & 1,
-                (unsigned) (thisentry >>  8) & 1,
-                (unsigned) (thisentry >>  7) & 1,
-                (unsigned) (thisentry >>  6) & 1,
-                (unsigned) (thisentry >>  5) & 1,
-                (unsigned) (thisentry >>  4) & 1,
-                (unsigned) (thisentry >>  3) & 1,
-                (unsigned) (thisentry >>  2) & 1,
-                (unsigned) (thisentry >>  1) & 1,
-                (unsigned) (thisentry >>  0) & 1);
+                (unsigned) (thisentry >>  7) & 1,   // fpi2cwrite
+                (unsigned) (thisentry >>  6) & 1,   // wdata[31]
+                (unsigned) (thisentry >>  5) & 1,   // wdata[30]
+                (unsigned) (thisentry >>  4) & 1,   // fpi2cdao
+                (unsigned) (thisentry >>  3) & 1,   // iFPI2CCLK
+                (unsigned) (thisentry >>  2) & 1,   // bFPI2CDATA
+                (unsigned) (thisentry >>  1) & 1,   // i_FPI2CDENA
+                (unsigned) (thisentry >>  0) & 1);  // iFPI2CDDIR
+
             indotdotdot = false;
         } else if (! indotdotdot) {
             printf ("    ...\n");

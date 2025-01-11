@@ -86,7 +86,7 @@ private:
     void write8 (uint8_t addr, uint8_t reg, uint8_t byte);
     uint16_t read16 (uint8_t addr, uint8_t reg);
     void write16 (uint8_t addr, uint8_t reg, uint16_t word);
-    uint32_t doi2ccycle (uint64_t cmd);
+    uint64_t doi2ccycle (uint64_t cmd);
 };
 
 #endif
