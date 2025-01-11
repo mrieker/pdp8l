@@ -145,6 +145,12 @@ on zturn:
   as root:
     raspi-config -> Interface Options -> SSH -> Yes
     passwd   to set root and pi passwords so ssh will work
+
+    optionally set up static IP address:
+      edit /etc/dhcpcd.conf
+      uncomment static ip configuration section
+      reboot
+
     apt install libreadline-dev
     apt install libx11-dev
     apt install tcl8.6-dev
