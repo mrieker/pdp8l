@@ -4,7 +4,9 @@ cd `dirname $0`
 
 if [ i2cztest.armv7l -ot i2cztest.cc ]
 then
+    set -x
     g++ -g -o i2cztest.armv7l i2cztest.cc lib.armv7l.a
+    set +x
 fi
 
 if grep -q 'Xilinx Zynq' /proc/cpuinfo

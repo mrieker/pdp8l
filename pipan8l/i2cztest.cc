@@ -18,9 +18,10 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-// Connects z8lpanel.cc to the Zynq which accesses the front panel lights and switches
-// via I2C bus to PCB3 piggy-backed on backplane
+// Tests I2C code in Zynq that accesses front panel board that is piggy-backed to backplane
+// Does not require board to be actually plugged into backplane, just tests the I2C bus connection
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -69,6 +70,19 @@
 #define ZSTEPON 2U      // 1=use ZSTEPIT to clock i2cmaster.v; 0=use 100MHz FPAG clock
 #define ZSTEPIT 1U
 
+#define ILADEPTH 32768  // total number of elements in ilaarray
+#define ILAAFTER 32760  // number of samples to take after sample containing trigger
+
+#define ILACTL 021
+#define ILADAT 022
+
+#define ILACTL_ARMED  0x80000000U
+#define ILACTL_ILAAFTER0 0x00010000U
+#define ILACTL_INDEX0 0x00000001U
+#define ILACTL_ILAAFTER  (ILACTL_ILAAFTER0 * (ILADEPTH - 1))
+#define ILACTL_INDEX  (ILACTL_INDEX0 * (ILADEPTH - 1))
+
+static bool volatile aborted;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *fpat;
 
@@ -77,84 +91,94 @@ void write8 (uint8_t addr, uint8_t reg, uint8_t byte);
 uint16_t read16 (uint8_t addr, uint8_t reg);
 void write16 (uint8_t addr, uint8_t reg, uint16_t word);
 uint64_t doi2ccycle (uint64_t cmd);
+void ilaarm ();
+void ilasave (uint64_t *save);
+void iladump (uint64_t const *save);
 
-static void bitdelay ()
+// when using software I2C code
+// fpga I2C code has its own internal timing
+void bitdelay ()
 {
     uint32_t beg, now;
     asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (beg));
     do asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (now));
     while (now - beg < 666);   // 1uS
+    //                3333);   // 5uS
+}
+
+// have ctrl-C abort on I2C message boundaries
+// only useful when using software I2C code
+// fpga I2C code always tries to complete the message
+void siginthand (int signum)
+{
+    if (aborted) exit (1);
+    aborted = true;
 }
 
 int main ()
 {
-    Z8LPage *z8p   = new Z8LPage ();
+    setlinebuf (stdout);
+
+    Z8LPage *z8p = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
     fpat  = z8p->findev ("FP", NULL, NULL, false);
 
-    pdpat[Z_RE] =  e_simit | e_nanocontin;
-    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
+    // reset the I2C code (ZCLEAR) then leave SCLK,SDAO set
+    pdpat[Z_RE] = e_simit | e_nanocontin;
+    fpat[5] = SCLK | SDAO | ZCLEAR;
+    usleep (1000);
+    fpat[5] = SCLK | SDAO;
 
-    ////write16 (I2CBA + 4, IODIRA, 0xFF00);
+    // order of addressing MCP23017s
+    uint16_t ns[4] = { 0, 1, 2, 3 };
 
-/**
-    int n = 0;
-    for (int i = 0; i < 1000; i ++) {
-        bitdelay ();
-        if (! (fpat[5] & SDAI)) {
-            n = 0;
-            fpat[5] = SDAO | MANUAL | ZCLEAR;
-            bitdelay ();
-            fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-        }
-        else if (++ n >= 10) {
-            printf ("reset %i\n", i);
-            goto reset;
-        }
-        else {
-            fpat[5] = SCLK | MANUAL | ZCLEAR;           // drive data low
-            bitdelay ();
-            fpat[5] = MANUAL | ZCLEAR;                  // drive clock low
-            bitdelay ();
-            fpat[5] = SDAO | MANUAL | ZCLEAR;           // drive data high
-            for (int i = 0; i < 9; i ++) {              // 7 addr bits, read, ack
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;    // drive clock high
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;           // drive clock low
-            }
-            bitdelay ();
-            fpat[5] = MANUAL | ZCLEAR;                  // drive data low
-            bitdelay ();
-            fpat[5] = SCLK | MANUAL | ZCLEAR;           // drive clock high
-            bitdelay ();
-            fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;    // drive data high
-        }
-    }
-    fprintf (stderr, "failed to reset %d\n", n);
-    ABORT ();
-reset:;
-**/
+    // set up to detect ctrl-C
+    signal (SIGINT, siginthand);
 
+    uint16_t writeval = 0;
     while (true) {
 
-        uint8_t addr = I2CBA + 4;
+        // process each MCP23017
+        for (int i = 0; i < 4; i ++) {
 
-        uint64_t cmd =
-            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
-            (ZYNQWR << 52) | ((uint64_t) GPIOA << 44) |                     // send register number
-            (ZYNQST << 42) |                                                // send restart bit
-            (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |      // send address, read bit
-            (ZYNQRD << 30) | (ZYNQRD << 28);                                // receive 2 bytes
+            // select an MCP23017
+            uint8_t n = ns[i];
+            uint8_t addr = I2CBA + n;
 
-        doi2ccycle (cmd);
+            // read what is in the MCP23017 OLAT registers
+            uint64_t cmdrd =
+                (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
+                (ZYNQWR << 52) | ((uint64_t) OLATA << 44) |                     // send register number
+                (ZYNQST << 42) |                                                // send restart bit
+                (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |      // send address, read bit
+                (ZYNQRD << 30) | (ZYNQRD << 28);                                // receive 2 bytes
 
+            printf ("    %u read=", n);
 
-        ////for (int i = 0; i < 256; i ++) {
-            ////write16 (I2CBA + 4, GPIOA, i);
-            ////uint16_t x = read16 (I2CBA + 4, GPIOA);
-            ////printf ("%04X\n", x);
-        ////}
+            uint64_t stsrd = doi2ccycle (cmdrd);
+            if (stsrd == (uint64_t) -1LL) printf ("fail");
+            else printf ("%04X", (unsigned) stsrd & 0xFFFFU);
+
+            // write new value to MCP23017 OLAT registers
+            ++ writeval;
+            uint64_t cmdwr =
+                (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
+                (ZYNQWR << 52) | ((uint64_t) OLATA << 44) |                     // send register number
+                (ZYNQWR << 42) | ((uint64_t) (writeval >> 8) << 34) |           // send high order data
+                (ZYNQWR << 32) | ((uint64_t) (writeval & 255) << 24);           // send low order data
+
+            printf ("   write=%04X=", writeval);
+
+            uint64_t stswr = doi2ccycle (cmdwr);
+            if (stswr == (uint64_t) -1LL) printf ("fail");
+            else printf ("good");
+
+            usleep (1000);
+        }
+
+        ++ writeval;
+
+        printf ("\n");
     }
 }
 
@@ -254,10 +278,18 @@ void write16 (uint8_t addr, uint8_t reg, uint16_t word)
     doi2ccycle (cmd);
 }
 
+int ntherror = 5;
+uint64_t previla[ILADEPTH];
+
 // send command to MCP23017 via pdp8lfpi2c.v then read response
 uint64_t doi2ccycle (uint64_t cmd)
 {
-#if 111
+    if (aborted) {
+        fflush (stdout);
+        fprintf (stderr, "\ndoi2ccycle: aborted\n");
+        exit (0);
+    }
+#if 000///111
     fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
     bitdelay ();
     fpat[5] = SCLK | MANUAL | ZCLEAR;
@@ -355,8 +387,7 @@ uint64_t doi2ccycle (uint64_t cmd)
                 fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
                 bitdelay ();
                 if (fpat[5] & SDAI) {
-                    fprintf (stderr, "doi2ccycle: mcp23017 did not respond\n");
-                    ABORT ();
+                    return (uint64_t) -1LL;
                 }
                 fpat[5] = SDAO | MANUAL | ZCLEAR;
                 bitdelay ();
@@ -369,7 +400,10 @@ uint64_t doi2ccycle (uint64_t cmd)
         cmd <<= 2;
     }
 #endif
-#if 000
+#if 111///000
+
+    ilaarm ();
+
     // writing high-order word triggers i/o, so write low-order first
     fpat[ZPI2CCMD+0] = cmd;
     fpat[ZPI2CCMD+1] = cmd >> 32;
@@ -379,19 +413,85 @@ uint64_t doi2ccycle (uint64_t cmd)
         uint32_t sts1 = fpat[ZPI2CSTS+1];
         if (! (sts1 & (1U << 31))) {
 
-            // make sure ack was received from mcp23017
-            if (sts1 & (1U << 30)) {
-                fprintf (stderr, "doi2ccycle: mcp23017 did not respond\n");
-                ABORT ();
+            // check for errors
+            //  [30] = ack was not received
+            //  [29] = data line stuck low during stop
+            if (sts1 & (3U << 29)) {
+                if (-- ntherror <= 0) {
+                    printf ("\ndumping prev ila\n");
+                    iladump (previla);
+                    printf ("\ndumping this ila\n");
+                    ilasave (previla);
+                    iladump (previla);
+                    exit (0);
+                }
+                return (uint64_t) -1LL;
             }
 
             uint32_t sts0 = fpat[ZPI2CSTS+0];
+            ilasave (previla);
             return (((uint64_t) sts1) << 32) | sts0;
         }
     }
-    fprintf (stderr, "write16: i2c I/O timeout\n");
+    fprintf (stderr, "doi2ccycle: i2c I/O timeout\n");
     ABORT ();
 #endif
+}
+
+void ilaarm ()
+{
+    // tell zynq.v to start collecting samples
+    // tell it to stop when collected trigger sample plus ILAAFTER thereafter
+    pdpat[ILACTL] = ILACTL_ARMED | ILAAFTER * ILACTL_ILAAFTER0;
+}
+
+void ilasave (uint64_t *save)
+{
+    // wait for sampling to stop
+    uint32_t ctl;
+    while (((ctl = pdpat[ILACTL]) & (ILACTL_ARMED | ILACTL_ILAAFTER)) != 0) usleep (10000);
+
+    // copy oldest to newest entries
+    // ctl<index>+0 = next entry to be overwritten = oldest entry
+    for (int i = 0; i < ILADEPTH; i ++) {
+        pdpat[ILACTL] = (ctl + i * ILACTL_INDEX0) & ILACTL_INDEX;
+        save[i] = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
+    }
+}
+
+void iladump (uint64_t const *save)
+{
+    uint64_t thisentry = *(save ++);
+
+    // loop through all entries in the array
+    bool indotdotdot = false;
+    uint64_t preventry = 0;
+    for (int i = 0; i < ILADEPTH; i ++) {
+
+        // read array entry after thisentry
+        uint64_t nextentry = (i == ILADEPTH - 1) ? 0 : *(save ++);
+
+        // print thisentry - but use ... if same as prev and next
+        if ((i == 0) || (i == ILADEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
+            printf ("%6.2f  %o  %o  %o %o  %o %o\n",
+                (i - ILADEPTH + ILAAFTER + 1) / 100.0,  // trigger shows as 0.00uS
+                (unsigned) (thisentry >>  5) & 1,       // fpi2cwrite
+                (unsigned) (thisentry >>  4) & 1,       // fpi2cdao
+                (unsigned) (thisentry >>  3) & 1,       // iFPI2CCLK
+                (unsigned) (thisentry >>  2) & 1,       // bFPI2CDATA
+                (unsigned) (thisentry >>  1) & 1,       // i_FPI2CDENA
+                (unsigned) (thisentry >>  0) & 1);      // iFPI2CDDIR
+
+            indotdotdot = false;
+        } else if (! indotdotdot) {
+            printf ("    ...\n");
+            indotdotdot = true;
+        }
+
+        // shuffle entries for next time through
+        preventry = thisentry;
+        thisentry = nextentry;
+    }
 }
 
 /***
