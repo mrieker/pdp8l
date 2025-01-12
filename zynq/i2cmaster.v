@@ -30,27 +30,29 @@
 //   sdai = i2c bus data input
 // outputs:
 //   status[63] = busy
-//   status[62] = error
+//   status[62] = error, ack not received for a WRITE
+//   status[61] = error, data line grounded when trying to START
+//                  or data line still grounded after STOP sent
 //   status[55:00] = shifted in read bytes
 //   sclo = i2c bus clock output
 //   sdao = i2c bus data output
 
-module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sdao, sdai);
+module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sdao, sdai, count);
     input CLOCK, RESET, CSTEP, wrcmd, sdai;
     output reg sclo, sdao;
     input[63:00] command;
     output reg[63:00] comand;
     output reg[63:00] status;
 
-    reg[13:00] count;
+    output reg[13:00] count;
     reg[2:0] state;
 
     wire[8:0] countlo = count[08:00];
     wire[4:0] counthi = count[13:09];
     wire countloend = countlo == 499;
 
-    wire[13:00] countloinc = { count[13:09], count[08:00] + 1 };
-    wire[13:00] counthiinc = { count[13:09] + 1, 9'b0 };
+    wire[13:00] countloinc = { count[13:09], count[08:00] + 9'b1 };
+    wire[13:00] counthiinc = { count[13:09] + 5'b1, 9'b0 };
 
     localparam[2:0] IDLE  = 0;
     localparam[2:0] START = 1;
@@ -73,7 +75,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
             sclo   <= 1;
             sdao   <= 1;
             state  <= START;
-            status[63:62] <= 2'b10;
+            status[63:61] <= 2'b100;    // busy, no error so far
         end else if (CSTEP) begin
             case (state)
 
@@ -88,8 +90,14 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                         case (counthi)
                         0:
                             begin
-                                count <= counthiinc;
-                                sdao  <= 0;
+                                if (sdai) begin
+                                    count <= counthiinc;
+                                    sdao  <= 0;             // data line high, drive it low with clock still high for start bit
+                                end else begin
+                                    state      <= IDLE;
+                                    status[61] <= 1'b1;     // data line jammed low when we're trying to start
+                                    status[63] <= 1'b1;     // we're done
+                                end
                             end
                         1:
                             begin
@@ -158,8 +166,9 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                             end
                         2:
                             begin
-                                state <= IDLE;
-                                status[63:62] <= 2'b00;
+                                state      <= IDLE;     // wait for command register to be written with new command
+                                status[61] <= ~ sdai;   // sdai should be 1, 0 means a MCP23017 is jamming line low
+                                status[63] <= 1'b0;     // good or not, we are all done
                             end
                         endcase
                     end
@@ -227,12 +236,10 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                 // wait 5uS, clock down
                 // wait 5uS, data up to open-drain data line
                 // wait 5uS, clock up
-                // wait 5uS, if data up
-                //              clear busy
-                //              set error
-                //              go idle
-                //            clock down
-                // wait 5uS, done
+                // wait 5uS, data high (no ack) means error
+                //           clock down
+                // wait 5uS, data down
+                //           done (stop if error, else next command)
             WRITE:
                 begin
                     if (~ countloend) begin
@@ -268,18 +275,19 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                             end
                         25:
                             begin
-                                if (sdai) begin
-                                    comand[63] <= 1'b0;
-                                    status[63:62] <= 2'b01;
-                                    state <= IDLE;
-                                end else begin
-                                    count <= counthiinc;
-                                    sclo  <= 0;
-                                end
+                                status[62] <= sdai;         // error if no ack rcvd
+                                sclo  <= 0;                 // drop clock
+                                count <= counthiinc;
                             end
                         26:
                             begin
-                                state <= BEGIN;
+                                if (status[62]) begin
+                                    count <= 0;             // error, send stop bit next
+                                    sdao  <= 0;
+                                    state <= STOP;
+                                end else begin
+                                    state <= BEGIN;         // ok, begin next command
+                                end
                             end
                         endcase
                     end

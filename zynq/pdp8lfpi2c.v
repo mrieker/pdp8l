@@ -30,7 +30,9 @@ module pdp8lfpi2c (
 
     output i2cclk,
     output i2cdao,
-    input  i2cdai
+    input  i2cdai,
+
+    output[13:00] i2ccount
 );
 
     reg clear, manclk, mandao, manual, stepon;
@@ -38,12 +40,12 @@ module pdp8lfpi2c (
     wire autclk, autdao;
     wire[63:00] comand, status;
 
-    assign armrdata = (armraddr == 0) ? 32'h46502007 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h46502008 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { comand[31:00] } :
                       (armraddr == 2) ? { comand[63:32] } :
                       (armraddr == 3) ? { status[31:00] } :
                       (armraddr == 4) ? { status[63:32] } :
-                      (armraddr == 5) ? { i2cclk, i2cdao, i2cdai, 25'b0, manual, clear, stepon, 1'b0 } :
+                      (armraddr == 5) ? { i2cclk, i2cdao, i2cdai, 11'b0, i2ccount, manual, clear, stepon, 1'b0 } :
                        32'hDEADBEEF;
 
     assign i2cclk = manual ? manclk : autclk;
@@ -59,7 +61,8 @@ module pdp8lfpi2c (
         .status (status),
         .sclo (autclk),
         .sdao (autdao),
-        .sdai (i2cdai));
+        .sdai (i2cdai),
+        .count (i2ccount));
 
     always @(posedge CLOCK) begin
         if (RESET) begin
