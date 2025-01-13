@@ -1,4 +1,4 @@
 (fp_lib_table
   (version 7)
-  (lib (name "mypipan8lfoots")(type "KiCad")(uri "${KIPRJMOD}/mypipan8lfoots.pretty")(options "")(descr ""))
+  (lib (name "myz8lfpanfoots")(type "KiCad")(uri "${KIPRJMOD}/myz8lfpanfoots.pretty")(options "")(descr ""))
 )

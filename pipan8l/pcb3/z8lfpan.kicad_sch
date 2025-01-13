@@ -1215,7 +1215,7 @@
         )
       )
     )
-    (symbol "mypipan8llib:2x18edgecon" (pin_names (offset 1.016) hide) (in_bom yes) (on_board yes)
+    (symbol "myz8lfpanlib:2x18edgecon" (pin_names (offset 1.016) hide) (in_bom yes) (on_board yes)
       (property "Reference" "J" (at 0 45.72 0)
         (effects (font (size 1.27 1.27)))
       )
@@ -1532,7 +1532,7 @@
         )
       )
     )
-    (symbol "mypipan8llib:MCP23017" (in_bom yes) (on_board yes)
+    (symbol "myz8lfpanlib:MCP23017" (in_bom yes) (on_board yes)
       (property "Reference" "U" (at -12.7 34.29 0)
         (effects (font (size 1.27 1.27)) (justify left bottom))
       )
@@ -5095,7 +5095,7 @@
     (pin "2" (uuid 31b75b87-03b9-445d-8877-a7de31db1176))
     (pin "3" (uuid 0a2a85b8-a277-47a1-a65d-603c7e198958))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q5") (unit 1)
         )
@@ -5121,7 +5121,7 @@
     (pin "2" (uuid 2c2403c9-b522-45e4-a67d-c5e011ddc883))
     (pin "1" (uuid 212baa0a-5e70-4e60-8052-adfd7be2b0ea))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R14") (unit 1)
         )
@@ -5147,7 +5147,7 @@
     (pin "2" (uuid 62c30a76-bfbd-4eee-a8c1-17282523375e))
     (pin "1" (uuid 3f3d2804-2307-4ac9-8b07-6423868511f3))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R7") (unit 1)
         )
@@ -5173,7 +5173,7 @@
     (pin "2" (uuid c38e3115-d0ca-4330-9651-37debb87768e))
     (pin "1" (uuid e3d12da6-959a-4b8c-8630-731542e0758f))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R22") (unit 1)
         )
@@ -5197,7 +5197,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H1") (unit 1)
         )
@@ -5237,7 +5237,7 @@
     (pin "12" (uuid e489f9ae-c895-4a39-9087-2990e6b3e4a0))
     (pin "11" (uuid b07d5186-1e08-4785-9b68-f44b827dcfdf))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J7") (unit 1)
         )
@@ -5301,7 +5301,7 @@
     (pin "20" (uuid 6f2d86ed-7c7e-41ff-bf6d-a8650686de12))
     (pin "15" (uuid d33b2f77-37b0-40b1-9c82-46f3d1a58096))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J5") (unit 1)
         )
@@ -5327,7 +5327,7 @@
     (pin "2" (uuid d33af2b7-c9fa-44a3-9406-b951511b54ac))
     (pin "1" (uuid e0b65574-897b-4973-8441-564e21b8490d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R4") (unit 1)
         )
@@ -5354,7 +5354,7 @@
     (pin "2" (uuid 47644763-33ff-4742-bd16-fc3312d69670))
     (pin "3" (uuid dc193caf-d43e-4bd3-baef-c26435429ec9))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q12") (unit 1)
         )
@@ -5380,7 +5380,7 @@
     (pin "2" (uuid 706e0675-e247-4301-8c87-35d5844495d4))
     (pin "1" (uuid 3f3687cb-3f9f-4e88-822d-3be080bce000))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R6") (unit 1)
         )
@@ -5407,7 +5407,7 @@
     (pin "1" (uuid c0af97c2-a1a6-47de-a68c-1af1c8829f71))
     (pin "2" (uuid b9e28b15-053c-4071-a3e5-9aeb46d83aa4))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q17") (unit 1)
         )
@@ -5433,7 +5433,7 @@
     (pin "2" (uuid 8f03dd93-0f93-40fa-b7f9-31ec6d7e9379))
     (pin "1" (uuid 2db66c25-9ad0-4ad3-803a-15e9d4686aee))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R2") (unit 1)
         )
@@ -5465,7 +5465,7 @@
     (pin "1" (uuid 41488fc6-b504-4ae1-8587-6cd88c4f17dd))
     (pin "2" (uuid 6dd24e62-c127-43a2-aea4-e3381335835d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "D1") (unit 1)
         )
@@ -5473,7 +5473,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 274.32 264.16 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:2x18edgecon") (at 274.32 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 3a5c03ba-3583-4bf9-b0b4-728e200e1735)
     (property "Reference" "J2" (at 273.05 267.97 90)
@@ -5482,7 +5482,7 @@
     (property "Value" "2x18edgecon" (at 273.05 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipan8lfoots:backpins-B" (at 274.32 264.16 0)
+    (property "Footprint" "myz8lfpanfoots:backpins-B" (at 274.32 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 274.32 264.16 0)
@@ -5525,7 +5525,7 @@
     (pin "C1" (uuid c4c27536-4075-4f5d-802b-6be262f3aebf))
     (pin "B2" (uuid 7ca48b05-1d7f-4e4a-a60d-e13788537273))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J2") (unit 1)
         )
@@ -5551,7 +5551,7 @@
     (pin "2" (uuid 142e3467-8e68-4493-882c-6257ee055d19))
     (pin "1" (uuid 240f5a1d-e931-47e1-9f5f-c54ec0ddc5ef))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R3") (unit 1)
         )
@@ -5559,7 +5559,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 76.2 264.16 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:2x18edgecon") (at 76.2 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 3c4610c7-ed49-46f6-abca-c55bb3cedff3)
     (property "Reference" "J4" (at 74.93 267.97 90)
@@ -5568,7 +5568,7 @@
     (property "Value" "2x18edgecon" (at 74.93 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipan8lfoots:backpins-D" (at 76.2 264.16 0)
+    (property "Footprint" "myz8lfpanfoots:backpins-D" (at 76.2 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 76.2 264.16 0)
@@ -5611,7 +5611,7 @@
     (pin "C1" (uuid ed83d333-590d-4a2b-a2cd-3fa1d86f0ed0))
     (pin "B2" (uuid 82a330f1-330f-494c-b23b-e582afa4ea20))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J4") (unit 1)
         )
@@ -5637,7 +5637,7 @@
     (pin "2" (uuid 915685c6-1241-47a9-85ac-70af76644597))
     (pin "1" (uuid 0b2ce6a5-05da-469a-9fe8-37518ffe24e9))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R11") (unit 1)
         )
@@ -5664,7 +5664,7 @@
     (pin "2" (uuid e08877c7-f2ea-44a1-9a5b-c7db99e342de))
     (pin "3" (uuid ce5cb9f6-68a1-44dd-97d4-3c32194863ef))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q2") (unit 1)
         )
@@ -5696,7 +5696,7 @@
     (pin "1" (uuid 0ec51763-21e9-4b1a-8fae-01b8ccf173d5))
     (pin "2" (uuid e65dcd7b-5d4c-4b40-8c78-96c68093afc6))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "D3") (unit 1)
         )
@@ -5722,7 +5722,7 @@
     (pin "2" (uuid 25c53532-8db3-45e6-9085-edf73394d189))
     (pin "1" (uuid f7071a7b-32fd-4f30-bc6a-0a7276b69e17))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R10") (unit 1)
         )
@@ -5748,7 +5748,7 @@
     (pin "2" (uuid 6faa9d3f-c4d4-4b3e-b7fc-7346fb4a7366))
     (pin "1" (uuid 4b56a6f6-9725-4552-8851-f9fdd2e6a3cc))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R1") (unit 1)
         )
@@ -5775,7 +5775,7 @@
     (pin "2" (uuid 39da352f-bc66-40b2-9c30-68b99dc7bee3))
     (pin "3" (uuid eeceb220-743d-4bba-ad28-18a1bd3ba63f))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q11") (unit 1)
         )
@@ -5801,7 +5801,7 @@
     (pin "2" (uuid 73d502eb-2948-406e-99b3-f40d61e626af))
     (pin "1" (uuid f723974a-19d8-47ff-9038-7b4557777abe))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R13") (unit 1)
         )
@@ -5827,7 +5827,7 @@
     (pin "2" (uuid d28f203b-b476-4bab-9633-5e5b5a4abb16))
     (pin "1" (uuid 2035af61-df5a-4bb0-a754-ddee6f32000c))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R24") (unit 1)
         )
@@ -5835,7 +5835,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:MCP23017") (at 260.35 116.84 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:MCP23017") (at 260.35 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 64735c20-4ca4-455a-93c4-174231e8a26f)
     (property "Reference" "U2" (at 299.72 109.9119 90)
@@ -5877,7 +5877,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1926))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899c))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U2") (unit 1)
         )
@@ -5902,7 +5902,7 @@
     )
     (pin "1" (uuid 5c4157c0-304d-4ff9-9f50-1143696ad328))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR01") (unit 1)
         )
@@ -5928,7 +5928,7 @@
     (pin "2" (uuid 03989a95-70a6-45c2-9a1e-b71593271a88))
     (pin "1" (uuid 55cf79ab-4694-42f0-b14f-8af0fa0336f8))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C5") (unit 1)
         )
@@ -5955,7 +5955,7 @@
     (pin "2" (uuid a0a8d85e-e365-4b2a-a4ef-59ffc35b968e))
     (pin "3" (uuid 81e48f87-03c0-4013-babe-1cc251bfacbe))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q16") (unit 1)
         )
@@ -5981,7 +5981,7 @@
     (pin "2" (uuid 7ed8b5e5-e89c-4f01-9f8f-836adc11a03a))
     (pin "1" (uuid 1228f74b-ef40-4d26-996d-94c82ebf8c06))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R16") (unit 1)
         )
@@ -6017,7 +6017,7 @@
     (pin "3" (uuid 6f555e0a-554a-4de9-8ee9-4be145a5c06d))
     (pin "5" (uuid 8f6f2c87-261e-4ac8-838f-addc04367950))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J8") (unit 1)
         )
@@ -6041,7 +6041,7 @@
       (effects (font (size 1.27 1.27)) hide)
     )
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "H2") (unit 1)
         )
@@ -6068,7 +6068,7 @@
     (pin "1" (uuid c0af97c2-a1a6-47de-a68c-1af1c8829f71))
     (pin "2" (uuid b9e28b15-053c-4071-a3e5-9aeb46d83aa4))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q18") (unit 1)
         )
@@ -6094,7 +6094,7 @@
     (pin "2" (uuid ac1f8dad-1ed6-4fad-9bce-c3210322693c))
     (pin "1" (uuid 3c1af3e3-7d67-4552-95d6-6ca1de13b2f6))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R23") (unit 1)
         )
@@ -6119,7 +6119,7 @@
     )
     (pin "1" (uuid ad84cddf-af40-47a8-8c10-47eac26262e7))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR03") (unit 1)
         )
@@ -6145,7 +6145,7 @@
     (pin "2" (uuid dc4cf033-5275-429c-a939-958cacf8ce9e))
     (pin "1" (uuid 2e23f7c5-b8fe-47bc-8979-0aa586d38914))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C3") (unit 1)
         )
@@ -6171,7 +6171,7 @@
     (pin "1" (uuid 9a457ccc-6d4e-43e9-91f1-1722faf3ff29))
     (pin "2" (uuid b124a098-b30b-4c12-bab8-0e8511d846d8))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C6") (unit 1)
         )
@@ -6179,7 +6179,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:MCP23017") (at 121.92 116.84 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:MCP23017") (at 121.92 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid 8d1987b9-d1ea-422e-b964-232e9b3b9958)
     (property "Reference" "U4" (at 161.29 109.9119 90)
@@ -6221,7 +6221,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1927))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U4") (unit 1)
         )
@@ -6253,7 +6253,7 @@
     (pin "1" (uuid 3f27bfa4-f811-4f8c-aead-d0dd822d8406))
     (pin "2" (uuid eded14da-bfed-426f-b32f-6245b4d2497d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "D4") (unit 1)
         )
@@ -6280,7 +6280,7 @@
     (pin "2" (uuid 93d9d4e0-2424-4c2d-b1b0-445f7ccaa87d))
     (pin "3" (uuid 2b6c2866-0c15-464a-af20-710e917d1ae6))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q13") (unit 1)
         )
@@ -6305,7 +6305,7 @@
     )
     (pin "1" (uuid ceffd7dd-2160-45f9-bcac-4d3d94024726))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR05") (unit 1)
         )
@@ -6331,7 +6331,7 @@
     (pin "2" (uuid 5c9d83e1-f860-45b9-84d8-833ac7476f02))
     (pin "1" (uuid 78e5caef-adf4-469c-8eab-3bdd95d1794d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C21") (unit 1)
         )
@@ -6357,7 +6357,7 @@
     (pin "2" (uuid b3765ed6-6e61-4a0c-848e-a425873becf4))
     (pin "1" (uuid b7d5898d-9e3f-42ec-8833-68d8e83f5167))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R9") (unit 1)
         )
@@ -6384,7 +6384,7 @@
     (pin "2" (uuid ad4ccdd1-7cfa-4a84-8a2e-63ce8c957593))
     (pin "3" (uuid ed1c4f5b-729a-48a2-ada0-97e6933fcbca))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q3") (unit 1)
         )
@@ -6411,7 +6411,7 @@
     (pin "2" (uuid 7a591a1f-8fbd-48c9-89e1-674ba86ccdea))
     (pin "3" (uuid 3b6aca3a-2fe1-4893-ac77-fc557f9be81a))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q9") (unit 1)
         )
@@ -6437,7 +6437,7 @@
     (pin "2" (uuid 3d8a02df-8221-41ad-b3cd-b8b5bcfbc7fa))
     (pin "1" (uuid a8d4fd67-908b-4273-b71c-a3ffc3fdf251))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R27") (unit 1)
         )
@@ -6463,7 +6463,7 @@
     (pin "2" (uuid 68e9f395-b7c8-43bc-8a7e-2ff3d58a023b))
     (pin "1" (uuid bd4fc769-1706-4946-a528-9bed46d3fffa))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R15") (unit 1)
         )
@@ -6471,7 +6471,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 373.38 264.16 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:2x18edgecon") (at 373.38 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid ab4493b4-a678-4843-88e7-4bd41f14088e)
     (property "Reference" "J1" (at 372.11 267.97 90)
@@ -6480,7 +6480,7 @@
     (property "Value" "2x18edgecon" (at 372.11 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipan8lfoots:backpins-A" (at 373.38 264.16 0)
+    (property "Footprint" "myz8lfpanfoots:backpins-A" (at 373.38 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 373.38 264.16 0)
@@ -6523,7 +6523,7 @@
     (pin "C1" (uuid 980f1746-82ea-4171-b518-665158e27e80))
     (pin "B2" (uuid 3c55a90a-df8b-4eef-bb70-b0ec49cbf498))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J1") (unit 1)
         )
@@ -6549,7 +6549,7 @@
     (pin "2" (uuid ac612a13-83fa-45c0-a1df-fb422fa2a923))
     (pin "1" (uuid 9fcd9702-c29c-4a31-9abb-2e9f63e2f42d))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R26") (unit 1)
         )
@@ -6575,7 +6575,7 @@
     (pin "1" (uuid 37ecfd3c-f593-46d1-aa30-5a12614ef811))
     (pin "2" (uuid cd6574af-213f-4bd1-b44c-ef1289526cb8))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J6") (unit 1)
         )
@@ -6601,7 +6601,7 @@
     (pin "2" (uuid 491b25b3-f21a-4c8f-be61-e37b59c40183))
     (pin "1" (uuid 27b83aa1-134e-4800-8ae8-f0c0e05a52e0))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R5") (unit 1)
         )
@@ -6628,7 +6628,7 @@
     (pin "2" (uuid 3baa4053-ccd7-43bc-8671-3823baec93fe))
     (pin "3" (uuid b655f26b-6050-4604-aba2-1facb8c57487))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q15") (unit 1)
         )
@@ -6636,7 +6636,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:MCP23017") (at 334.01 118.11 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:MCP23017") (at 334.01 118.11 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid bf77d6af-0d48-407d-a25f-166ff303d86d)
     (property "Reference" "U1" (at 373.38 111.1819 90)
@@ -6678,7 +6678,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1928))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899e))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U1") (unit 1)
         )
@@ -6705,7 +6705,7 @@
     (pin "2" (uuid c6c3e275-a33c-4598-bb77-12be092a1777))
     (pin "3" (uuid 02c9b841-9efd-406d-bd2d-137fb7a031b7))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q6") (unit 1)
         )
@@ -6732,7 +6732,7 @@
     (pin "2" (uuid 53fb4003-06e0-444b-bad9-0e6ba2ea0de3))
     (pin "3" (uuid a6b97b72-57cb-4c46-b86d-3ba57f7aed64))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q8") (unit 1)
         )
@@ -6759,7 +6759,7 @@
     (pin "2" (uuid c912a35c-d298-4f80-be03-c6d73ca018a3))
     (pin "3" (uuid cbfc0fc5-8f7c-4f35-bd06-7442ba52eb8c))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q4") (unit 1)
         )
@@ -6786,7 +6786,7 @@
     (pin "2" (uuid a47f4327-0d58-4f71-a581-bc2a5fac57f8))
     (pin "3" (uuid cec59dc8-77cb-4fae-977d-37475e3ea118))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q14") (unit 1)
         )
@@ -6812,7 +6812,7 @@
     (pin "2" (uuid 0aa08e55-033e-446d-ab0d-7645bc65b321))
     (pin "1" (uuid d135d59c-9c47-4685-9660-73cf82ef9a13))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C2") (unit 1)
         )
@@ -6820,7 +6820,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:2x18edgecon") (at 175.26 264.16 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:2x18edgecon") (at 175.26 264.16 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid d69bfe1c-cb8f-4194-83d5-a1da7b2daa7b)
     (property "Reference" "J3" (at 173.99 267.97 90)
@@ -6829,7 +6829,7 @@
     (property "Value" "2x18edgecon" (at 173.99 270.51 90)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "mypipan8lfoots:backpins-C" (at 175.26 264.16 0)
+    (property "Footprint" "myz8lfpanfoots:backpins-C" (at 175.26 264.16 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 175.26 264.16 0)
@@ -6872,7 +6872,7 @@
     (pin "C1" (uuid ee68ba7e-b365-40c1-97b9-50bd9aaf98ac))
     (pin "B2" (uuid 0e06bc69-d0e0-46e8-8526-b02a05a1362c))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "J3") (unit 1)
         )
@@ -6898,7 +6898,7 @@
     (pin "2" (uuid efc8c295-8855-41bb-b1a8-239a24cb8fb1))
     (pin "1" (uuid 0bf359e5-dcc2-46b0-8c16-086e88c51a01))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "C4") (unit 1)
         )
@@ -6924,7 +6924,7 @@
     (pin "2" (uuid 121dd421-6bc8-40a3-a3ec-db0fbefd88bd))
     (pin "1" (uuid 040276e2-fa1a-4de1-9523-b2999660e2ac))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R12") (unit 1)
         )
@@ -6951,7 +6951,7 @@
     (pin "2" (uuid 11073948-ce12-4b18-adb4-f19ed1f34a85))
     (pin "3" (uuid f364ec79-d3e5-4349-9bcd-3ebc30c71925))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q7") (unit 1)
         )
@@ -6978,7 +6978,7 @@
     (pin "2" (uuid 5e78c2ec-3e6f-4c29-998a-bd764455bfbb))
     (pin "3" (uuid 80b9f4b3-5482-4546-8bf2-9c4442a65ed8))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q1") (unit 1)
         )
@@ -6986,7 +6986,7 @@
     )
   )
 
-  (symbol (lib_id "mypipan8llib:MCP23017") (at 191.77 116.84 270) (unit 1)
+  (symbol (lib_id "myz8lfpanlib:MCP23017") (at 191.77 116.84 270) (unit 1)
     (in_bom yes) (on_board yes) (dnp no) (fields_autoplaced)
     (uuid e1ce18a4-cba4-4a79-bd9f-583bd4350476)
     (property "Reference" "U3" (at 231.14 109.9119 90)
@@ -7028,7 +7028,7 @@
     (pin "4" (uuid 06f85a97-b40b-4ca8-b071-5fee6d6a1929))
     (pin "12" (uuid 8698ebc2-f06f-4f87-8f43-3e7768d0899f))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "U3") (unit 1)
         )
@@ -7053,7 +7053,7 @@
     )
     (pin "1" (uuid 6059f17f-cd37-4e70-9566-6ff795588fd4))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR02") (unit 1)
         )
@@ -7080,7 +7080,7 @@
     (pin "2" (uuid df4af093-ad3b-4892-81dd-8c5c42c75b94))
     (pin "3" (uuid be174964-a604-4f1f-a564-a71973891030))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "Q10") (unit 1)
         )
@@ -7106,7 +7106,7 @@
     (pin "2" (uuid 96f2909b-46a3-4588-9505-85e35ff3a9ba))
     (pin "1" (uuid d76bf62b-0ae6-447d-a329-f57e5a6f0bdc))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R25") (unit 1)
         )
@@ -7131,7 +7131,7 @@
     )
     (pin "1" (uuid c2783da4-1a60-49c5-b036-8e9889348696))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "#PWR04") (unit 1)
         )
@@ -7163,7 +7163,7 @@
     (pin "1" (uuid f90d3f9a-7940-4817-acc1-859ab9479e1d))
     (pin "2" (uuid 2da0baab-6fd1-4eb5-8d05-b37bdcb501a6))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "D2") (unit 1)
         )
@@ -7189,7 +7189,7 @@
     (pin "2" (uuid c804682b-e11d-43e3-957f-941ce3f719a6))
     (pin "1" (uuid 97726351-75bd-42fa-8fb5-bf49fc307e79))
     (instances
-      (project "pipan8l"
+      (project "z8lfpan"
         (path "/79b05002-547f-468d-866c-9f8555f2e009"
           (reference "R8") (unit 1)
         )
