@@ -1777,9 +1777,9 @@ module Zynq (
 
             // arm processor is writing control register
             ilaarmed <= saxi_WDATA[31];
-            ilaafter <= saxi_WDATA[30:16];
+            ilaafter <= saxi_WDATA[27:16];
             ilaindex <= saxi_WDATA[11:00];
-            ilardata <= ilaarray[saxi_WDATA];
+            ilardata <= ilaarray[saxi_WDATA[11:00]];
         end else if (ilaarmed | (ilaafter != 0)) begin
 
             // capture signals
