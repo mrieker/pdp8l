@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4079;
+    localparam VERSION = 32'h384C407B;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -428,8 +428,8 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[05:00] ilaarray[32767:0], ilardata;
-    reg[14:00] ilaafter, ilaindex;
+    reg[11:00] ilaarray[4095:0], ilardata;
+    reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
     /////////////////////////////////////
@@ -459,9 +459,9 @@ module Zynq (
             bMEMBUSA, bMEMBUSB, bMEMBUSC, bMEMBUSD, bMEMBUSE, bMEMBUSF, bMEMBUSH, bMEMBUSJ, bMEMBUSK, bMEMBUSL, bMEMBUSM, bMEMBUSN,
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
-        (readaddr        == 10'b0000010001) ? { ilaarmed, ilaafter, 1'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 26'b0, ilardata[05:00] } :
-        (readaddr        == 10'b0000010011) ? { 32'b0                  } :
+        (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
+        (readaddr        == 10'b0000010010) ? { 20'b0, ilardata[11:00] } :
+        (readaddr        == 10'b0000010011) ? { 32'b0 } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1722,6 +1722,7 @@ module Zynq (
     end
 
     wire[13:00] i2ccount;
+    wire[63:00] i2cstatus;
     pdp8lfpi2c fpi2cinst (
         .CLOCK (CLOCK),
         .RESET (pwronreset),
@@ -1735,7 +1736,8 @@ module Zynq (
         .i2cclk (iFPI2CCLK),
         .i2cdao (fpi2cdao),
         .i2cdai (bFPI2CDATA),
-        .i2ccount (i2ccount)
+        .i2ccount (i2ccount),
+        .status (i2cstatus)
     );
 
     // paper tape reader interface
@@ -1776,18 +1778,15 @@ module Zynq (
             // arm processor is writing control register
             ilaarmed <= saxi_WDATA[31];
             ilaafter <= saxi_WDATA[30:16];
-            ilaindex <= saxi_WDATA[14:00];
-            ilardata <= ilaarray[saxi_WDATA[14:00]];
+            ilaindex <= saxi_WDATA[11:00];
+            ilardata <= ilaarray[saxi_WDATA];
         end else if (ilaarmed | (ilaafter != 0)) begin
 
             // capture signals
             ilaarray[ilaindex] <= {
                 fpi2cwrite,
-                fpi2cdao,
-                iFPI2CCLK,       // clock
-                bFPI2CDATA,      // bi-dir data bus
-                i_FPI2CDENA,     // low to turn on bi-dir driver; high to shut off
-                iFPI2CDDIR       // high when sending; low when receiving
+                saxi_RVALID,
+                saxi_RREADY
             };
 
             ilaindex <= ilaindex + 1;

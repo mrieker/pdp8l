@@ -75,7 +75,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
             sclo   <= 1;
             sdao   <= 1;
             state  <= START;
-            status[63:61] <= 2'b100;    // busy, no error so far
+            status[63:61] <= 3'b100;    // busy, no error so far
         end else if (CSTEP) begin
             case (state)
 
@@ -96,7 +96,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                                 end else begin
                                     state      <= IDLE;
                                     status[61] <= 1'b1;     // data line jammed low when we're trying to start
-                                    status[63] <= 1'b1;     // we're done
+                                    status[63] <= 1'b0;     // we're done
                                 end
                             end
                         1:
@@ -199,14 +199,14 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                             begin
                                 count <= counthiinc;
                                 sclo  <= 0;
-                                status[55:00] = { status[54:00], sdai };
+                                status[55:00] <= { status[54:00], sdai };
                             end
                         15:
                             begin
                                 count <= counthiinc;
                                 sclo  <= 0;
                                 sdao  <= 0;
-                                status[55:00] = { status[54:00], sdai };
+                                status[55:00] <= { status[54:00], sdai };
                             end
                         16:
                             begin

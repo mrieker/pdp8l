@@ -32,15 +32,15 @@ module pdp8lfpi2c (
     output i2cdao,
     input  i2cdai,
 
-    output[13:00] i2ccount
+    output[13:00] i2ccount,
+    output[63:00] comand, status
 );
 
     reg clear, manclk, mandao, manual, stepon;
     reg[31:00] commandlo;
     wire autclk, autdao;
-    wire[63:00] comand, status;
 
-    assign armrdata = (armraddr == 0) ? 32'h46502008 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h46502009 : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { comand[31:00] } :
                       (armraddr == 2) ? { comand[63:32] } :
                       (armraddr == 3) ? { status[31:00] } :
