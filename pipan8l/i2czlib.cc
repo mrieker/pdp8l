@@ -27,6 +27,8 @@
 #include "i2czlib.h"
 #include "z8ldefs.h"
 
+#define I2CUS(s,r) (10*2+15*(s)+10*(r)) // s=number bits sent, r=number bits rcvd
+
 #define I2CBA  0x20     // I2C address of MCP23017 chip 0
 
 #define IODIRA   0x00   // pin direction: '1'=input ; '0'=output
@@ -78,7 +80,7 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
     fpat  = z8p->findev ("FP", NULL, NULL, false);
-    fpat[5] = ZCLEAR;
+    fpat[5] = SDAO | SCLK | MANUAL | ZCLEAR;
 
     uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
     if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
@@ -88,6 +90,24 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
     if (sim)  pdpat[Z_RE] |=   e_simit;
     pdpat[Z_RE] |= e_nanocontin;
 
+    // data line shoule be high (open)
+    // if not, try pulsing clock line low then high then re-check
+    for (int i = 0; i < 100; i ++) {
+        fpat[5] = SDAO | SCLK | MANUAL;
+        usleep (1000);
+        if (fpat[5] & SDAI) {
+            if (i > 0) fprintf (stderr, "I2CZLib::openpads: i2c data line unstuck\n");
+            goto datok;
+        }
+        fprintf (stderr, "I2CZLib::openpads: i2c data line stuck low\n");
+        fpat[5] = SDAO | MANUAL;
+        usleep (1000);
+    }
+    fprintf (stderr, "I2CZLib::openpads: failed to clear i2c data line\n");
+    ABORT ();
+datok:;
+
+    // turn the i2c lines over to i2cmaster.v
     fpat[5] = 0;
 }
 
@@ -347,7 +367,7 @@ void I2CZLib::writebut (uint16_t *dirs, uint16_t *vals,
 //   vals<coll> = 0: driving collector pin low; 1: driving collector pin high
 //  note:
 //   cannot have the transistor on (base low) and driving collector line low at same time
-//   or it will cook the collector line, so writelog() must be called twice to do transition
+//   or it will cook the collector line, so writetog() must be called twice to do transition
 void I2CZLib::writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr,
     int baseidx, int basebit, int collidx, int collbit)
 {
@@ -371,45 +391,6 @@ void I2CZLib::writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr,
             vals[baseidx] |= basemsk;       // drive base line high to shut off transistor
         }
     }
-}
-
-// read 8-bit value from mcp23017 reg at addr
-uint8_t I2CZLib::read8 (uint8_t addr, uint8_t reg)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send restart bit
-    //  send-8-bits-to-i2cbus 7-bit-address 1=read
-    //  read-8-bits-from-i2cbus
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQST << 42) |
-        (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
-        (ZYNQRD << 30);
-
-    uint64_t sts = doi2ccycle (cmd);
-
-    // value in low 8 bits of status register
-    return (uint8_t) sts;
-}
-
-// write 8-bit value to mcp23017 reg at addr
-void I2CZLib::write8 (uint8_t addr, uint8_t reg, uint8_t byte)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send-8-bits-to-i2cbus 8-bit-register-value
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQWR << 42) | ((uint64_t) byte << 34);
-
-    doi2ccycle (cmd);
 }
 
 // read 16-bit value from MCP23017 on I2C bus
@@ -437,7 +418,7 @@ uint16_t I2CZLib::read16 (uint8_t addr, uint8_t reg)
         (ZYNQRD << 30) |
         (ZYNQRD << 28);
 
-    uint64_t sts = doi2ccycle (cmd);
+    uint64_t sts = doi2ccycle (cmd, I2CUS(8+8+1+8+2,1+1+1+16));
 
     // values in low 16 bits of status register
     //  <15:08> = reg+0
@@ -466,156 +447,27 @@ void I2CZLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
         (ZYNQWR << 42) | ((uint64_t) (word & 0xFFU) << 34) |
         (ZYNQWR << 32) | ((uint64_t) (word >> 8) << 24);
 
-    doi2ccycle (cmd);
-}
-
-static void bitdelay ()
-{
-    uint32_t beg, now;
-    asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (beg));
-    do asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (now));
-    while (now - beg < 3333);   // 5uS
+    doi2ccycle (cmd, I2CUS(8+8+16,1+1+2));
 }
 
 // send command to MCP23017 via pdp8lfpi2c.v then read response
-uint64_t I2CZLib::doi2ccycle (uint64_t cmd)
+uint64_t I2CZLib::doi2ccycle (uint64_t cmd, int i2cus)
 {
-#if 111
-    // starts with SCLK=1, SDAO=1
-    // make sure SCLK=1, SDAO=1
-    // wait 5uS, clear SDAT
-    // wait 5uS, clear SCLK
-    // ends with SCLK=0, SDAO=0
-    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-    bitdelay ();
-    if (! (fpat[5] & SDAI)) {
-        fprintf (stderr, "I2CZLib::doi2ccycle: i2c bus jammed\n");
-        ABORT ();
-    }
-    fpat[5] = SCLK | MANUAL | ZCLEAR;
-    bitdelay ();
-    fpat[5] = MANUAL | ZCLEAR;
-
-    uint64_t sts = 0;
-    while (true) {
-        switch (cmd >> 62) {
-
-            // send stop bit and return status
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SCLK
-            // wait 5uS, set SDAT
-            // ends with SCLK=1, SDAO=1
-            case 0: {
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                return sts;
-            }
-
-            // send a restart bit
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SDAO
-            // wait 5uS, set SCLK
-            // wait 5uS, clear SDAO
-            // wait 5uS, clear SCLK
-            // ends with SCLK=0, SDAO=0
-            case ZYNQST: {
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            // read 8 bits then send ack bit
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SDAT to open-drain the data line
-            // repeat 8 times:
-            //   wait 5uS, set SCLK
-            //   wait 5uS, shift SDAI into sts, clear SCLK
-            // wait 5uS, clear SDAT to send ACK bit
-            // wait 5uS, set SCLK
-            // wait 5uS, clear SCLK
-            // ends with SCLK=0, SDAO=0
-            case ZYNQRD: {
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                for (int i = 0; i < 8; i ++) {
-                    bitdelay ();
-                    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                    bitdelay ();
-                    sts = (sts << 1) | ((fpat[5] / SDAI) & 1);
-                    fpat[5] = SDAO | MANUAL | ZCLEAR;
-                }
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            // write 8 bits then send ack bit
-            // starts with SCLK=0, SDAO=0
-            // repeat 8 times:
-            //   wait 5uS, set SDAO to top data bit
-            //   wait 5uS, set SCLK
-            //   wait 5uS, clear SCLK
-            // wait 5uS, set SDAT to recv ACK bit
-            // wait 5uS, set SCLK
-            // wait 5uS, check SDAI is low, clear SCLK
-            // wait 5uS, clear SDAO
-            // ends with SCLK=0, SDAO=0
-            case ZYNQWR: {
-                for (int i = 0; i < 8; i ++) {
-                    uint32_t x = ((cmd >> 61) & 1) * SDAO | MANUAL | ZCLEAR;
-                    bitdelay ();
-                    fpat[5] = x;
-                    bitdelay ();
-                    fpat[5] = SCLK | x;
-                    bitdelay ();
-                    fpat[5] = x;
-                    cmd <<= 1;
-                }
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                if (fpat[5] & SDAI) {
-                    fprintf (stderr, "I2CZLib::doi2ccycle: mcp23017 did not respond\n");
-                    ABORT ();
-                }
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            default: ABORT ();
-        }
-        cmd <<= 2;
-    }
-#endif
-#if 000
     // writing high-order word triggers i/o, so write low-order first
     fpat[ZPI2CCMD+0] = cmd;
     fpat[ZPI2CCMD+1] = cmd >> 32;
 
-    // wait for busy bit to clear
+    // do some sleeping
+    usleep (i2cus - 50);
+
+    // finish wait for busy bit to clear
     for (int i = 1000000; -- i >= 0;) {
         uint32_t sts1 = fpat[ZPI2CSTS+1];
         if (! (sts1 & (1U << 31))) {
 
-            // make sure ack was received from mcp23017
-            if (sts1 & (1U << 30)) {
-                fprintf (stderr, "I2CZLib::doi2ccycle: mcp23017 did not respond\n");
+            // check for error
+            if (sts1 & (3U << 29)) {
+                fprintf (stderr, "I2CZLib::doi2ccycle: MCP23017 I/O error %08X\n", sts1);
                 ABORT ();
             }
 
@@ -623,50 +475,6 @@ uint64_t I2CZLib::doi2ccycle (uint64_t cmd)
             return (((uint64_t) sts1) << 32) | sts0;
         }
     }
-    fprintf (stderr, "I2CZLib::write16: i2c I/O timeout\n");
+    fprintf (stderr, "I2CZLib::doi2ccycle: MCP23017 I/O timeout\n");
     ABORT ();
-#endif
 }
-
-/***
-    capture[capcount++] = fpat[5] >> 24;
-
-static void printcap ()
-{
-    printbit ("SCL", 0x80);
-    printbit ("SDO", 0x40);
-    printbit ("SDI", 0x20);
-}
-
-static void printbit (char const *name, uint8_t bit)
-{
-    bool lastbit, thisbit, nextbit;
-
-    putchar ('\n');
-
-    fputs ("   ", stdout);
-
-    lastbit = (capture[0] & bit) != 0;
-    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
-        thisbit = (capture[i+0] & bit) != 0;
-        nextbit = (capture[i+1] & bit) != 0;
-        putchar ((thisbit & lastbit & nextbit) ? '_' : ' ');
-        lastbit = thisbit;
-    }
-    putchar ('\n');
-
-    fputs (name, stdout);
-
-    lastbit = (capture[0] & bit) != 0;
-    for (int i = 1; (i < capcount - 1) && (i < 2000); i ++) {
-        thisbit = (capture[i+0] & bit) != 0;
-        nextbit = (capture[i+1] & bit) != 0;
-        if (! lastbit &   nextbit) putchar ('/');
-        if (  lastbit & ! nextbit) putchar ('\\');
-        if (! lastbit & ! nextbit) putchar ('_');
-        if (  lastbit &   nextbit) putchar (' ');
-        lastbit = thisbit;
-    }
-    putchar ('\n');
-}
-***/

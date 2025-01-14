@@ -25,6 +25,7 @@
 
 #include "z8lutil.h"
 
+// toggle switches
 struct Z8LToggles {
     uint16_t sr;
     bool mprt;
@@ -33,6 +34,7 @@ struct Z8LToggles {
     bool step;
 };
 
+// button (momentary) switches
 struct Z8LButtons {
     bool stop;
     bool cont;
@@ -42,6 +44,7 @@ struct Z8LButtons {
     bool dep;
 };
 
+// light bulbs
 struct Z8LLights {
     uint16_t ma;
     uint16_t mb;
@@ -61,11 +64,12 @@ struct Z8LLights {
     bool brk;
 };
 
+// all switches and lights
 struct Z8LPanel {
-    Z8LToggles togovr;
-    Z8LToggles togval;
-    Z8LButtons button;
-    Z8LLights  light;
+    Z8LToggles togovr;  // which toggles are being overridden
+    Z8LToggles togval;  // toggle switch values
+    Z8LButtons button;  // button switch values
+    Z8LLights  light;   // light bulb values
 };
 
 struct I2CZLib {
@@ -82,11 +86,9 @@ private:
 
     void writebut (uint16_t *dirs, uint16_t *vals, bool val, int validx, int valbit);
     void writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr, int baseidx, int basebit, int collidx, int collbit);
-    uint8_t read8 (uint8_t addr, uint8_t reg);
-    void write8 (uint8_t addr, uint8_t reg, uint8_t byte);
     uint16_t read16 (uint8_t addr, uint8_t reg);
     void write16 (uint8_t addr, uint8_t reg, uint16_t word);
-    uint64_t doi2ccycle (uint64_t cmd);
+    uint64_t doi2ccycle (uint64_t cmd, int i2cus);
 };
 
 #endif

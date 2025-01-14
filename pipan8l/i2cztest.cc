@@ -131,10 +131,24 @@ int main ()
     printf ("8L VERSION %08X\n", pdpat[0]);
     printf ("FP VERSION %08X\n", fpat[0]);
 
-    // reset the I2C code (ZCLEAR) then leave SCLK,SDAO set
+    // reset the I2C code (ZCLEAR)
     pdpat[Z_RE] = e_simit | e_nanocontin;
     fpat[5] = ZCLEAR;
     usleep (1000);
+    fpat[5] = 0;
+
+    // clock and data lines shoule be high (open)
+    for (int i = 0; i < 100; i ++) {
+        fpat[5] = SDAO | SCLK | MANUAL;
+        usleep (1000);
+        if (fpat[5] & SDAI) goto datok;
+        fprintf (stderr, "data line stuck low\n");
+        fpat[5] = SDAO | MANUAL;
+        usleep (1000);
+    }
+    fprintf (stderr, "failed to clear data line\n");
+    return 1;
+datok:;
     fpat[5] = 0;
 
     // order of addressing MCP23017s
