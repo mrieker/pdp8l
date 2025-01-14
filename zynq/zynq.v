@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C407B;
+    localparam VERSION = 32'h384C407C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -942,18 +942,18 @@ module Zynq (
     assign x_DMAADDR = bareit ? arm_x_DMAADDR : dev_x_DMAADDR;
     assign x_DMADATA = bareit ? arm_x_DMADATA : dev_x_DMADATA;
 
-    assign bDMABUSA = (~ x_DMAADDR & iDMAADDR[11-09]) | (~ x_DMADATA & iDMADATA[11-00]);
-    assign bDMABUSB = (~ x_DMAADDR & iDMAADDR[11-00]) | (~ x_DMADATA & iDMADATA[11-02]);
-    assign bDMABUSC = (~ x_DMAADDR & iDMAADDR[11-02]) | (~ x_DMADATA & iDMADATA[11-09]);
-    assign bDMABUSD = (~ x_DMAADDR & iDMAADDR[11-04]) | (~ x_DMADATA & iDMADATA[11-11]);
-    assign bDMABUSE = (~ x_DMAADDR & iDMAADDR[11-06]) | (~ x_DMADATA & iDMADATA[11-05]);
-    assign bDMABUSF = (~ x_DMAADDR & iDMAADDR[11-11]) | (~ x_DMADATA & iDMADATA[11-08]);
-    assign bDMABUSH = (~ x_DMAADDR & iDMAADDR[11-10]) | (~ x_DMADATA & iDMADATA[11-01]);
-    assign bDMABUSJ = (~ x_DMAADDR & iDMAADDR[11-01]) | (~ x_DMADATA & iDMADATA[11-03]);
-    assign bDMABUSK = (~ x_DMAADDR & iDMAADDR[11-03]) | (~ x_DMADATA & iDMADATA[11-10]);
-    assign bDMABUSL = (~ x_DMAADDR & iDMAADDR[11-05]) | (~ x_DMADATA & iDMADATA[11-04]);
-    assign bDMABUSM = (~ x_DMAADDR & iDMAADDR[11-07]) | (~ x_DMADATA & iDMADATA[11-06]);
-    assign bDMABUSN = (~ x_DMAADDR & iDMAADDR[11-08]) | (~ x_DMADATA & iDMADATA[11-07]);
+    assign bDMABUSA = (~ x_DMAADDR & iDMAADDR[11-01]) | (~ x_DMADATA & iDMADATA[11-00]);
+    assign bDMABUSB = (~ x_DMAADDR & iDMAADDR[11-10]) | (~ x_DMADATA & iDMADATA[11-01]);
+    assign bDMABUSC = (~ x_DMAADDR & iDMAADDR[11-03]) | (~ x_DMADATA & iDMADATA[11-09]);
+    assign bDMABUSD = (~ x_DMAADDR & iDMAADDR[11-11]) | (~ x_DMADATA & iDMADATA[11-03]);
+    assign bDMABUSE = (~ x_DMAADDR & iDMAADDR[11-04]) | (~ x_DMADATA & iDMADATA[11-06]);
+    assign bDMABUSF = (~ x_DMAADDR & iDMAADDR[11-06]) | (~ x_DMADATA & iDMADATA[11-07]);
+    assign bDMABUSH = (~ x_DMAADDR & iDMAADDR[11-00]) | (~ x_DMADATA & iDMADATA[11-02]);
+    assign bDMABUSJ = (~ x_DMAADDR & iDMAADDR[11-09]) | (~ x_DMADATA & iDMADATA[11-10]);
+    assign bDMABUSK = (~ x_DMAADDR & iDMAADDR[11-02]) | (~ x_DMADATA & iDMADATA[11-04]);
+    assign bDMABUSL = (~ x_DMAADDR & iDMAADDR[11-05]) | (~ x_DMADATA & iDMADATA[11-11]);
+    assign bDMABUSM = (~ x_DMAADDR & iDMAADDR[11-07]) | (~ x_DMADATA & iDMADATA[11-05]);
+    assign bDMABUSN = (~ x_DMAADDR & iDMAADDR[11-08]) | (~ x_DMADATA & iDMADATA[11-08]);
 
     ////////////////////////
     //  multiplex MEMBUS  //
@@ -970,16 +970,16 @@ module Zynq (
     // gate memory read data to PDP when it is reading from extended memory
     // data is gated from middle of TS1 to end of TS4 when using extended memory
     // send out zeroes when PDP is using its own core stack so we don't jam jMEM going to PDP
-    assign bMEMBUSH = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-00]);
-    assign bMEMBUSB = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-01]);
-    assign bMEMBUSJ = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-02]);
-    assign bMEMBUSE = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-03]);
-    assign bMEMBUSM = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-04]);
+    assign bMEMBUSA = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-00]);
+    assign bMEMBUSC = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-01]);
+    assign bMEMBUSK = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-02]);
+    assign bMEMBUSM = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-03]);
+    assign bMEMBUSE = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-04]);
     assign bMEMBUSF = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-05]);
     assign bMEMBUSN = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-06]);
-    assign bMEMBUSA = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM_P);
-    assign bMEMBUSK = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-08]);
-    assign bMEMBUSC = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-09]);
+    assign bMEMBUSH = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM_P);
+    assign bMEMBUSJ = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-08]);
+    assign bMEMBUSB = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-09]);
     assign bMEMBUSL = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-10]);
     assign bMEMBUSD = hizmembus ? 1'bZ : (x_MEM ? 0 : i_MEM[11-11]);
     assign i_MEM_07 =                     x_MEM ? 0 : i_MEM[11-07];
@@ -1001,15 +1001,15 @@ module Zynq (
     assign bPIOBUSA = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-00];
     assign bPIOBUSH = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-01];
     assign bPIOBUSB = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-02];
-    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-03];
-    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-04];
-    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-05];
-    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-06];
+    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-03];
+    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-04];
+    assign bPIOBUSM = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-05];
+    assign bPIOBUSE = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-06];
     assign bPIOBUSF = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-07];
     assign bPIOBUSN = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-08];
-    assign bPIOBUSC = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-09];
-    assign bPIOBUSK = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-10];
-    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-11];
+    assign bPIOBUSJ = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-09];
+    assign bPIOBUSD = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-10];
+    assign bPIOBUSL = x_INPUTBUS ? 1'bZ : iINPUTBUS[11-11];
 
     // latch MB contents from piobus when not in io pulse
     // MB holds io opcode being executed during io pulses and has been valid for a few hundred nanoseconds
