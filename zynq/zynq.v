@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C407C;
+    localparam VERSION = 32'h384C407E;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -428,7 +428,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[11:00] ilaarray[4095:0], ilardata;
+    reg[47:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -460,8 +460,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 20'b0, ilardata[11:00] } :
-        (readaddr        == 10'b0000010011) ? { 32'b0 } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { 16'b0, ilardata[47:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1784,16 +1784,24 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                fpi2cwrite,
-                saxi_RVALID,
-                saxi_RREADY
+                xmstate,
+                dev_oMEMSTART,
+                dev_i_STROBE,
+                dev_i_MEMDONE,
+                dev_hizmembus,
+                dev_r_MA,
+                dev_oMA,
+                dev_x_MEM,
+                dev_i_MEM,
+                dev_r_BMB,
+                dev_oBMB
             };
 
             ilaindex <= ilaindex + 1;
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (fpi2cwrite & (writeaddr[4:2] == 3'b010)) ilaarmed <= 0;
+            else if (dev_oMEMSTART) ilaarmed <= 0;
         end
     end
 endmodule

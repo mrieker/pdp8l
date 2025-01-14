@@ -103,7 +103,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1022 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1023 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmmemenab, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
@@ -351,7 +351,7 @@ module pdp8lxmem (
                     // if PDP is busy, send zeroes out to FPGAs MEMBUS to open-drain the transistors
                     // ...so they don't jam up the PDPs MEM bus while it uses its core stack
                     // this runs continuously while the PDP is doing an internal memory cycle
-                    if (meminprog[9:3] != 0) begin
+                    else if (meminprog[9:3] != 0) begin
                         if (r_MA & x_MEM) hizmembus <= 0;
                         else r_MA <= 1;
                     end

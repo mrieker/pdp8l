@@ -33,8 +33,8 @@
 #include "z8ldefs.h"
 #include "z8lutil.h"
 
-#define DEPTH 32768  // total number of elements in ilaarray
-#define AFTER 32700  // number of samples to take after sample containing trigger
+#define DEPTH 4096  // total number of elements in ilaarray
+#define AFTER 4000  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
@@ -76,16 +76,20 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o %o  %o  %o %o  %o %o\n",
-                (i - DEPTH + AFTER + 1) / 100.0,    // trigger shows as 0.00uS
-                (unsigned) (thisentry >>  7) & 1,   // fpi2cwrite
-                (unsigned) (thisentry >>  6) & 1,   // wdata[31]
-                (unsigned) (thisentry >>  5) & 1,   // wdata[30]
-                (unsigned) (thisentry >>  4) & 1,   // fpi2cdao
-                (unsigned) (thisentry >>  3) & 1,   // iFPI2CCLK
-                (unsigned) (thisentry >>  2) & 1,   // bFPI2CDATA
-                (unsigned) (thisentry >>  1) & 1,   // i_FPI2CDENA
-                (unsigned) (thisentry >>  0) & 1);  // iFPI2CDDIR
+            printf ("%6.2f  %2u  %o %o %o  %o  %o %04o  %o %04o  %o %04o\n",
+                (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
+
+                (unsigned) (thisentry >> 43) & 31,      // xmstate
+                (unsigned) (thisentry >> 42) & 1,       // oMEMSTART
+                (unsigned) (thisentry >> 41) & 1,       // i_STROBE
+                (unsigned) (thisentry >> 40) & 1,       // i_MEMDONE
+                (unsigned) (thisentry >> 39) & 1,       // hizmembus
+                (unsigned) (thisentry >> 38) & 1,       // r_MA
+                (unsigned) (thisentry >> 26) & 07777,   // oMA
+                (unsigned) (thisentry >> 25) & 1,       // x_MEM
+                (unsigned) (thisentry >> 13) & 07777,   // xmmem
+                (unsigned) (thisentry >> 12) & 1,       // r_BMB
+                (unsigned) (thisentry >>  0) & 07777);  // oBMB
 
             indotdotdot = false;
         } else if (! indotdotdot) {
