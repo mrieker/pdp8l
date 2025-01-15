@@ -1,0 +1,41 @@
+
+raspberry pi:
+
+    # make sure running latest kernel so installing headers will match version
+    apt-get update
+    apt-get upgrade
+
+    # install latest headers
+    apt-get install raspberrypi-kernel-headers
+
+zync zturn:
+
+    build petalinux on a PC
+
+        mkdir petadevel
+        /tools/Xilinx/Downloads/petalinux-v2018.3-final-installer.run petadevel
+        source petadevel/settings.sh
+        source /tools/Xilinx/Vivado/2018.3/settings64.sh
+        mkdir petakernl
+        cd petakernl
+        petalinux-create -t project -s ../zturn_7z020_hdmi.bsp
+        cd zturn
+        petalinux-config        << accept all defaults
+        petalinux-build
+
+        source is in petakernl/zturn/build/tmp/work-shared/plnx-zynq7/kernel-source
+        copy it to zturn:/usr/src/linux-headers-4.14.0-xilinx-v2018.3
+
+    also need softlink on zturn:
+        ln -s /usr/src/linux-headers-4.14.0-xilinx-v2018.3 /lib/modules/4.14.0-xilinx-v2018.3/build
+
+    build the kernel on zturn:
+        cd /usr/src/linux-headers-4.14.0-xilinx-v2018.3
+        make oldconfig && make prepare
+        make modules_prepare
+
+compile and load this module:
+
+    make
+    insmod enabtsc.ko
+
