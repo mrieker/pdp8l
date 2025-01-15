@@ -76,21 +76,25 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %2u  %o %o %o  %o  %o %04o  %o %04o  %o %04o\n",
+            printf ("%6.2f  %o %o %o  %o %o %o  %2u %2u  %o %o %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 43) & 63,      // xmstate
-                (unsigned) (thisentry >> 42) & 1,       // oMEMSTART
-                (unsigned) (thisentry >> 41) & 1,       // i_STROBE
-                (unsigned) (thisentry >> 40) & 1,       // i_MEMDONE
-                (unsigned) (thisentry >> 39) & 1,       // hizmembus
-                (unsigned) (thisentry >> 38) & 1,       // r_MA
-                (unsigned) (thisentry >> 26) & 07777,   // oMA
-                (unsigned) (thisentry >> 25) & 1,       // x_MEM
-                (unsigned) (thisentry >> 13) & 07777,   // xmmem
-                (unsigned) (thisentry >> 12) & 1,       // r_BMB
-                (unsigned) (thisentry >>  0) & 07777);  // oBMB
+                (unsigned) (thisentry >> 19) & 1,       // oMEMSTART
+                (unsigned) (thisentry >> 18) & 1,       // i_STROBE
+                (unsigned) (thisentry >> 17) & 1,       // i_MEMDONE
 
+                (unsigned) (thisentry >> 16) & 1,       // oMEMSTART
+                (unsigned) (thisentry >> 15) & 1,       // dev_i_EA
+                (unsigned) (thisentry >> 14) & 1,       // dev_o_B_BREAK
+
+                (unsigned) (thisentry >> 10) & 15,      // cmbusy[3:0]
+                (unsigned) (thisentry >>  4) & 63,      // xmstate[5:0]
+
+                (unsigned) (thisentry >>  3) & 1,       // hizmembus
+                (unsigned) (thisentry >>  2) & 1,       // r_MA
+                (unsigned) (thisentry >>  1) & 1,       // x_MEM
+                (unsigned) (thisentry >>  0) & 1        // r_BMB
+            );
             indotdotdot = false;
         } else if (! indotdotdot) {
             printf ("    ...\n");

@@ -103,7 +103,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1024 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1025 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, xmmemenab, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
@@ -342,29 +342,20 @@ module pdp8lxmem (
                 0: begin
                     x_MEM <= 1;                             // make sure we aren't gating any read data onto FPGAs MEMBUS
 
-                    // check for starting an external memory cycle (external to PDP, ie, our 32KW memory)
-                    if (xmmemenab) begin
-                        xmstate   <= 1;                     // start processing external memory cycle
+                    // check for PDP/sim starting a memory cycle
+                    if (memstart) begin
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
+
+                        // starting an internal memory cycle (internal to PDP, ie, its 4KW core stack)
+                        if (_ea) xmstate <= 40;             // wait for internal memory cycle to complete
+
+                        // starting an external memory cycle (external to PDP, ie, our 32KW memory)
+                        else xmstate <= 1;                  // start processing external memory cycle
                     end
 
-                    // check for starting an internal memory cycle (internal to PDP, ie, its 4KW core stack)
-                    else if (memstart) begin
-                        xmstate   <= 40;
-                        hizmembus <= 1;
-                    end
-
-                    // if PDP is busy, send zeroes out to FPGAs MEMBUS to open-drain the transistors
-                    // ...so they don't jam up the PDPs MEM bus while it uses its core stack
-                    // this runs continuously while the PDP is doing an internal memory cycle
-                    else if (meminprog[9:3] != 0) begin
-                        if (r_MA & x_MEM) hizmembus <= 0;
-                        else r_MA <= 1;
-                    end
-
-                    // it has been a while since any MEMSTART pulse so assume the PDP is stopped
+                    // if it has been a while since any MEMSTART pulse, assume the PDP is stopped
                     // clock in the PDPs MA register so it shows up on console
-                    else case (meminprog[2:0])
+                    else case (meminprog)
                         7: hizmembus <= 1;                  // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
                         6: r_MA <= 0;                       // gate PDPs MA onto FPGAs MEMBUS
                                                             // zynq.v clocks it into its oMA
