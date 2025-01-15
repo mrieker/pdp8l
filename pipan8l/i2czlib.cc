@@ -70,17 +70,26 @@
 #define ZSTEPIT 1U
 
 I2CZLib::I2CZLib ()
-{ }
+{
+    z8p   = NULL;
+    pdpat = NULL;
+    fpat  = NULL;
+}
 
 I2CZLib::~I2CZLib ()
-{ }
+{
+    if (z8p != NULL) {
+        delete z8p;
+    }
+    z8p   = NULL;
+    pdpat = NULL;
+    fpat  = NULL;
+}
 
 void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
 {
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
-    fpat  = z8p->findev ("FP", NULL, NULL, false);
-    fpat[5] = SDAO | SCLK | MANUAL | ZCLEAR;
 
     uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
     if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
@@ -90,25 +99,31 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
     if (sim)  pdpat[Z_RE] |=   e_simit;
     pdpat[Z_RE] |= e_nanocontin;
 
-    // data line shoule be high (open)
-    // if not, try pulsing clock line low then high then re-check
-    for (int i = 0; i < 100; i ++) {
-        fpat[5] = SDAO | SCLK | MANUAL;
-        usleep (1000);
-        if (fpat[5] & SDAI) {
-            if (i > 0) fprintf (stderr, "I2CZLib::openpads: i2c data line unstuck\n");
-            goto datok;
-        }
-        fprintf (stderr, "I2CZLib::openpads: i2c data line stuck low\n");
-        fpat[5] = SDAO | MANUAL;
-        usleep (1000);
-    }
-    fprintf (stderr, "I2CZLib::openpads: failed to clear i2c data line\n");
-    ABORT ();
-datok:;
+    // if real PDP-8/L, access i2c bus for front panel switches and lights
+    if (! (pdpat[Z_RE] & e_simit)) {
+        fpat  = z8p->findev ("FP", NULL, NULL, false);
+        fpat[5] = SDAO | SCLK | MANUAL | ZCLEAR;
 
-    // turn the i2c lines over to i2cmaster.v
-    fpat[5] = 0;
+        // data line shoule be high (open)
+        // if not, try pulsing clock line low then high then re-check
+        for (int i = 0; i < 100; i ++) {
+            fpat[5] = SDAO | SCLK | MANUAL;
+            usleep (1000);
+            if (fpat[5] & SDAI) {
+                if (i > 0) fprintf (stderr, "I2CZLib::openpads: i2c data line unstuck\n");
+                goto datok;
+            }
+            fprintf (stderr, "I2CZLib::openpads: i2c data line stuck low\n");
+            fpat[5] = SDAO | MANUAL;
+            usleep (1000);
+        }
+        fprintf (stderr, "I2CZLib::openpads: failed to clear i2c data line\n");
+        ABORT ();
+
+        // turn the i2c lines over to i2cmaster.v
+    datok:;
+        fpat[5] = 0;
+    }
 }
 
 // read light bulbs and switches
