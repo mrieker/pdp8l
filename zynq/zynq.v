@@ -82,7 +82,7 @@ module Zynq (
     output     iINT_INHIBIT,
     output     iIO_SKIP,
     output     i_MEMDONE,
-    output     i_MEMINCR,
+    output     iMEMINCR,
     output     i_STROBE,
 
     output reg i_B36V1,
@@ -186,7 +186,7 @@ module Zynq (
     wire sim_i_CA_INCRMNT;
     wire sim_i_DATA_IN;
     wire[11:00] sim_iINPUTBUS;
-    wire sim_i_MEMINCR;
+    wire sim_iMEMINCR;
     wire[11:00] sim_i_MEM;
     wire sim_i_MEM_P;
     wire sim_i3CYCLE;
@@ -248,7 +248,7 @@ module Zynq (
     wire dev_i_CA_INCRMNT;
     wire dev_i_DATA_IN;
     wire[11:00] dev_iINPUTBUS;
-    wire dev_i_MEMINCR;
+    wire dev_iMEMINCR;
     wire[11:00] dev_i_MEM;
     wire dev_i_MEM_P;
     wire dev_i3CYCLE;
@@ -332,7 +332,7 @@ module Zynq (
     reg arm_iBEMA;
     reg arm_i_CA_INCRMNT;
     reg arm_i_DATA_IN;
-    reg arm_i_MEMINCR;
+    reg arm_iMEMINCR;
     reg arm_i_MEM_P;
     reg arm_i3CYCLE;
     reg arm_iAC_CLEAR;
@@ -428,7 +428,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[47:00] ilaarray[4095:0], ilardata;
+    reg[48:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -461,7 +461,7 @@ module Zynq (
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
         (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { 16'b0, ilardata[47:32] } :
+        (readaddr        == 10'b0000010011) ? { 15'b0, ilardata[48:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -522,7 +522,7 @@ module Zynq (
             arm_iBEMA         <= 0;
             arm_i_CA_INCRMNT  <= 1;
             arm_i_DATA_IN     <= 1;
-            arm_i_MEMINCR     <= 1;
+            arm_iMEMINCR      <= 0;
             arm_i_MEM_P       <= 1;
             arm_i3CYCLE       <= 0;
             arm_iAC_CLEAR     <= 0;
@@ -570,7 +570,7 @@ module Zynq (
                         arm_iBEMA         <= saxi_WDATA[00];
                         arm_i_CA_INCRMNT  <= saxi_WDATA[01];
                         arm_i_DATA_IN     <= saxi_WDATA[02];
-                        arm_i_MEMINCR     <= saxi_WDATA[03];
+                        arm_iMEMINCR      <= saxi_WDATA[03];
                         arm_i_MEM_P       <= saxi_WDATA[04];
                         arm_i3CYCLE       <= saxi_WDATA[05];
                         arm_iAC_CLEAR     <= saxi_WDATA[06];
@@ -703,7 +703,7 @@ module Zynq (
     assign sim_i_CA_INCRMNT   = simit ? dev_i_CA_INCRMNT : 1;
     assign sim_i_DATA_IN      = simit ? dev_i_DATA_IN    : 1;
     assign sim_iINPUTBUS      = simit ? dev_iINPUTBUS    : 12'h000;
-    assign sim_i_MEMINCR      = simit ? dev_i_MEMINCR    : 1;
+    assign sim_iMEMINCR       = simit ? dev_iMEMINCR     : 0;
     assign sim_i_MEM          = simit ? dev_i_MEM        : 12'hFFF;
     assign sim_i_MEM_P        = simit ? dev_i_MEM_P      : 1;
     assign sim_i3CYCLE        = simit ? dev_i3CYCLE      : 0;
@@ -723,7 +723,7 @@ module Zynq (
     assign     i_CA_INCRMNT   = simit ? 1       : dev_i_CA_INCRMNT;
     assign     i_DATA_IN      = simit ? 1       : dev_i_DATA_IN;
     assign     iINPUTBUS      = simit ? 12'h000 : dev_iINPUTBUS;
-    assign     i_MEMINCR      = simit ? 1       : dev_i_MEMINCR;
+    assign     iMEMINCR       = simit ? 0       : dev_iMEMINCR;
     assign     i_MEM          = simit ? 12'hFFF : dev_i_MEM;
     assign     i_MEM_P        = simit ? 1       : dev_i_MEM_P;
     assign     i3CYCLE        = simit ? 0       : dev_i3CYCLE;
@@ -777,7 +777,7 @@ module Zynq (
     assign regctla[00] = dev_iBEMA;
     assign regctla[01] = dev_i_CA_INCRMNT;
     assign regctla[02] = dev_i_DATA_IN;
-    assign regctla[03] = dev_i_MEMINCR;
+    assign regctla[03] = dev_iMEMINCR;
     assign regctla[04] = dev_i_MEM_P;
     assign regctla[05] = dev_i3CYCLE;
     assign regctla[06] = dev_iAC_CLEAR;
@@ -1167,7 +1167,7 @@ module Zynq (
     assign dev_i_CA_INCRMNT  = ~ (~ arm_i_CA_INCRMNT  | ~ bareit & cmbrkcainc);
     assign dev_i_DATA_IN     = ~ (~ arm_i_DATA_IN     | ~ bareit & cmbrkwrite);
     assign dev_iINPUTBUS     =   (  arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus | pribus));
-    assign dev_i_MEMINCR     =      arm_i_MEMINCR;
+    assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_i_MEM         = ~ (~ arm_i_MEM          | ~ bare12 & xmmem);
     assign dev_i_MEM_P       =      arm_i_MEM_P;
     assign dev_i3CYCLE       =   (  arm_i3CYCLE       | ~ bareit & cmbrk3cycl);
@@ -1219,7 +1219,7 @@ module Zynq (
         .i_CA_INCRMNT   (sim_i_CA_INCRMNT),
         .i_DATA_IN      (sim_i_DATA_IN),
         .iINPUTBUS      (sim_iINPUTBUS),
-        .i_MEMINCR      (sim_i_MEMINCR),
+        .iMEMINCR       (sim_iMEMINCR),
         .i_MEM          (sim_i_MEM),
         .i_MEM_P        (sim_i_MEM_P),
         .i3CYCLE        (sim_i3CYCLE),
@@ -1506,7 +1506,7 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
-    wire[4:0] xmstate;
+    wire[5:0] xmstate;
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),

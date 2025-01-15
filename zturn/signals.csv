@@ -58,7 +58,6 @@ i_MEM_10,B35-H2,,p19 C-2,MEMBUSL,,,,,,inverted open-drain to PDP,M220/AB01/180
 i_MEM_11,B35-K2,,p19 C-1,MEMBUSD,,,,,(lsb),inverted open-drain to PDP,M220/AB01/180
 i_MEM_P,B35-B1,,p19 C-8,MEMBUSH,,,,,,inverted open-drain to PDP,not connected
 i_MEMDONE,B34-V2,P38+39,p4 C-7,J11-55,DATA04,IO-L12P-T1-MRCC-34,U18,B32,generates TP4,non-inv gated out to PDP by x_MEM,M700/CD03-DF2/750
-i_MEMINCR,C36-T2,p17,p15 B-1,J11-18,,IO-B13-LN14,Y08,,,inverted open-drain to PDP,M516/A33/220
 i_STROBE,B34-S2,P38+39,p4 C-6,J11-59,DATA08,IO-L14P-T2-SRCC-34,N20,B35,memory read data available on i_MEM,non-inv gated out to PDP by x_MEM,M700/CD03-DE2/750
 i3CYCLE,C35-K2,p17,p15 A-3,J11-32,,IO-B34-LN03,V13,C22,"active low, p5 C-3",inverted open-drain to PDP,M906/B33/220
 iAC_CLEAR,D34-P2,p17,p15 C-2,J12-45,,IO-B35-LN09,L20,D33,gated out to CPU by x_INPUTBUS,inverted open-drain to PDP,M516/A33/220
@@ -107,6 +106,7 @@ iINPUTBUS11,D34-H2,p17,p15 B-3,PIOBUSL,,,,,(lsb),inverted open-drain to PDP,M516
 iINT_INHIBIT,B36-L1,,p9 B-3,J11-65,DATA13,IO-L16N-T2-34,W20,,,inverted open-drain to PDP,M002/C26/1.8K
 iINT_RQST,D34-M2,p17,p15 C-3,J12-39,,IO-B35-LN07,M20,D32,,inverted open-drain to PDP,M516/A33/220
 iIO_SKIP,D34-K2,p17,p15 C-3,J12-29,,IO-B35-LN03,D18,D30,,inverted open-drain to PDP,M516/A33/220
+iMEMINCR,C36-T2,p17,p15 B-1,J11-18,,IO-B13-LN14,Y08,,,inverted open-drain to PDP,M516/A33/220
 o_ADDR_ACCEPT,C36-S2,p17,p15 S-2,J11-19,,IO-B13-LN13,Y06,,,non-inv non-gated,
 o_B_BREAK,C36-P2,p17,p15 B-2,J11-11,,IO-B13-LP12,T09,,flip-flop on p5 D-2,non-inv non-gated,
 o_BF_ENABLE,B36-E1,,p22 C-6,J12-69,,IO-B35-LN19,G15,,,non-inv non-gated,

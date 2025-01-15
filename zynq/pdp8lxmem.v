@@ -88,7 +88,7 @@ module pdp8lxmem (
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
-    reg[4:0] xmstate;
+    reg[5:0] xmstate;
 
     wire xmmemenab, xmread, xmstrobe, xmwrite, xmmemdone;
 
@@ -103,9 +103,9 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1023 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D1024 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmmemenab, xmstate } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, xmmemenab, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -157,6 +157,7 @@ module pdp8lxmem (
                 x_MEM         <= 1;
                 xbrwena       <= 0;
                 xmstate       <= 0;
+                _mwdone       <= 1;
             end
             // these get cleared on power up or start switch
             intinhibeduntiljump <= 0;
@@ -339,13 +340,18 @@ module pdp8lxmem (
 
                 // wait for PDP/sim to start a memory cycle for external memory
                 0: begin
-                    _mwdone <= 1;                           // make sure PDP/sim knows we are done with lsat cycle's write
-                    x_MEM   <= 1;                           // make sure we aren't gating any read data onto FPGAs MEMBUS
+                    x_MEM <= 1;                             // make sure we aren't gating any read data onto FPGAs MEMBUS
 
-                    // check for starting an external memory cycle
+                    // check for starting an external memory cycle (external to PDP, ie, our 32KW memory)
                     if (xmmemenab) begin
                         xmstate   <= 1;                     // start processing external memory cycle
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
+                    end
+
+                    // check for starting an internal memory cycle (internal to PDP, ie, its 4KW core stack)
+                    else if (memstart) begin
+                        xmstate   <= 40;
+                        hizmembus <= 1;
                     end
 
                     // if PDP is busy, send zeroes out to FPGAs MEMBUS to open-drain the transistors
@@ -410,6 +416,30 @@ module pdp8lxmem (
                 21: if (~ mdhold | mdstep) begin
                     _mwdone <= 0;
                     xmstate <= 22;
+                end
+
+                31: begin
+                    _mwdone <= 1;
+                    xmstate <= 0;
+                end
+
+                // start of memory cycle using core memory
+                // grab a copy of the MA so it shows up on console
+                // FPGA MEMBUS pins are already in hi-Z
+                40: begin
+                    r_MA <= 0;      // gate from PDP's MA bus into FPGA MEMBUS
+                    xmstate <= 41;
+                end
+                45: begin
+                    r_MA <= 1;      // give it 50nS to soak in
+                    xmstate <= 46;
+                end
+                46: begin
+                    hizmembus <= 0; // send out zeroes to FPGA MEMBUS to open-drain the transistors
+                                    // so they don't interfere with PDP reading its own core memory
+                    if (~ memstart) begin
+                        xmstate <= 0;
+                    end
                 end
 
                 default: xmstate <= xmstate + 1;

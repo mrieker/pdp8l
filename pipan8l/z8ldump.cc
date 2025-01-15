@@ -76,6 +76,7 @@ int main (int argc, char **argv)
     bool pagemode = false;
     bool stepmode = false;
     char const *eol = EOL;
+    int fps = 1000;
     XMemRange **lxmemrange, *xmemrange, *xmemranges;
     lxmemrange = &xmemranges;
     for (int i = 0; ++ i < argc;) {
@@ -84,7 +85,8 @@ int main (int argc, char **argv)
             puts ("     Dump ZTurn FPGA state");
             puts ("     Does not alter the state");
             puts ("");
-            puts ("  ./z8ldump.armv7l [-once | -page | -step] [-xmem <lo>..<hi>]...");
+            puts ("  ./z8ldump.armv7l [-fps <num> | -once | -page | -step] [-xmem <lo>..<hi>]...");
+            puts ("      -fps : this many frames per second");
             puts ("     -once : just print the state once, else update continually");
             puts ("     -page : just dump the raw page then exit");
             puts ("     -step : prompt between updates");
@@ -94,6 +96,19 @@ int main (int argc, char **argv)
             puts ("             restart everything with z8lreal giving it the -enlo4k option.");
             puts ("");
             return 0;
+        }
+        if (strcasecmp (argv[i], "-fps") == 0) {
+            if ((++ i >= argc) || (argv[i][0] == '-')) {
+                fprintf (stderr, "missing <num> for -fps option\n");
+                return 1;
+            }
+            char *p;
+            fps = strtol (argv[i], &p, 0);
+            if ((*p != 0) || (fps <= 0) || (fps > 1000)) {
+                fprintf (stderr, "number frames per second %s must be integer 1..1000\n", argv[i]);
+                return 1;
+            }
+            continue;
         }
         if (strcasecmp (argv[i], "-once") == 0) {
             eol = "\n";
@@ -163,7 +178,7 @@ int main (int argc, char **argv)
     }
 
     while (! exitflag) {
-        usleep (1000);
+        usleep (1000000 / fps);
 
         uint32_t z8ls[1024];
         if (xmemranges == NULL) {
@@ -182,7 +197,7 @@ int main (int argc, char **argv)
             printf ("  oBIOP1=%o             oBAC=%04o           brkwhenhltd=%o      iBEMA=%o              iDMAADDR=%04o       majstate=%s%s",      FIELD(Z_RF,f_oBIOP1),         FIELD(Z_RH,h_oBAC),           FIELD(Z_RE,e_brkwhenhltd), FIELD(Z_RA,a_iBEMA),         FIELD(Z_RD,d_iDMAADDR),   majstatenames[FIELD(Z_RK,k_majstate)],   eol);
             printf ("  oBIOP2=%o             oBMB=%04o           nanocstep=%o        i_CA_INCRMNT=%o       iDMADATA=%04o       nextmajst=%s%s",     FIELD(Z_RF,f_oBIOP2),         FIELD(Z_RH,h_oBMB),           FIELD(Z_RE,e_nanocstep),   FIELD(Z_RA,a_i_CA_INCRMNT),  FIELD(Z_RD,d_iDMADATA),   majstatenames[FIELD(Z_RK,k_nextmajst)],  eol);
             printf ("  oBIOP4=%o             oMA=%04o            nanotrigger=%o      i_DATA_IN=%o          iINPUTBUS=%04o      timedelay=%o%s",     FIELD(Z_RF,f_oBIOP4),         FIELD(Z_RI,i_oMA),            FIELD(Z_RE,e_nanotrigger), FIELD(Z_RA,a_i_DATA_IN),     FIELD(Z_RC,c_iINPUTBUS),  FIELD(Z_RK,k_timedelay),                 eol);
-            printf ("  oBTP2=%o                                  nanocontin=%o       i_MEMINCR=%o          i_MEM=%04o          timestate=%s%s",     FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin),  FIELD(Z_RA,a_i_MEMINCR),     FIELD(Z_RC,c_i_MEM),      timestatenames[FIELD(Z_RK,k_timestate)], eol);
+            printf ("  oBTP2=%o                                  nanocontin=%o       iMEMINCR=%o           i_MEM=%04o          timestate=%s%s",     FIELD(Z_RF,f_oBTP2),                                        FIELD(Z_RE,e_nanocontin),  FIELD(Z_RA,a_iMEMINCR),      FIELD(Z_RC,c_i_MEM),      timestatenames[FIELD(Z_RK,k_timestate)], eol);
             printf ("  oBTP3=%o              lbBRK=%o             softreset=%o        i_MEM_P=%o            swCONT=%o            cyclectr=%04o%s",  FIELD(Z_RF,f_oBTP3),          FIELD(Z_RG,g_lbBRK),          FIELD(Z_RE,e_softreset),   FIELD(Z_RA,a_i_MEM_P),       FIELD(Z_RB,b_swCONT),     FIELD(Z_RK,k_cyclectr),                  eol);
             printf ("  oBTS_1=%o             lbCA=%o              simit=%o            i3CYCLE=%o            swDEP=%o             simmemen=%o%s",    FIELD(Z_RF,f_oBTS_1),         FIELD(Z_RG,g_lbCA),           FIELD(Z_RE,e_simit),       FIELD(Z_RA,a_i3CYCLE),       FIELD(Z_RB,b_swDEP),      FIELD(Z_RG,g_simmemen),                  eol);
             printf ("  oBTS_3=%o             lbDEF=%o             bareit=%o           iAC_CLEAR=%o          swDFLD=%o%s",                           FIELD(Z_RF,f_oBTS_3),         FIELD(Z_RG,g_lbDEF),          FIELD(Z_RE,e_bareit),      FIELD(Z_RA,a_iAC_CLEAR),     FIELD(Z_RB,b_swDFLD),                                              eol);

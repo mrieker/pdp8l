@@ -26,7 +26,7 @@ module pdp8lsim (
     input i_CA_INCRMNT,         // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
     input i_DATA_IN,            // C36-M2,p15 B-2,J11-32,,,
     input[11:00] iINPUTBUS,     // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
-    input i_MEMINCR,            // C36-T2,p15 B-1,J11-18,,,
+    input iMEMINCR,             // C36-T2,p15 B-1,J11-18,,,
     input[11:00] i_MEM,         // B35-D1,p19 C-7,MEMBUSH,,,gated out to CPU by x_MEM
     input i_MEM_P,              // B35-B1,p19 C-8,MEMBUSA,,,gated out to CPU by x_MEM
     input i3CYCLE,              // C35-K2,p15 A-3,J11-38,,C22,
@@ -253,7 +253,7 @@ module pdp8lsim (
     wire[11:00] ioac = (iAC_CLEAR ? 0 : acum) | iINPUTBUS;
 
     // data written back to memory during break cycle
-    wire[11:00] breakdata = (i_DATA_IN ? mbuf : iDMADATA) + { 11'b0, ~ i_MEMINCR };
+    wire[11:00] breakdata = (i_DATA_IN ? mbuf : iDMADATA) + { 11'b0, iMEMINCR };
 
     // major state following last cycle of current instruction
     always @(*) begin

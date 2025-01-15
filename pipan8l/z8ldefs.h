@@ -43,14 +43,14 @@
 
 #define Z_N 17      // total number of register
 
-#define ZZ_RA (a_i_CA_INCRMNT | a_i_DATA_IN | a_i_MEMINCR | a_i_MEM_P | a_i_EA | a_i_MEMDONE | a_i_STROBE | a_i_B36V1 | a_i_D36B2)
+#define ZZ_RA (a_i_CA_INCRMNT | a_i_DATA_IN | a_i_MEM_P | a_i_EA | a_i_MEMDONE | a_i_STROBE | a_i_B36V1 | a_i_D36B2)
 #define ZZ_RC (c_i_MEM)
 #define ZZ_RD 0
 
 #define a_iBEMA        (1U <<  0)
 #define a_i_CA_INCRMNT (1U <<  1)
 #define a_i_DATA_IN    (1U <<  2)
-#define a_i_MEMINCR    (1U <<  3)
+#define a_iMEMINCR     (1U <<  3)
 #define a_i_MEM_P      (1U <<  4)
 #define a_i3CYCLE      (1U <<  5)
 #define a_iAC_CLEAR    (1U <<  6)
@@ -299,8 +299,8 @@
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
 
-#define XM2_XMSTATE   (037U <<  0)
-#define XM2_XMMEMENAB   (1U <<  5)
+#define XM2_XMSTATE   (077U <<  0)
+#define XM2_XMMEMENAB   (1U <<  6)
 #define XM2_SAVEDIFLD   (7U <<  8)
 #define XM2_SAVEDDFLD   (7U << 11)
 #define XM2_IFLDAFJMP   (7U << 14)

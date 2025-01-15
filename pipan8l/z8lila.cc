@@ -79,7 +79,7 @@ int main (int argc, char **argv)
             printf ("%6.2f  %2u  %o %o %o  %o  %o %04o  %o %04o  %o %04o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 43) & 31,      // xmstate
+                (unsigned) (thisentry >> 43) & 63,      // xmstate
                 (unsigned) (thisentry >> 42) & 1,       // oMEMSTART
                 (unsigned) (thisentry >> 41) & 1,       // i_STROBE
                 (unsigned) (thisentry >> 40) & 1,       // i_MEMDONE
