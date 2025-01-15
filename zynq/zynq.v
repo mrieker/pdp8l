@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4080;
+    localparam VERSION = 32'h384C4081;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -734,7 +734,7 @@ module Zynq (
     assign     i_EA           = simit ? 1       : dev_i_EA;
     assign     iEMA           = simit ? 0       : dev_iEMA;
     assign     iINT_INHIBIT   = simit ? 0       : dev_iINT_INHIBIT;
-    assign     iINT_RQST      = simit ? 0       : ~ dev_iINT_RQST;
+    assign     iINT_RQST      = simit ? 0       : dev_iINT_RQST;
     assign     iIO_SKIP       = simit ? 0       : dev_iIO_SKIP;
     assign     i_MEMDONE      = simit ? 1       : dev_i_MEMDONE;
     assign     i_STROBE       = simit ? 1       : dev_i_STROBE;
