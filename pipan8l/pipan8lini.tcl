@@ -2,6 +2,7 @@
 # help for commands defined herein
 proc helpini {} {
     puts ""
+    puts "  alloff                  - flip all switches off"
     puts "  assem <addr> <opcd> ... - assemble and write to memory"
     puts "  chartoint               - convert character to integer"
     puts "  checkttymatch           - check for matching tty printer characters"
@@ -15,6 +16,7 @@ proc helpini {} {
     puts "  getenv                  - get environment variable"
     puts "  getrestofttyline        - read rest of line from tty"
     puts "  inttochar               - convert integer to character"
+    puts "  isziactest              - deposit isz/iac test in memory"
     puts "  loadbin <filename>      - load bin file, verify, return start address"
     puts "  loadrim <filename>      - load rim file, verify"
     puts "  loop52                  - set up and start 5252: jmp 5252"
@@ -38,6 +40,21 @@ proc helpini {} {
     puts "  global vars"
     puts "    bncyms                - milliseconds for de-bouncing circuit"
     puts ""
+}
+
+# turn all switches off
+proc alloff {} {
+    setsw mprt 0
+    setsw dfld 0
+    setsw ifld 0
+    setsw ldad 0
+    setsw start 0
+    setsw cont 0
+    setsw stop 0
+    setsw step 0
+    setsw exam 0
+    setsw dep 0
+    setsw sr 0
 }
 
 # assemble instruction and write to memory
@@ -285,6 +302,15 @@ proc getrestofttyline {{tmsec 30000}} {
 proc inttochar {ii} {
     if {$ii < 0} {return ""}
     return [format "%c" [expr {$ii & 0377}]]
+}
+
+# deposit simple isz/iac test in memory
+proc isziactest {} {
+    assem 020 isz 030
+    assem 021 jmp 020
+    assem 022 iac
+    assem 023 jmp 020
+    disas 020 023
 }
 
 # load bin format tape file, return start address
