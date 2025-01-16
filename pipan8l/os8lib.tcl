@@ -29,6 +29,7 @@ proc os8dpacktoggleinboot {} {
     wrmem 030 01032     ;#  tad unit
     wrmem 031 05031     ;#  jmp .
     wrmem 032 00000     ;# unit: 0
+    disas 023 031
     return 023
 }
 
