@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+cd `dirname $0`
+
+if [ i2czinter.armv7l -ot i2czinter.cc ]
+then
+    set -x
+    g++ -g -Wall -o i2czinter.armv7l i2czinter.cc lib.armv7l.a -lpthread -lreadline -ltcl8.6
+    set +x
+fi
+
+dbg=
+if [ "$1" == "-gdb" ]
+then
+    dbg='gdb --args'
+    shift
+fi
+
+exec $dbg ./i2czinter.armv7l "$@"

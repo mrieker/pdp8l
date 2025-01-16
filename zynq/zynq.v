@@ -428,7 +428,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[19:00] ilaarray[4095:0], ilardata;
+    reg[55:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -460,8 +460,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 12'b0, ilardata[19:00] } :
-        (readaddr        == 10'b0000010011) ? { 32'b0 } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? {  8'b0, ilardata[55:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1784,6 +1784,10 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
+                dev_oMA,
+                dev_oBMB,
+                dev_i_MEM,
+
                 dev_oMEMSTART,
                 dev_i_STROBE,
                 dev_i_MEMDONE,

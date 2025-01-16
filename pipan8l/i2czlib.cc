@@ -21,11 +21,24 @@
 // Connects z8lpanel.cc to the Zynq which accesses the front panel lights and switches
 // via I2C bus to PCB3 piggy-backed on backplane
 
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "i2czlib.h"
 #include "z8ldefs.h"
+
+#define I2CZUDPHOST "pipan8l"
 
 #define I2CUS(s,r) (10*2+15*(s)+10*(r)) // s=number bits sent, r=number bits rcvd
 
@@ -74,16 +87,19 @@ I2CZLib::I2CZLib ()
     z8p   = NULL;
     pdpat = NULL;
     fpat  = NULL;
+    udpfd = -1;
 }
 
 I2CZLib::~I2CZLib ()
 {
+    close (udpfd);
     if (z8p != NULL) {
         delete z8p;
     }
     z8p   = NULL;
     pdpat = NULL;
     fpat  = NULL;
+    udpfd = -1;
 }
 
 void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
@@ -101,6 +117,44 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
 
     // if real PDP-8/L, access i2c bus for front panel switches and lights
     if (! (pdpat[Z_RE] & e_simit)) {
+
+#if 111
+        udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+        if (udpfd < 0) {
+            fprintf (stderr, "I2CZLib::openpads: socket error: %m\n");
+            ABORT ();
+        }
+        memset (&servaddr, 0, sizeof servaddr);
+        servaddr.sin_family = AF_INET;
+        if (bind (udpfd, (sockaddr *)&servaddr, sizeof servaddr) < 0) {
+            fprintf (stderr, "I2CZLib::openpads: bind error: %m\n");
+            ABORT ();
+        }
+        struct timeval timeout;
+        memset (&timeout, 0, sizeof timeout);
+        timeout.tv_usec = 100000;
+        if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
+        if (gettimeofday (&timeout, NULL) < 0) ABORT ();
+        udpseq = ((uint64_t) timeout.tv_sec * 1000000) + timeout.tv_usec;
+
+        memset (&servaddr, 0, sizeof servaddr);
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons (I2CZUDPPORT);
+        if (! inet_aton (I2CZUDPHOST, &servaddr.sin_addr)) {
+            struct hostent *he = gethostbyname (I2CZUDPHOST);
+            if (he == NULL) {
+                fprintf (stderr, "I2CZLib::openpads: bad server address %s\n", I2CZUDPHOST);
+                ABORT ();
+            }
+            if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
+                fprintf (stderr, "I2CZLib::openpads: bad server addr type\n");
+                ABORT ();
+            }
+            servaddr.sin_addr = *(struct in_addr *)he->h_addr;
+        }
+#endif
+
+#if 000
         fpat  = z8p->findev ("FP", NULL, NULL, false);
         fpat[5] = SDAO | SCLK | MANUAL | ZCLEAR;
 
@@ -123,6 +177,16 @@ void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
         // turn the i2c lines over to i2cmaster.v
     datok:;
         fpat[5] = 0;
+#endif
+    }
+}
+
+void I2CZLib::relall ()
+{
+    if (! (pdpat[Z_RE] & e_simit)) {
+        uint16_t dirs[4] = { 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU };
+        uint16_t vals[4] = { 0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFFU };
+        writei2c (dirs, vals);
     }
 }
 
@@ -181,23 +245,21 @@ void I2CZLib::readpads (Z8LPanel *pads)
     // if using real PDP-8/L, get remaining values using I2C bus to MCP23017s
     else {
         uint16_t dirs[4], vals[4];
-        for (int i = 0; i < 4; i ++) {
-            dirs[i] = read16 (I2CBA + i, IODIRA);
-            vals[i] = read16 (I2CBA + i, GPIOA);
-        }
+        readi2c (dirs, vals, false);
 
-        pads->light.ir   = (((vals[2] >> 002) & 1) << 2) |
-                           (((vals[2] >> 016) & 1) << 1) |
-                           (((vals[3] >> 010) & 1) << 0);
-        pads->light.link = (vals[0] >> 016) & 1;    // U1 GPB6
-        pads->light.fet  = (vals[2] >> 014) & 1;    // U3 GPB4
-        pads->light.ion  = (vals[2] >> 015) & 1;    // U3 GPB5
-        pads->light.pare = (vals[2] >> 001) & 1;    // U3 GPA1
-        pads->light.exe  = (vals[2] >> 000) & 1;    // U3 GPA0
-        pads->light.def  = (vals[3] >> 011) & 1;    // U4 GPB1
-        pads->light.prte = (vals[3] >> 006) & 1;    // U4 GPA6
-        pads->light.wct  = (vals[3] >> 012) & 1;    // U4 GPB3
-        pads->light.cad  = (vals[3] >> 005) & 1;    // U4 GPA5
+        // light bulbs - all active low
+        pads->light.ir   = ((((vals[2] >> 002) & 1) << 2) |
+                            (((vals[2] >> 016) & 1) << 1) |
+                            (((vals[3] >> 010) & 1) << 0)) ^ 7;
+        pads->light.link = ! ((vals[0] >> 016) & 1);    // U1 GPB6
+        pads->light.fet  = ! ((vals[2] >> 014) & 1);    // U3 GPB4
+        pads->light.ion  = ! ((vals[2] >> 015) & 1);    // U3 GPB5
+        pads->light.pare = ! ((vals[2] >> 001) & 1);    // U3 GPA1
+        pads->light.exe  = ! ((vals[2] >> 000) & 1);    // U3 GPA0
+        pads->light.def  = ! ((vals[3] >> 011) & 1);    // U4 GPB1
+        pads->light.prte = ! ((vals[3] >> 006) & 1);    // U4 GPA6
+        pads->light.wct  = ! ((vals[3] >> 012) & 1);    // U4 GPB3
+        pads->light.cad  = ! ((vals[3] >> 005) & 1);    // U4 GPA5
 
         // momentary button - just read the pin (active low)
         pads->button.stop  = ! ((vals[3] >> 003) & 1);
@@ -213,7 +275,7 @@ void I2CZLib::readpads (Z8LPanel *pads)
         //  drive-1   0    hiZ
 
         // toggle value = collector
-        pads->togval.sr =
+        pads->togval.sr =                               // active high
             (((vals[1] >> 004) & 1) << 11) |
             (((vals[0] >> 000) & 1) << 10) |
             (((vals[0] >> 002) & 1) <<  9) |
@@ -227,10 +289,10 @@ void I2CZLib::readpads (Z8LPanel *pads)
             (((vals[1] >> 002) & 1) <<  1) |
             (((vals[3] >> 004) & 1) <<  0);
 
-        pads->togval.mprt = (vals[0] >> 010) & 1;
-        pads->togval.dfld = (vals[0] >> 012) & 1;
-        pads->togval.ifld = (vals[0] >> 006) & 1;
-        pads->togval.step = (vals[3] >> 001) & 1;
+        pads->togval.mprt = ! ((vals[0] >> 010) & 1);   // active low
+        pads->togval.dfld = ! ((vals[0] >> 012) & 1);   // active low
+        pads->togval.ifld = ! ((vals[0] >> 006) & 1);   // active low
+        pads->togval.step = ! ((vals[3] >> 001) & 1);   // active low
 
         // toggle being overidden = ! (collector-pin-hiz & base-pin-one)
         pads->togovr.sr = (
@@ -283,12 +345,9 @@ void I2CZLib::writepads (Z8LPanel const *pads)
 
         // using real pdp, set switches via z8lpanel board on i2c bus
 
-        // read current sttings
+        // read current settings
         uint16_t dirs[4], vals[4];
-        for (int i = 0; i < 4; i ++) {
-            dirs[i] = read16 (I2CBA + i, IODIRA);
-            vals[i] = read16 (I2CBA + i, OLATA);
-        }
+        readi2c (dirs, vals, true);
 
         // buttons are all active low
         // when asserted, drive the line low overriding the presumed high state of physical switch
@@ -310,28 +369,25 @@ void I2CZLib::writepads (Z8LPanel const *pads)
 
         // phase 1: hi-Z things; 2: drive things
         for (int phase = 1; phase <= 2; phase ++) {
-            writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, 1, 004, 0, 017);
-            writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, 0, 000, 0, 015);
-            writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, 0, 002, 0, 001);
-            writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, 0, 005, 0, 004);
-            writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, 0, 003, 0, 014);
-            writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, 2, 013, 2, 003);
-            writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, 2, 012, 2, 005);
-            writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, 2, 006, 2, 011);
-            writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, 2, 010, 2, 007);
-            writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, 1, 003, 1, 001);
-            writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, 1, 002, 1, 000);
-            writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, 3, 004, 3, 007);
+            writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, 1, 004, 0, 017);    // active high
+            writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, 0, 000, 0, 015);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, 0, 002, 0, 001);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, 0, 005, 0, 004);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, 0, 003, 0, 014);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, 2, 013, 2, 003);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, 2, 012, 2, 005);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, 2, 006, 2, 011);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, 2, 010, 2, 007);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, 1, 003, 1, 001);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, 1, 002, 1, 000);    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, 3, 004, 3, 007);    // active high
 
-            writetog (dirs, vals, pads->togval.mprt, pads->togovr.mprt, 0, 010, 0, 011);
-            writetog (dirs, vals, pads->togval.dfld, pads->togovr.dfld, 0, 012, 0, 007);
-            writetog (dirs, vals, pads->togval.ifld, pads->togovr.ifld, 0, 006, 0, 013);
-            writetog (dirs, vals, pads->togval.step, pads->togovr.step, 3, 001, 3, 017);
+            writetog (dirs, vals, ! pads->togval.mprt, pads->togovr.mprt, 0, 010, 0, 011);                      // active low
+            writetog (dirs, vals, ! pads->togval.dfld, pads->togovr.dfld, 0, 012, 0, 007);                      // active low
+            writetog (dirs, vals, ! pads->togval.ifld, pads->togovr.ifld, 0, 006, 0, 013);                      // active low
+            writetog (dirs, vals, ! pads->togval.step, pads->togovr.step, 3, 001, 3, 017);                      // active low
 
-            for (int i = 0; i < 4; i ++) {
-                write16 (I2CBA + i, IODIRA, dirs[i]);
-                write16 (I2CBA + i, OLATA,  vals[i]);
-            }
+            writei2c (dirs, vals);
         }
     }
 }
@@ -356,7 +412,7 @@ void I2CZLib::writebut (uint16_t *dirs, uint16_t *vals,
     }
 }
 
-// write toggle pins (active high)
+// write toggle pins
 //  there is a PNP transistor for each toggle switch
 //  for each transistor we have
 //   a pin going through a resistor to its base
@@ -384,7 +440,7 @@ void I2CZLib::writebut (uint16_t *dirs, uint16_t *vals,
 //   cannot have the transistor on (base low) and driving collector line low at same time
 //   or it will cook the collector line, so writetog() must be called twice to do transition
 void I2CZLib::writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr,
-    int baseidx, int basebit, int collidx, int collbit)
+    int collidx, int collbit, int baseidx, int basebit)
 {
     uint16_t basemsk = 1U << basebit;
     uint16_t collmsk = 1U << collbit;
@@ -406,6 +462,79 @@ void I2CZLib::writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr,
             vals[baseidx] |= basemsk;       // drive base line high to shut off transistor
         }
     }
+}
+
+void I2CZLib::readi2c (uint16_t *dirs, uint16_t *vals, bool latch)
+{
+#if 111
+    I2CZUDPPkt udppkt;
+    udppkt.cmd = latch ? 2 : 1;
+    doudpio (&udppkt);
+    for (int i = 0; i < 4; i ++) {
+        dirs[i] = udppkt.dirs[i];
+        vals[i] = udppkt.vals[i];
+    }
+#endif
+
+#if 000
+    for (int i = 0; i < 4; i ++) {
+        dirs[i] = read16 (I2CBA + i, IODIRA);
+        vals[i] = read16 (I2CBA + i, latch ? OLATA : GPIOA);
+    }
+#endif
+}
+
+void I2CZLib::writei2c (uint16_t *dirs, uint16_t *vals)
+{
+#if 111
+    I2CZUDPPkt udppkt;
+    udppkt.cmd = 3;
+    for (int i = 0; i < 4; i ++) {
+        udppkt.dirs[i] = dirs[i];
+        udppkt.vals[i] = vals[i];
+    }
+    doudpio (&udppkt);
+#endif
+
+#if 000
+    for (int i = 0; i < 4; i ++) {
+        write16 (I2CBA + i, IODIRA, dirs[i]);
+        write16 (I2CBA + i, OLATA,  vals[i]);
+    }
+#endif
+}
+
+// send and receive udppkt to do MCP23017 access remotely
+void I2CZLib::doudpio (I2CZUDPPkt *udppkt)
+{
+    udppkt->seq = ++ udpseq;
+    for (int retry = 0; retry < 600; retry ++) {
+        int rc = sendto (udpfd, udppkt, sizeof *udppkt, 0, (sockaddr *)&servaddr, sizeof servaddr);
+        if (rc != (int) sizeof *udppkt) {
+            if (rc < 0) fprintf (stderr, "I2CZLib::doudpio: error sending: %m\n");
+            else fprintf (stderr, "I2CZLib::doudpio: only sent %d of %d bytes\n", rc, (int) sizeof *udppkt);
+            ABORT ();
+        }
+        while (true) {
+            I2CZUDPPkt rcvpkt;
+            rc = read (udpfd, &rcvpkt, sizeof rcvpkt);
+            if (rc != (int) sizeof rcvpkt) {
+                if ((rc < 0) && (errno == EINTR)) continue;
+                if ((rc < 0) && (errno == EAGAIN)) break;
+                if (rc < 0) fprintf (stderr, "I2CZLib::doudpio: error receiving: %m\n");
+                else fprintf (stderr, "I2CZLib::doudpio: only received %d of %d bytes\n", rc, (int) sizeof rcvpkt);
+                ABORT ();
+            }
+            if (rcvpkt.seq == udpseq) {
+                if (retry > 20) fprintf (stderr, "I2CZLib::doudpio: i2czsrv recovered\n");
+                *udppkt = rcvpkt;
+                return;
+            }
+        }
+        if (retry == 20) fprintf (stderr, "I2CZLib::doudpio: i2czsrv on %s (%s) not responding\n",
+                I2CZUDPHOST, inet_ntoa (servaddr.sin_addr));
+    }
+    ABORT ();
 }
 
 // read 16-bit value from MCP23017 on I2C bus

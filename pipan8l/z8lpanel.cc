@@ -435,7 +435,7 @@ static int cmd_relsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
             if (strcasecmp (swname, "all") == 0) {
                 if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
                 memset (&pads.togovr, 0, sizeof pads.togovr);
-                padlib->writepads (&pads);
+                padlib->relall ();
                 if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
                 return TCL_OK;
             }

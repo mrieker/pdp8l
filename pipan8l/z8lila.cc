@@ -76,8 +76,12 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o %o  %o %o %o  %2u %2u  %o %o %o %o\n",
+            printf ("%6.2f  %04o %04o %04o  %o %o %o  %o %o %o  %2u %2u  %o %o %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
+
+                (unsigned) (thisentry >> 44) & 07777,   // oMA
+                (unsigned) (thisentry >> 32) & 07777,   // oBMB
+                (unsigned) (thisentry >> 20) & 07777,   // i_MEM
 
                 (unsigned) (thisentry >> 19) & 1,       // oMEMSTART
                 (unsigned) (thisentry >> 18) & 1,       // i_STROBE

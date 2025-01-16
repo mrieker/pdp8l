@@ -21,6 +21,7 @@
 #ifndef _I2CZLIB_H
 #define _I2CZLIB_H
 
+#include <netinet/in.h>
 #include <stdint.h>
 
 #include "z8lutil.h"
@@ -72,20 +73,35 @@ struct Z8LPanel {
     Z8LLights  light;   // light bulb values
 };
 
+#define I2CZUDPPORT 25747
+struct I2CZUDPPkt {
+    uint64_t seq;
+    uint16_t cmd;
+    uint16_t dirs[4];
+    uint16_t vals[4];
+};
+
 struct I2CZLib {
     I2CZLib ();
     ~I2CZLib ();
     void openpads (bool dislo4k, bool enlo4k, bool real, bool sim);
+    void relall ();
     void readpads (Z8LPanel *pads);
     void writepads (Z8LPanel const *pads);
 
+    void readi2c (uint16_t *dirs, uint16_t *vals, bool latch);
+    void writei2c (uint16_t *dirs, uint16_t *vals);
 private:
-    Z8LPage *z8p;
+    int udpfd;
+    struct sockaddr_in servaddr;
     uint32_t volatile *pdpat;
     uint32_t volatile *fpat;
+    uint64_t udpseq;
+    Z8LPage *z8p;
 
     void writebut (uint16_t *dirs, uint16_t *vals, bool val, int validx, int valbit);
-    void writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr, int baseidx, int basebit, int collidx, int collbit);
+    void writetog (uint16_t *dirs, uint16_t *vals, bool val, bool ovr, int collidx, int collbit, int baseidx, int basebit);
+    void doudpio (I2CZUDPPkt *udppkt);
     uint16_t read16 (uint8_t addr, uint8_t reg);
     void write16 (uint8_t addr, uint8_t reg, uint16_t word);
     uint64_t doi2ccycle (uint64_t cmd, int i2cus);
