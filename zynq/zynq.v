@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4081;
+    localparam VERSION = 32'h384C4082;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -398,11 +398,6 @@ module Zynq (
     wire[2:0] xmfield;
     wire xm_intinh, xm_mrdone, xm_mwdone, xm_ea;
 
-    // extended arithmetic interface wires
-    wire[31:00] eaardata;
-    wire[11:00] eaibus;
-    wire eaacclr, eaioskp;
-
     // core memory interface wires
     wire[31:00] cmardata;
     wire cmbrkrqst, cmbrkwrite, cmbrk3cycl, cmbrkcainc;
@@ -465,32 +460,30 @@ module Zynq (
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
-        (readaddr[11:04] ==  8'b00001110)   ? ttardata   :  // 00001110xx00
-        (readaddr[11:04] ==  8'b00001111)   ? tt40ardata :  // 00001111xx00
-        (readaddr[11:04] ==  8'b00010000)   ? xmardata   :  // 00010000xx00
-        (readaddr[11:04] ==  8'b00010001)   ? cmardata   :  // 00010001xx00
-        (readaddr[11:04] ==  8'b00010010)   ? eaardata   :  // 00010010xx00
-        (readaddr[11:04] ==  8'b00010011)   ? tt42ardata :  // 00010011xx00
-        (readaddr[11:04] ==  8'b00010100)   ? tt44ardata :  // 00010100xx00
-        (readaddr[11:04] ==  8'b00010101)   ? tt46ardata :  // 00010101xx00
-        (readaddr[11:03] ==  9'b000101100)  ? tcardata   :  // 000101100x00
-        (readaddr[11:03] ==  9'b000101101)  ? prardata   :  // 000101101x00
+        (readaddr[11:04] ==  8'b00001110)   ? xmardata   :  // 00001110xx00
+        (readaddr[11:04] ==  8'b00001111)   ? cmardata   :  // 00001111xx00
+        (readaddr[11:04] ==  8'b00010000)   ? ttardata   :  // 00010000xx00
+        (readaddr[11:04] ==  8'b00010001)   ? tt40ardata :  // 00010001xx00
+        (readaddr[11:04] ==  8'b00010010)   ? tt42ardata :  // 00010010xx00
+        (readaddr[11:04] ==  8'b00010011)   ? tt44ardata :  // 00010011xx00
+        (readaddr[11:04] ==  8'b00010100)   ? tt46ardata :  // 00010100xx00
+        (readaddr[11:03] ==  9'b000101010)  ? tcardata   :  // 000101010x00
+        (readaddr[11:03] ==  9'b000101011)  ? prardata   :  // 000101011x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
     wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;    // 0000100xxx00
     wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;    // 0000101xxx00
     wire fpi2cwrite = armwrite & writeaddr[11:05] == 7'b0000110;    // 0000110xxx00
-    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
-    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
-    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
-    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
-    wire eaawrite   = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
-    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
-    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
-    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
-    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101100;  // 000101100x00
-    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101101;  // 000101101x00
+    wire xmawrite   = armwrite & writeaddr[11:04] == 8'b00001110;   // 00001110xx00
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00001111;   // 00001111xx00
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
+    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
+    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
+    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
+    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101010;  // 000101010x00
+    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101011;  // 000101011x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -1166,12 +1159,12 @@ module Zynq (
     assign dev_iBEMA         =   (  arm_iBEMA         | ~ bareit & (xmfield != 0));
     assign dev_i_CA_INCRMNT  = ~ (~ arm_i_CA_INCRMNT  | ~ bareit & cmbrkcainc);
     assign dev_i_DATA_IN     = ~ (~ arm_i_DATA_IN     | ~ bareit & cmbrkwrite);
-    assign dev_iINPUTBUS     =   (  arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | eaibus | tcibus | tt42ibus | tt44ibus | tt46ibus | pribus));
+    assign dev_iINPUTBUS     =   (  arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | tcibus | tt42ibus | tt44ibus | tt46ibus | pribus));
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_i_MEM         = ~ (~ arm_i_MEM          | ~ bare12 & xmmem);
     assign dev_i_MEM_P       =      arm_i_MEM_P;
     assign dev_i3CYCLE       =   (  arm_i3CYCLE       | ~ bareit & cmbrk3cycl);
-    assign dev_iAC_CLEAR     =   (  arm_iAC_CLEAR     | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | eaacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr | pracclr));
+    assign dev_iAC_CLEAR     =   (  arm_iAC_CLEAR     | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr | pracclr));
     assign dev_iBRK_RQST     =   (  arm_iBRK_RQST     | ~ bareit & cmbrkrqst);
     assign dev_iDMAADDR      =   (  arm_iDMAADDR      | ~ bare12 & cmbrkaddr);
     assign dev_iDMADATA      =   (  arm_iDMADATA      | ~ bare12 & cmbrkwdat);
@@ -1179,7 +1172,7 @@ module Zynq (
     assign dev_iEMA          =   (  arm_iEMA          | ~ bareit & (xmfield != 0));
     assign dev_iINT_INHIBIT  =   (  arm_iINT_INHIBIT  | ~ bareit & ~ xm_intinh);
     assign dev_iINT_RQST     =   (  arm_iINT_RQST     | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq | printrq));
-    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | eaioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp));
+    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp));
     assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
     assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
 
@@ -1601,30 +1594,6 @@ module Zynq (
 
         ,.triggre (cmtriggre)
         ,.busyonarm (cmbusy)
-    );
-
-    // extended arithmetic
-
-    pdp8lextar eainst (
-        .CLOCK (CLOCK),
-        .CSTEP (nanocstep),
-        .RESET (pwronreset),
-        .BINIT (iobusreset),
-
-        .armwrite (eaawrite),
-        .armraddr (readaddr[3:2]),
-        .armwaddr (writeaddr[3:2]),
-        .armwdata (saxi_WDATA),
-        .armrdata (eaardata),
-
-        .iopstart (iopstart),
-        .iopstop  (iopstop),
-        .ioopcode (dev_oBMB),
-        .cputodev (dev_oBAC),
-
-        .devtocpu (eaibus),
-        .acclear  (eaacclr),
-        .ioskip   (eaioskp)
     );
 
     // tape interface
