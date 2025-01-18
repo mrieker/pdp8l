@@ -177,6 +177,7 @@ int main (int argc, char **argv)
                 idwc = randbits (12);
                 idca = (idwc + 1) & 07777;
             } while ((idwc == DOTJMPDOT) || (idca == DOTJMPDOT));
+            printf ("idwc=%04o idca=%04o\n", idwc, idca);
         } else {
             idwc = 0xFFFFU;
             idca = 0xFFFFU;

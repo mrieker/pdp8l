@@ -56,7 +56,7 @@ module pdp8lxmem (
     input[11:00] memaddr,
     input[11:00] memwdat,
     output reg[11:00] memrdat,
-    output _mrdone,                 // pulse to cpu saying data is available
+    output reg _mrdone,             // pulse to cpu saying data is available
     output reg _mwdone,             // pulse to cpu saying data has been written
     input[2:0] brkfld,              // field for dma
     output[2:0] field,              // current field being used
@@ -72,7 +72,7 @@ module pdp8lxmem (
     output reg[14:00] xbraddr,      // external block ram address bus
     output[11:00] xbrwdat,          // ... write data bus
     input[11:00] xbrrdat,           // ... read data bus
-    output xbrenab,                 // ... chip enable
+    output reg xbrenab,             // ... chip enable
     output reg xbrwena              // ... write enable
 
     ,output xmstate
@@ -81,7 +81,7 @@ module pdp8lxmem (
     reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump;
     reg[2:0] lastintack;
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
-    reg[7:0] numcycles;
+    reg[7:0] memdelay, numcycles;
 
     reg mdhold, mdstep, os8zap;
     reg[11:00] os8iszrdata;
@@ -90,12 +90,12 @@ module pdp8lxmem (
     reg[6:0] os8iszopcad;
     reg[5:0] xmstate;
 
-    wire xmmemenab, xmread, xmstrobe, xmwrite, xmmemdone;
-
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
     // so we save them at the end of previous TS3 so they are valid at start of TS1 through end of TS3 that they are needed for
     reg buf_bf_enab, buf_df_enab, buf_zf_enab, lastts3;
+
+    reg thirteen;
 
     assign field =
                 ~ buf_bf_enab ? brkfld :    // break field if cpu says so
@@ -104,8 +104,8 @@ module pdp8lxmem (
                                 ifld;       // by default, use instruction field
 
     assign armrdata = (armraddr == 0) ? 32'h584D1025 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4k, 27'b0, mdhold, mdstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 1'b0, xmmemenab, xmstate } :
+                      (armraddr == 1) ? { ctlenab, ctllo4k, 26'b0, thirteen, mdhold, mdstep, os8zap } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -113,27 +113,7 @@ module pdp8lxmem (
 
     wire[6:0] os8jmpopcad = os8iszopcad + 1;
 
-    // external memory controller
-
-    // control the external memory
-    pdp8lmemctl xmmemctl (
-        .CLOCK (CLOCK),
-        .CSTEP (CSTEP),
-        .RESET (RESET),
-
-        .memstart (memstart),
-        .select (~ _ea),
-
-        .memenab (xmmemenab),   // extmem is being used this cycle
-        .read (xmread),         // read memory (asserted for 500nS)
-        .strobe (xmstrobe),     // finish up reading (asserted for 100nS)
-        .write (xmwrite),       // write memory (asserted for 500nS)
-        .memdone (xmmemdone)    // finish up writing (asserted for 100nS)
-    );
-
-    assign xbrwdat = memwdat;           // data being written to memory (from processor's MB register)
-    assign xbrenab = xmread | xmwrite;  // enable extmem ram while reading or writing
-    assign _mrdone = ~ xmstrobe;        // reading complete
+    assign xbrwdat = memwdat;               // data being written to external memory (from PDP/sim's MB register)
 
     // main processing loop
     always @(posedge CLOCK) begin
@@ -155,8 +135,10 @@ module pdp8lxmem (
                 os8zap        <= 0;
                 r_MA          <= 1;
                 x_MEM         <= 1;
+                xbrenab       <= 0;
                 xbrwena       <= 0;
                 xmstate       <= 0;
+                _mrdone       <= 1;
                 _mwdone       <= 1;
             end
             // these get cleared on power up or start switch
@@ -165,6 +147,7 @@ module pdp8lxmem (
             numcycles  <= 0;
             saveddfld  <= 0;
             savedifld  <= 0;
+            thirteen   <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -176,6 +159,7 @@ module pdp8lxmem (
                 1: begin
                     ctlenab  <= armwdata[31];           // save overall enabled flag
                     ctllo4k  <= armwdata[30];           // save low 4K enabled flag
+                    thirteen <= armwdata[03];
                     mdhold   <= armwdata[02];
                     mdstep   <= armwdata[01];
                     os8zap   <= armwdata[00];           // save os8zap enabled flag
@@ -322,32 +306,26 @@ module pdp8lxmem (
             //  external 32KW memory control  //
             ////////////////////////////////////
 
-            // wait for XMMEMENAB signal meaning PDP/sim wants to use external memory
-            // latch 15-bit memory address into XBRADDR
-            // wait for start of READ pulse
-            // gate read data out to PDP/sim via MEMBUS
-            // - must keep sending original read data through to end of cycle
-            //   defer with autoincrement (and maybe other stuff) depends on it
-            // STROBE pulse comes and goes
-            // READ pulse ends but keep sending original read data out
-            // wait for start of WRITE pulse
-            // wait 100nS then send 50nS write pulse to extmem memory
-            // wait for MEMDONE pulse
-            // send 100nS MEMDONE pulse on to PDP/sim
-            // stop sending read data out to PDP/sim so it doesn't jam up MEMBUS
+            // wait for MEMSTART=1 and _EA=0 meaning PDP/sim wants to use external memory
+            //    0.. 250nS : latch 15-bit memory address into XBRADDR
+            //  250..1600nS : read from FPGA memory, gate onto FPGAs MEMBUS for rest of cycle
+            //  500.. 600nS : send STROBE pulse to PDP/sim saying read data is valid
+            // 1000..1500nS : write data coming from PDP/sim MB register to FPGA memory
+            // 1500..1600nS : send MEMDONE pule to PDP/sim saying write is complete
 
             case (xmstate)
 
                 // wait for PDP/sim to start a memory cycle for external memory
                 0: begin
-                    x_MEM <= 1;                             // make sure we aren't gating any read data onto FPGAs MEMBUS
+                    x_MEM <= 1;
 
                     // check for PDP/sim starting a memory cycle
                     if (memstart) begin
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
+                        memdelay  <= 0;                     // reset memory delay line
 
                         // starting an internal memory cycle (internal to PDP, ie, its 4KW core stack)
-                        if (_ea) xmstate <= 40;             // wait for internal memory cycle to complete
+                        if (_ea) xmstate <= 10;             // wait for internal memory cycle to complete
 
                         // starting an external memory cycle (external to PDP, ie, our 32KW memory)
                         else xmstate <= 1;                  // start processing external memory cycle
@@ -364,76 +342,120 @@ module pdp8lxmem (
                 end
 
                 // doing external memory cycle:
-                //   if before read pulse, latch in memory address from MEMBUS
-                //   if at start of read pulse, stop gating PDPs MA onto MEMBUS
+                //   give us 250nS to latch MA contents from FPGA's MEMBUS (though it really comes in around 30-40nS)
+                //   this is analogous to waiting for the start of the core memory READ pulse in the real PDP
                 1: begin
-                    if (~ xmread) begin r_MA <= 0; xbraddr <= { field, memaddr }; end
-                    else begin r_MA <= 1; xmstate <= 2; end
-                end
-
-                // in read pulse, gate read data, strobe and memdone onto MEMBUS etc
-                // strobe pulse has come and gone by the end of the read pulse
-                2: begin
-                    memrdat   <= xbrrdat;   // save latest value read from extmem ram
-                    x_MEM     <= 0;         // gate memrdat out to PDP via MEMBUS
-                    hizmembus <= 0;
-                    if (xmstrobe) begin     // if strobe pulse, stop clocking data from ram
-                        xmstate <= 3;       // ...then start looking for write pulse
+                    if (memdelay != 25) begin
+                        memdelay <= memdelay + 1;
+                        r_MA     <= 0;
+                        xbraddr  <= { field, memaddr };
+                    end else begin
+                        memdelay <= 0;
+                        r_MA     <= 1;
+                        xbrenab  <= 1;
+                        xmstate  <= 2;
                     end
                 end
 
-                // wait for start of write pulse
+                // wait another 250nS then send out STROBE pulse to PDP/sim saying data is valid
+                2: begin
+                    memrdat   <= xbrrdat;   // save latest value read from extmem ram
+                    x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
+                    hizmembus <= 0;
+                    if (memdelay != 25) begin
+                        memdelay <= memdelay + 1;
+                    end else begin
+                        memdelay <= 0;
+                        if (xbraddr == 12'o0013) thirteen <= (xbrrdat == 12'o7731);
+                        ////if ((xbraddr == 0) && thirteen) begin
+                        ////    xmstate <= 13;
+                        ////end else begin
+                            _mrdone <= 0;
+                            xmstate <= 3;   // ...then start looking for write pulse
+                        ////end
+                    end
+                end
+
+                // end the STROBE pulse after 100nS
                 3: begin
-                    if (xmwrite) xmstate <= 4;
+                    if (memdelay != 10) begin
+                        memdelay <= memdelay + 1;
+                    end else begin
+                        memdelay <= 0;
+                        _mrdone  <= 1;
+                        xmstate  <= 44;
+                    end
                 end
 
-                // 100nS into write pulse, output a 50nS write pulse to extmem ram
-                14: begin
-                    xbrwena <= 1;
-                    xmstate <= 15;
-                end
-                19: begin
-                    xbrwena <= 0;
-                    xmstate <= 20;
-                end
-
-                // if write complete, tell stepper (eg x8lmctrace.cc) cycle is complete (it can get write data)
-                20: if (xmmemdone & ~ armwrite) begin
-                    mdstep  <= 0;
-                    xmstate <= 21;
+                // write to FPGA memory after another 850nS
+                // supposedly the PDP has come up with data by then
+                44: begin
+                    if (memdelay != 85) begin
+                        memdelay <= memdelay + 1;
+                    end else begin
+                        memdelay <= 0;
+                        xbrwena  <= 1;
+                        xmstate  <= 55;
+                    end
                 end
 
-                // wait for step enabled, then output 100nS write complete pulse to processor
-                21: if (~ mdhold | mdstep) begin
-                    _mwdone <= 0;
-                    xmstate <= 22;
+                // write the FPGA memory for 50nS
+                55: begin
+                    if (memdelay != 5) begin
+                        memdelay <= memdelay + 1;
+                    end else if (~ armwrite) begin
+                        memdelay <= 0;
+                        mdstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
+                        xbrenab  <= 0;              // stop writing to FPGA 32KW memory
+                        xbrwena  <= 0;
+                        xmstate  <= 6;
+                    end
                 end
 
-                31: begin
-                    _mwdone <= 1;
-                    xmstate <= 0;
+                // output 100nS write complete pulse to processor
+                // but wait for stepper if we are doing stepping
+                6: begin
+                    if (~ mdhold | mdstep) begin
+                        if (memdelay != 10) begin
+                            _mwdone  <= 0;
+                            memdelay <= memdelay + 1;
+                        end else begin
+                            _mwdone  <= 1;
+                            xmstate  <= 0;
+                        end
+                    end
                 end
 
                 // start of memory cycle using core memory
                 // grab a copy of the MA so it shows up on console
                 // FPGA MEMBUS pins are already in hi-Z
-                40: begin
-                    r_MA <= 0;      // gate from PDP's MA bus into FPGA MEMBUS
-                    xmstate <= 41;
+                10: begin
+                    if (memdelay != 5) begin
+                        r_MA <= 0;      // gate from PDP's MA bus onto FPGA MEMBUS for 50nS
+                        memdelay <= memdelay + 1;
+                    end else begin
+                        r_MA <= 1;      // 50nS is up, stop gating MA onto FGPA MEMBUS
+                        xmstate <= 11;
+                    end
                 end
-                45: begin
-                    r_MA <= 1;      // give it 50nS to soak in
-                    xmstate <= 46;
-                end
-                46: begin
-                    hizmembus <= 0; // send out zeroes to FPGA MEMBUS to open-drain the transistors
-                                    // so they don't interfere with PDP reading its own core memory
+
+                // send out zeroes to FPGA MEMBUS to open-drain the transistors
+                // so they don't interfere with PDP reading its own core memory
+                11: begin
+                    hizmembus <= 0;
                     if (~ memstart) begin
                         xmstate <= 0;
                     end
                 end
 
-                default: xmstate <= xmstate + 1;
+                // trying to read 0 right after 13 read 7731
+                // wait for arm processor to clear the thirteen bit
+                13: begin
+                    if (~ thirteen) begin
+                        _mrdone <= 0;
+                        xmstate <= 3;   // ...then start looking for write pulse
+                    end
+                end
             endcase
         end
     end

@@ -235,6 +235,7 @@ static PinDef const pindefs[] = {
     { "XM_OS8ZAP",       DEV_XM, 1, XM_OS8ZAP,             true  },
     { "XM_MDSTEP",       DEV_XM, 1, XM_MDSTEP,             true  },
     { "XM_MDHOLD",       DEV_XM, 1, XM_MDHOLD,             true  },
+    { "XM_THIRTN",       DEV_XM, 1, XM_THIRTN,             true  },
     { "XM_ENLO4K",       DEV_XM, 1, XM_ENLO4K,             true  },
     { "XM_ENABLE",       DEV_XM, 1, XM_ENABLE,             true  },
     { "XM2_XMSTATE",     DEV_XM, 2, XM2_XMSTATE,           false },

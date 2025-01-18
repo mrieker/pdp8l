@@ -34,7 +34,7 @@
 #include "z8lutil.h"
 
 #define DEPTH 4096  // total number of elements in ilaarray
-#define AFTER 4000  // number of samples to take after sample containing trigger
+#define AFTER 2000  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
@@ -76,22 +76,22 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %04o %04o %04o  %o %o %o  %o %o %o  %2u %2u  %o %o %o %o\n",
+            printf ("%6.2f  %04o %04o %04o %04o  %o %o %o  %o %o %o  %2u  %o %o %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 44) & 07777,   // oMA
-                (unsigned) (thisentry >> 32) & 07777,   // oBMB
-                (unsigned) (thisentry >> 20) & 07777,   // i_MEM
+                (unsigned) (thisentry >> 52) & 07777,   // bmbbits
+                (unsigned) (thisentry >> 40) & 07777,   // oMA
+                (unsigned) (thisentry >> 28) & 07777,   // oBMB
+                (unsigned) (thisentry >> 16) & 07777,   // i_MEM
 
-                (unsigned) (thisentry >> 19) & 1,       // oMEMSTART
-                (unsigned) (thisentry >> 18) & 1,       // i_STROBE
-                (unsigned) (thisentry >> 17) & 1,       // i_MEMDONE
+                (unsigned) (thisentry >> 15) & 1,       // oMEMSTART
+                (unsigned) (thisentry >> 14) & 1,       // i_STROBE
+                (unsigned) (thisentry >> 13) & 1,       // i_MEMDONE
 
-                (unsigned) (thisentry >> 16) & 1,       // oMEMSTART
-                (unsigned) (thisentry >> 15) & 1,       // dev_i_EA
-                (unsigned) (thisentry >> 14) & 1,       // dev_o_B_BREAK
+                (unsigned) (thisentry >> 12) & 1,       // cmbrkrqst
+                (unsigned) (thisentry >> 11) & 1,       // dev_i_EA
+                (unsigned) (thisentry >> 10) & 1,       // dev_o_B_BREAK
 
-                (unsigned) (thisentry >> 10) & 15,      // cmbusy[3:0]
                 (unsigned) (thisentry >>  4) & 63,      // xmstate[5:0]
 
                 (unsigned) (thisentry >>  3) & 1,       // hizmembus

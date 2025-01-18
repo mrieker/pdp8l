@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4082;
+    localparam VERSION = 32'h384C4083;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -423,7 +423,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[55:00] ilaarray[4095:0], ilardata;
+    reg[63:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -455,8 +455,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? {  8'b0, ilardata[55:32] } :
+        (readaddr        == 10'b0000010010) ? { ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { ilardata[63:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1031,6 +1031,11 @@ module Zynq (
 
     reg[2:0] sincets3;
 
+    wire[11:00] bmbbits = {
+        bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
+        bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF
+    };
+
     always @(posedge CLOCK) begin
         if (pwronreset) begin
             dev_r_BAC <= 1;
@@ -1134,9 +1139,7 @@ module Zynq (
             //   and data to write to memory for external memory cycles
             //   and is also up-to-date for console
             if (~ dev_r_BMB) begin
-                oBMB <= {
-                    bPIOBUSH, bPIOBUSA, bPIOBUSB,  bPIOBUSK, bPIOBUSL, bPIOBUSD,
-                    bPIOBUSJ, bPIOBUSC, bPIOBUSE,  bPIOBUSM, bPIOBUSN, bPIOBUSF };
+                oBMB <= bmbbits;
             end
 
             // likewise with MA while we're at it
@@ -1499,6 +1502,7 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
+    reg xmfreeze;
     wire[5:0] xmstate;
 
     pdp8lxmem xminst (
@@ -1557,6 +1561,7 @@ module Zynq (
         .xbrwena (xbrwena)
 
         ,.xmstate (xmstate)
+        ////,.xmfreeze (xmfreeze)
     );
 
     // core memory interface
@@ -1742,6 +1747,7 @@ module Zynq (
         if (~ RESET_N) begin
             ilaarmed <= 0;
             ilaafter <= 0;
+            xmfreeze <= 0;
         end else if (armwrite & (writeaddr == 10'b0000010001)) begin
 
             // arm processor is writing control register
@@ -1749,10 +1755,13 @@ module Zynq (
             ilaafter <= saxi_WDATA[27:16];
             ilaindex <= saxi_WDATA[11:00];
             ilardata <= ilaarray[saxi_WDATA[11:00]];
+
+            if (saxi_WDATA[31]) xmfreeze <= 0;
         end else if (ilaarmed | (ilaafter != 0)) begin
 
             // capture signals
             ilaarray[ilaindex] <= {
+                bmbbits,
                 dev_oMA,
                 dev_oBMB,
                 dev_i_MEM,
@@ -1765,7 +1774,6 @@ module Zynq (
                 dev_i_EA,
                 dev_o_B_BREAK,
 
-                cmbusy,
                 xmstate,
 
                 dev_hizmembus,
@@ -1778,7 +1786,9 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (dev_oMEMSTART) ilaarmed <= 0;
+            else if (xbrenab & xbrwena & (xbraddr == 12'o5252) & (xbrwdat != 12'o5252)) begin
+                ilaarmed <= 0;
+            end
         end
     end
 endmodule
