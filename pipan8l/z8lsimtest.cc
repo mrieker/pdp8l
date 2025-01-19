@@ -62,7 +62,6 @@ static uint16_t acum;
 static uint16_t dmaaddr;
 static uint16_t dmafield;
 static uint16_t dmawdata;
-static uint16_t multquot;
 static uint16_t pctr;
 static uint32_t clockno;
 static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
@@ -301,7 +300,7 @@ int main (int argc, char **argv)
 
         // once through this loop per instruction
 
-        printf ("%10u  L.AC=%o.%04o MQ=%04o PC=%o%04o : ", ++ instrno, linc, acum, multquot, xmem_ifld, pctr);
+        printf ("%10u  L.AC=%o.%04o PC=%o%04o : ", ++ instrno, linc, acum, xmem_ifld, pctr);
 
         ////if (instrno == 41) perclock = true;
 
@@ -687,12 +686,6 @@ int main (int argc, char **argv)
                             ASSERT (! realmode);
                             goto vfyacetc;          // pdp8lsim.v already at beginning of TS1BODY of next instruction
                         }
-                    } else {
-                        uint16_t newac = (opcode & 0200) ? 0 : acum;
-                        if (opcode & 0100) newac |= multquot;
-                        if (opcode & 0020) multquot = acum;
-                        if (opcode & 0056) printf (" 0056-ignored");
-                        acum = newac;
                     }
                 }
             }
@@ -921,9 +914,9 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
         // - cleared with TP3
         memcycwcover = ! FIELD (Z_RF, f_o_BWC_OVERFLOW);
 
-        // wait for it to leave TS3, where pdp8lxmem.v writes the value to memory
-        for (int i = 0; FIELD (Z_RF, f_oBTS_3); i ++) {
-            if (i > 1000) fatalerr ("timed out waiting for TS3 negated\n");
+        // wait for MEMDONE, where pdp8lxmem.v has written the value to memory
+        for (int i = 0; FIELD (Z_RA, a_i_MEMDONE); i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for MEMDONE asserted\n");
             clockit ();
         }
 
