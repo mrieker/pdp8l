@@ -19,7 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Print PDP-8/L memory cycle trace
-// Uses MDHOLD/MDSTEP bits of pdp8lxmem.v to stop the processor at end of each memory cycle
+// Uses MWHOLD/MDSTEP bits of pdp8lxmem.v to stop the processor at end of each memory cycle
 // Must have ENLO4K set so it will be able to stop processor when it accesses low 4K memory
 
 //  ./z8lmctrace [-clear]
@@ -72,7 +72,7 @@ int main (int argc, char **argv)
             return 0;
         }
         if (strcasecmp (argv[1], "-clear") == 0) {
-            xmemat[1] &= ~ XM_MDHOLD;
+            xmemat[1] &= ~ XM_MWHOLD;
             return 0;
         }
         fprintf (stderr, "unknown argument %s\n", argv[1]);
@@ -97,7 +97,7 @@ int main (int argc, char **argv)
     while (true) {
 
         // tell pdp8lxmem.v to let processor do one mem cycle then stop
-        xmemat[1] |= XM_MDHOLD | XM_MDSTEP;
+        xmemat[1] |= XM_MWHOLD | XM_MDSTEP;
         bool halted = false;
         for (int i = 0; xmemat[1] & XM_MDSTEP; i ++) {
             if (i > 10000) {

@@ -83,7 +83,7 @@ module pdp8lxmem (
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] memdelay, numcycles;
 
-    reg mdhold, mdstep, os8zap;
+    reg mwhold, mdstep, mrhold, os8zap;
     reg[11:00] os8iszrdata;
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
@@ -95,16 +95,14 @@ module pdp8lxmem (
     // so we save them at the end of previous TS3 so they are valid at start of TS1 through end of TS3 that they are needed for
     reg buf_bf_enab, buf_df_enab, buf_zf_enab, lastts3;
 
-    reg thirteen;
-
     assign field =
                 ~ buf_bf_enab ? brkfld :    // break field if cpu says so
                 ~ buf_df_enab ? dfld   :    // data field if cpu says so
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1025 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4k, 26'b0, thirteen, mdhold, mdstep, os8zap } :
+    assign armrdata = (armraddr == 0) ? 32'h584D1026 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4k, 26'b0, mrhold, mwhold, mdstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
@@ -131,6 +129,9 @@ module pdp8lxmem (
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 lastts3       <= 0;
+                mdstep        <= 0;
+                mrhold        <= 0;
+                mwhold        <= 0;
                 os8step       <= 0;
                 os8zap        <= 0;
                 r_MA          <= 1;
@@ -147,7 +148,6 @@ module pdp8lxmem (
             numcycles  <= 0;
             saveddfld  <= 0;
             savedifld  <= 0;
-            thirteen   <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -159,8 +159,8 @@ module pdp8lxmem (
                 1: begin
                     ctlenab  <= armwdata[31];           // save overall enabled flag
                     ctllo4k  <= armwdata[30];           // save low 4K enabled flag
-                    thirteen <= armwdata[03];
-                    mdhold   <= armwdata[02];
+                    mrhold   <= armwdata[03];
+                    mwhold   <= armwdata[02];
                     mdstep   <= armwdata[01];
                     os8zap   <= armwdata[00];           // save os8zap enabled flag
                 end
@@ -357,33 +357,31 @@ module pdp8lxmem (
                     end
                 end
 
-                // wait another 250nS then send out STROBE pulse to PDP/sim saying data is valid
+                // wait another 500nS then send out STROBE pulse to PDP/sim saying data is valid
                 2: begin
                     memrdat   <= xbrrdat;   // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
-                    if (memdelay != 25) begin
+                    if (memdelay != 50) begin
                         memdelay <= memdelay + 1;
                     end else begin
                         memdelay <= 0;
-                        if (xbraddr == 12'o0013) thirteen <= (xbrrdat == 12'o7731);
-                        ////if ((xbraddr == 0) && thirteen) begin
-                        ////    xmstate <= 13;
-                        ////end else begin
-                            _mrdone <= 0;
-                            xmstate <= 3;   // ...then start looking for write pulse
-                        ////end
+                        mdstep   <= 0;      // tell stepper we are about to stop
+                        xmstate  <= 3;      // ...then start sending strobe pulse
                     end
                 end
 
                 // end the STROBE pulse after 100nS
                 3: begin
-                    if (memdelay != 10) begin
-                        memdelay <= memdelay + 1;
-                    end else begin
-                        memdelay <= 0;
-                        _mrdone  <= 1;
-                        xmstate  <= 44;
+                    if (~ mrhold | mdstep) begin
+                        if (memdelay != 10) begin
+                            memdelay <= memdelay + 1;
+                            _mrdone  <= 0;
+                        end else begin
+                            memdelay <= 0;
+                            _mrdone  <= 1;
+                            xmstate  <= 44;
+                        end
                     end
                 end
 
@@ -415,7 +413,7 @@ module pdp8lxmem (
                 // output 100nS write complete pulse to processor
                 // but wait for stepper if we are doing stepping
                 6: begin
-                    if (~ mdhold | mdstep) begin
+                    if (~ mwhold | mdstep) begin
                         if (memdelay != 10) begin
                             _mwdone  <= 0;
                             memdelay <= memdelay + 1;
@@ -445,15 +443,6 @@ module pdp8lxmem (
                     hizmembus <= 0;
                     if (~ memstart) begin
                         xmstate <= 0;
-                    end
-                end
-
-                // trying to read 0 right after 13 read 7731
-                // wait for arm processor to clear the thirteen bit
-                13: begin
-                    if (~ thirteen) begin
-                        _mrdone <= 0;
-                        xmstate <= 3;   // ...then start looking for write pulse
                     end
                 end
             endcase

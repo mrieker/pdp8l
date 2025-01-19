@@ -295,8 +295,8 @@
 // pdp8lxmem.v registers
 #define XM_OS8ZAP (1U <<  0)
 #define XM_MDSTEP (1U <<  1)
-#define XM_MDHOLD (1U <<  2)
-#define XM_THIRTN (1U <<  3)
+#define XM_MWHOLD (1U <<  2)
+#define XM_MRHOLD (1U <<  3)
 #define XM_ENLO4K (1U << 30)
 #define XM_ENABLE (1U << 31)
 

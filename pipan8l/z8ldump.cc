@@ -224,8 +224,8 @@ int main (int argc, char **argv)
                         eol,
                         idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
                         FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE), FIELD (i+1,XM_OS8ZAP), FIELD (i+3,XM3_OS8STEP), eol);
-                    printf ("                     thirtn=%o  mdhold=%o  mdstep=%o  xmstate=%2u  xmmemenab=%o%s",
-                        FIELD(i+1,XM_THIRTN), FIELD(i+1,XM_MDHOLD), FIELD(i+1,XM_MDSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
+                    printf ("                     mrhold=%o  mwhold=%o  mdstep=%o  xmstate=%2u  xmmemenab=%o%s",
+                        FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MDSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
                 } else {
                     if ((idver & 0xF000U) == 0x0000U) {
                         printf ("%sVERSION=%08X %c%c %08X%s", eol, idver, idver >> 24, idver >> 16, z8ls[i+1], eol);
