@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4083;
+    localparam VERSION = 32'h384C4084;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -1786,7 +1786,7 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (xbrenab & xbrwena & (xbraddr == 12'o5252) & (xbrwdat != 12'o5252)) begin
+            else if (xbrenab & xbrwena & (xbraddr == 15'o0) & (xbrwdat == 12'o0002)) begin
                 ilaarmed <= 0;
             end
         end
