@@ -83,7 +83,7 @@ module pdp8lxmem (
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] memdelay, numcycles;
 
-    reg mwhold, mdstep, mrhold, os8zap;
+    reg mwhold, mwstep, mrhold, mrstep, os8zap;
     reg[11:00] os8iszrdata;
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
@@ -101,8 +101,8 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1026 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctllo4k, 26'b0, mrhold, mwhold, mdstep, os8zap } :
+    assign armrdata = (armraddr == 0) ? 32'h584D1027 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmstate } :
                       { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
 
@@ -129,9 +129,10 @@ module pdp8lxmem (
                 ifld          <= 0;
                 ifldafterjump <= 0;
                 lastts3       <= 0;
-                mdstep        <= 0;
                 mrhold        <= 0;
+                mrstep        <= 0;
                 mwhold        <= 0;
+                mwstep        <= 0;
                 os8step       <= 0;
                 os8zap        <= 0;
                 r_MA          <= 1;
@@ -159,9 +160,10 @@ module pdp8lxmem (
                 1: begin
                     ctlenab  <= armwdata[31];           // save overall enabled flag
                     ctllo4k  <= armwdata[30];           // save low 4K enabled flag
-                    mrhold   <= armwdata[03];
+                    mrhold   <= armwdata[04];
+                    mrstep   <= armwdata[03];
                     mwhold   <= armwdata[02];
-                    mdstep   <= armwdata[01];
+                    mwstep   <= armwdata[01];
                     os8zap   <= armwdata[00];           // save os8zap enabled flag
                 end
             endcase
@@ -307,6 +309,7 @@ module pdp8lxmem (
             ////////////////////////////////////
 
             // wait for MEMSTART=1 and _EA=0 meaning PDP/sim wants to use external memory
+            // follows timing from PDP-8/L maint vol 1, p 4-14
             //    0.. 250nS : latch 15-bit memory address into XBRADDR
             //  250..1600nS : read from FPGA memory, gate onto FPGAs MEMBUS for rest of cycle
             //  500.. 600nS : send STROBE pulse to PDP/sim saying read data is valid
@@ -342,10 +345,10 @@ module pdp8lxmem (
                 end
 
                 // doing external memory cycle:
-                //   give us 250nS to latch MA contents from FPGA's MEMBUS (though it really comes in around 30-40nS)
+                //   give us 80nS to latch MA contents from FPGA's MEMBUS (though it really comes in around 30-40nS)
                 //   this is analogous to waiting for the start of the core memory READ pulse in the real PDP
                 1: begin
-                    if (memdelay != 25) begin
+                    if (memdelay != 8) begin
                         memdelay <= memdelay + 1;
                         r_MA     <= 0;
                         xbraddr  <= { field, memaddr };
@@ -357,23 +360,24 @@ module pdp8lxmem (
                     end
                 end
 
-                // wait another 500nS then send out STROBE pulse to PDP/sim saying data is valid
+                // wait another 420nS then send out STROBE pulse to PDP/sim saying data is valid
                 2: begin
                     memrdat   <= xbrrdat;   // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
-                    if (memdelay != 50) begin
+                    if (memdelay != 42) begin
                         memdelay <= memdelay + 1;
                     end else begin
                         memdelay <= 0;
-                        mdstep   <= 0;      // tell stepper we are about to stop
+                        mrstep   <= 0;      // tell stepper we are about to stop
                         xmstate  <= 3;      // ...then start sending strobe pulse
                     end
                 end
 
                 // end the STROBE pulse after 100nS
+                // then we're 600nS into the cycle
                 3: begin
-                    if (~ mrhold | mdstep) begin
+                    if (~ mrhold | mrstep) begin
                         if (memdelay != 10) begin
                             memdelay <= memdelay + 1;
                             _mrdone  <= 0;
@@ -386,6 +390,7 @@ module pdp8lxmem (
                 end
 
                 // write to FPGA memory after another 850nS
+                // then we're 1450nS into the cycle
                 // supposedly the PDP has come up with data by then
                 44: begin
                     if (memdelay != 85) begin
@@ -398,12 +403,13 @@ module pdp8lxmem (
                 end
 
                 // write the FPGA memory for 50nS
+                // then we're 1500nS into the cycle
                 55: begin
                     if (memdelay != 5) begin
                         memdelay <= memdelay + 1;
                     end else if (~ armwrite) begin
                         memdelay <= 0;
-                        mdstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
+                        mwstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
                         xbrenab  <= 0;              // stop writing to FPGA 32KW memory
                         xbrwena  <= 0;
                         xmstate  <= 6;
@@ -411,9 +417,10 @@ module pdp8lxmem (
                 end
 
                 // output 100nS write complete pulse to processor
+                // then we're 1600nS into the cycle
                 // but wait for stepper if we are doing stepping
                 6: begin
-                    if (~ mwhold | mdstep) begin
+                    if (~ mwhold | mwstep) begin
                         if (memdelay != 10) begin
                             _mwdone  <= 0;
                             memdelay <= memdelay + 1;

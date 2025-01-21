@@ -6,6 +6,7 @@ rename helpini old_helpini
 # if the PDP gets jammed, try this to unstick it
 proc hardreset {} {
     setsw step 1
+    pin set xm_mrhold 0 xm_mwhold 0
     pin set bareit 1 x_MEM 0 i_MEMDONE 0
     pin set bareit 1 x_MEM 0 i_MEMDONE 1
     pin set bareit 1 x_MEM 0 i_STROBE 0

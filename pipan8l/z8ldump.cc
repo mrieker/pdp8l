@@ -76,7 +76,7 @@ int main (int argc, char **argv)
     bool pagemode = false;
     bool stepmode = false;
     char const *eol = EOL;
-    int fps = 1000;
+    int fps = 20;
     XMemRange **lxmemrange, *xmemrange, *xmemranges;
     lxmemrange = &xmemranges;
     for (int i = 0; ++ i < argc;) {
@@ -86,7 +86,7 @@ int main (int argc, char **argv)
             puts ("     Does not alter the state");
             puts ("");
             puts ("  ./z8ldump.armv7l [-fps <num> | -once | -page | -step] [-xmem <lo>..<hi>]...");
-            puts ("      -fps : this many frames per second");
+            puts ("      -fps : this many frames per second 1..1000 (default 20)");
             puts ("     -once : just print the state once, else update continually");
             puts ("     -page : just dump the raw page then exit");
             puts ("     -step : prompt between updates");
@@ -224,8 +224,8 @@ int main (int argc, char **argv)
                         eol,
                         idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
                         FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE), FIELD (i+1,XM_OS8ZAP), FIELD (i+3,XM3_OS8STEP), eol);
-                    printf ("                     mrhold=%o  mwhold=%o  mdstep=%o  xmstate=%2u  xmmemenab=%o%s",
-                        FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MDSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
+                    printf ("                     mrhold,step=%o,%o  mwhold,step=%o,%o  xmstate=%2u  xmmemenab=%o%s",
+                        FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MRSTEP), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MWSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
                 } else {
                     if ((idver & 0xF000U) == 0x0000U) {
                         printf ("%sVERSION=%08X %c%c %08X%s", eol, idver, idver >> 24, idver >> 16, z8ls[i+1], eol);

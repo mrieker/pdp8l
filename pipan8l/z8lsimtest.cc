@@ -244,15 +244,15 @@ int main (int argc, char **argv)
     if (fullreal) {
 
         // set up to hold just before doing TP4 of the JMP instruction
-        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MDSTEP again
+        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MWSTEP again
         // ...causing the PDP to wait
-        // pdp8lxmem.v clears XM_MDSTEP when it has stopped the processor
-        xmemat[1] |= XM_MWHOLD | XM_MDSTEP;
+        // pdp8lxmem.v clears XM_MWSTEP when it has stopped the processor
+        xmemat[1] |= XM_MWHOLD | XM_MWSTEP;
 
         // user must manually start it
         fprintf (stderr, "set SR %04o ; LD ADDR ; START ", DOTJMPDOT);
         while (! FIELD (Z_RF, f_oB_RUN)) {
-            xmemat[1] |= XM_MWHOLD | XM_MDSTEP;
+            xmemat[1] |= XM_MWHOLD | XM_MWSTEP;
             sleep (1);
             fputc ('.', stderr);
         }
@@ -271,9 +271,9 @@ int main (int argc, char **argv)
         usleep (100);
 
         // set up to hold just before doing TP4 of the JMP instruction
-        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MDSTEP again
+        // pdp8lxmem.v will hold off sending MEMDONE pulse until we set XM_MWSTEP again
         // ...causing the sim (pdp8lsim.v) to wait
-        xmemat[1] |= XM_MWHOLD | XM_MDSTEP;
+        xmemat[1] |= XM_MWHOLD | XM_MWSTEP;
 
         // flick the start switch to clear accumulator, link and start it running
         dostart ();
@@ -716,7 +716,7 @@ int main (int argc, char **argv)
     fprintf (stderr, "stopping for control-C\n");
     if (realmode) {
         memorycycle (g_lbFET, xmem_ifld, pctr, 07402, 07402);
-        xmemat[1] &= ~ XM_MWHOLD & ~ XM_MDSTEP;
+        xmemat[1] &= ~ XM_MWHOLD & ~ XM_MWSTEP;
         usleep (20);
         if (FIELD (Z_RF, f_oB_RUN)) {
             fprintf (stderr, "processor failed to halt, probably need to do -clear\n");
@@ -848,9 +848,9 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
         extmemptr[xaddr] = rdata;
 
         // tell pdp8lxmem.v to let the PDP execute TP4 of the previous cycle up to just before TP4 of this cycle
-        xmemat[1] |= XM_MWHOLD | XM_MDSTEP;
-        for (int i = 0; xmemat[1] & XM_MDSTEP; i ++) {
-            if (i > 1000) fatalerr ("timed out waiting for MDSTEP to clear\n");
+        xmemat[1] |= XM_MWHOLD | XM_MWSTEP;
+        for (int i = 0; xmemat[1] & XM_MWSTEP; i ++) {
+            if (i > 1000) fatalerr ("timed out waiting for MWSTEP to clear\n");
         }
 
         // holding just before TP4 of this cycle
