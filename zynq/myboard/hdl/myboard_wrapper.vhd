@@ -1,7 +1,6 @@
 --Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
 ----------------------------------------------------------------------------------
 --Tool Version: Vivado v.2018.3 (lin64) Build 2405991 Thu Dec  6 23:36:41 MST 2018
---Date        : Sun Jan 19 13:34:52 2025
 --Host        : homepc2 running 64-bit Ubuntu 16.04.7 LTS
 --Command     : generate_target myboard_wrapper.bd
 --Design      : myboard_wrapper
@@ -134,6 +133,27 @@ end myboard_wrapper;
 architecture STRUCTURE of myboard_wrapper is
   component myboard is
   port (
+    DDR_addr : inout STD_LOGIC_VECTOR ( 14 downto 0 );
+    DDR_ba : inout STD_LOGIC_VECTOR ( 2 downto 0 );
+    DDR_cas_n : inout STD_LOGIC;
+    DDR_ck_n : inout STD_LOGIC;
+    DDR_ck_p : inout STD_LOGIC;
+    DDR_cke : inout STD_LOGIC;
+    DDR_cs_n : inout STD_LOGIC;
+    DDR_dm : inout STD_LOGIC_VECTOR ( 3 downto 0 );
+    DDR_dq : inout STD_LOGIC_VECTOR ( 31 downto 0 );
+    DDR_dqs_n : inout STD_LOGIC_VECTOR ( 3 downto 0 );
+    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 );
+    DDR_odt : inout STD_LOGIC;
+    DDR_ras_n : inout STD_LOGIC;
+    DDR_reset_n : inout STD_LOGIC;
+    DDR_we_n : inout STD_LOGIC;
+    FIXED_IO_ddr_vrn : inout STD_LOGIC;
+    FIXED_IO_ddr_vrp : inout STD_LOGIC;
+    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
+    FIXED_IO_ps_clk : inout STD_LOGIC;
+    FIXED_IO_ps_porb : inout STD_LOGIC;
+    FIXED_IO_ps_srstb : inout STD_LOGIC;
     LEDoutB_0 : out STD_LOGIC;
     LEDoutG_0 : out STD_LOGIC;
     LEDoutR_0 : out STD_LOGIC;
@@ -227,147 +247,126 @@ architecture STRUCTURE of myboard_wrapper is
     x_DMAADDR_0 : out STD_LOGIC;
     x_DMADATA_0 : out STD_LOGIC;
     x_INPUTBUS_0 : out STD_LOGIC;
-    x_MEM_0 : out STD_LOGIC;
-    FIXED_IO_mio : inout STD_LOGIC_VECTOR ( 53 downto 0 );
-    FIXED_IO_ddr_vrn : inout STD_LOGIC;
-    FIXED_IO_ddr_vrp : inout STD_LOGIC;
-    FIXED_IO_ps_srstb : inout STD_LOGIC;
-    FIXED_IO_ps_clk : inout STD_LOGIC;
-    FIXED_IO_ps_porb : inout STD_LOGIC;
-    DDR_cas_n : inout STD_LOGIC;
-    DDR_cke : inout STD_LOGIC;
-    DDR_ck_n : inout STD_LOGIC;
-    DDR_ck_p : inout STD_LOGIC;
-    DDR_cs_n : inout STD_LOGIC;
-    DDR_reset_n : inout STD_LOGIC;
-    DDR_odt : inout STD_LOGIC;
-    DDR_ras_n : inout STD_LOGIC;
-    DDR_we_n : inout STD_LOGIC;
-    DDR_ba : inout STD_LOGIC_VECTOR ( 2 downto 0 );
-    DDR_addr : inout STD_LOGIC_VECTOR ( 14 downto 0 );
-    DDR_dm : inout STD_LOGIC_VECTOR ( 3 downto 0 );
-    DDR_dq : inout STD_LOGIC_VECTOR ( 31 downto 0 );
-    DDR_dqs_n : inout STD_LOGIC_VECTOR ( 3 downto 0 );
-    DDR_dqs_p : inout STD_LOGIC_VECTOR ( 3 downto 0 )
+    x_MEM_0 : out STD_LOGIC
   );
   end component myboard;
 begin
 myboard_i: component myboard
-     port map (
-      DDR_addr(14 downto 0) => DDR_addr(14 downto 0),
-      DDR_ba(2 downto 0) => DDR_ba(2 downto 0),
-      DDR_cas_n => DDR_cas_n,
-      DDR_ck_n => DDR_ck_n,
-      DDR_ck_p => DDR_ck_p,
-      DDR_cke => DDR_cke,
-      DDR_cs_n => DDR_cs_n,
-      DDR_dm(3 downto 0) => DDR_dm(3 downto 0),
-      DDR_dq(31 downto 0) => DDR_dq(31 downto 0),
-      DDR_dqs_n(3 downto 0) => DDR_dqs_n(3 downto 0),
-      DDR_dqs_p(3 downto 0) => DDR_dqs_p(3 downto 0),
-      DDR_odt => DDR_odt,
-      DDR_ras_n => DDR_ras_n,
-      DDR_reset_n => DDR_reset_n,
-      DDR_we_n => DDR_we_n,
-      FIXED_IO_ddr_vrn => FIXED_IO_ddr_vrn,
-      FIXED_IO_ddr_vrp => FIXED_IO_ddr_vrp,
-      FIXED_IO_mio(53 downto 0) => FIXED_IO_mio(53 downto 0),
-      FIXED_IO_ps_clk => FIXED_IO_ps_clk,
-      FIXED_IO_ps_porb => FIXED_IO_ps_porb,
-      FIXED_IO_ps_srstb => FIXED_IO_ps_srstb,
-      LEDoutB_0 => LEDoutB_0,
-      LEDoutG_0 => LEDoutG_0,
-      LEDoutR_0 => LEDoutR_0,
-      bDMABUSA_0 => bDMABUSA_0,
-      bDMABUSB_0 => bDMABUSB_0,
-      bDMABUSC_0 => bDMABUSC_0,
-      bDMABUSD_0 => bDMABUSD_0,
-      bDMABUSE_0 => bDMABUSE_0,
-      bDMABUSF_0 => bDMABUSF_0,
-      bDMABUSH_0 => bDMABUSH_0,
-      bDMABUSJ_0 => bDMABUSJ_0,
-      bDMABUSK_0 => bDMABUSK_0,
-      bDMABUSL_0 => bDMABUSL_0,
-      bDMABUSM_0 => bDMABUSM_0,
-      bDMABUSN_0 => bDMABUSN_0,
-      bFPI2CDATA_0 => bFPI2CDATA_0,
-      bMEMBUSA_0 => bMEMBUSA_0,
-      bMEMBUSB_0 => bMEMBUSB_0,
-      bMEMBUSC_0 => bMEMBUSC_0,
-      bMEMBUSD_0 => bMEMBUSD_0,
-      bMEMBUSE_0 => bMEMBUSE_0,
-      bMEMBUSF_0 => bMEMBUSF_0,
-      bMEMBUSH_0 => bMEMBUSH_0,
-      bMEMBUSJ_0 => bMEMBUSJ_0,
-      bMEMBUSK_0 => bMEMBUSK_0,
-      bMEMBUSL_0 => bMEMBUSL_0,
-      bMEMBUSM_0 => bMEMBUSM_0,
-      bMEMBUSN_0 => bMEMBUSN_0,
-      bPIOBUSA_0 => bPIOBUSA_0,
-      bPIOBUSB_0 => bPIOBUSB_0,
-      bPIOBUSC_0 => bPIOBUSC_0,
-      bPIOBUSD_0 => bPIOBUSD_0,
-      bPIOBUSE_0 => bPIOBUSE_0,
-      bPIOBUSF_0 => bPIOBUSF_0,
-      bPIOBUSH_0 => bPIOBUSH_0,
-      bPIOBUSJ_0 => bPIOBUSJ_0,
-      bPIOBUSK_0 => bPIOBUSK_0,
-      bPIOBUSL_0 => bPIOBUSL_0,
-      bPIOBUSM_0 => bPIOBUSM_0,
-      bPIOBUSN_0 => bPIOBUSN_0,
-      i3CYCLE_0 => i3CYCLE_0,
-      iAC_CLEAR_0 => iAC_CLEAR_0,
-      iBEMA_0 => iBEMA_0,
-      iBRK_RQST_0 => iBRK_RQST_0,
-      iEMA_0 => iEMA_0,
-      iEXTDMAADD_12_0 => iEXTDMAADD_12_0,
-      iFPI2CCLK_0 => iFPI2CCLK_0,
-      iFPI2CDDIR_0 => iFPI2CDDIR_0,
-      iINT_INHIBIT_0 => iINT_INHIBIT_0,
-      iINT_RQST_0 => iINT_RQST_0,
-      iIO_SKIP_0 => iIO_SKIP_0,
-      iMEMINCR_0 => iMEMINCR_0,
-      i_B36V1_0 => i_B36V1_0,
-      i_CA_INCRMNT_0 => i_CA_INCRMNT_0,
-      i_D36B2_0 => i_D36B2_0,
-      i_DATA_IN_0 => i_DATA_IN_0,
-      i_EA_0 => i_EA_0,
-      i_FPI2CDENA_0 => i_FPI2CDENA_0,
-      i_MEMDONE_0 => i_MEMDONE_0,
-      i_MEM_07_0 => i_MEM_07_0,
-      i_STROBE_0 => i_STROBE_0,
-      oBIOP1_0 => oBIOP1_0,
-      oBIOP2_0 => oBIOP2_0,
-      oBIOP4_0 => oBIOP4_0,
-      oBTP2_0 => oBTP2_0,
-      oBTP3_0 => oBTP3_0,
-      oBTS_1_0 => oBTS_1_0,
-      oBTS_3_0 => oBTS_3_0,
-      oBUSINIT_0 => oBUSINIT_0,
-      oB_RUN_0 => oB_RUN_0,
-      oC36B2_0 => oC36B2_0,
-      oD35B2_0 => oD35B2_0,
-      oE_SET_F_SET_0 => oE_SET_F_SET_0,
-      oJMP_JMS_0 => oJMP_JMS_0,
-      oLINE_LOW_0 => oLINE_LOW_0,
-      oMEMSTART_0 => oMEMSTART_0,
-      o_ADDR_ACCEPT_0 => o_ADDR_ACCEPT_0,
-      o_BF_ENABLE_0 => o_BF_ENABLE_0,
-      o_BWC_OVERFLOW_0 => o_BWC_OVERFLOW_0,
-      o_B_BREAK_0 => o_B_BREAK_0,
-      o_DF_ENABLE_0 => o_DF_ENABLE_0,
-      o_KEY_CLEAR_0 => o_KEY_CLEAR_0,
-      o_KEY_DF_0 => o_KEY_DF_0,
-      o_KEY_IF_0 => o_KEY_IF_0,
-      o_KEY_LOAD_0 => o_KEY_LOAD_0,
-      o_LOAD_SF_0 => o_LOAD_SF_0,
-      o_SP_CYC_NEXT_0 => o_SP_CYC_NEXT_0,
-      r_BAC_0 => r_BAC_0,
-      r_BMB_0 => r_BMB_0,
-      r_MA_0 => r_MA_0,
-      x_DMAADDR_0 => x_DMAADDR_0,
-      x_DMADATA_0 => x_DMADATA_0,
-      x_INPUTBUS_0 => x_INPUTBUS_0,
-      x_MEM_0 => x_MEM_0
-    );
+  port map (
+    DDR_addr(14 downto 0) => DDR_addr(14 downto 0),
+    DDR_ba(2 downto 0) => DDR_ba(2 downto 0),
+    DDR_cas_n => DDR_cas_n,
+    DDR_ck_n => DDR_ck_n,
+    DDR_ck_p => DDR_ck_p,
+    DDR_cke => DDR_cke,
+    DDR_cs_n => DDR_cs_n,
+    DDR_dm(3 downto 0) => DDR_dm(3 downto 0),
+    DDR_dq(31 downto 0) => DDR_dq(31 downto 0),
+    DDR_dqs_n(3 downto 0) => DDR_dqs_n(3 downto 0),
+    DDR_dqs_p(3 downto 0) => DDR_dqs_p(3 downto 0),
+    DDR_odt => DDR_odt,
+    DDR_ras_n => DDR_ras_n,
+    DDR_reset_n => DDR_reset_n,
+    DDR_we_n => DDR_we_n,
+    FIXED_IO_ddr_vrn => FIXED_IO_ddr_vrn,
+    FIXED_IO_ddr_vrp => FIXED_IO_ddr_vrp,
+    FIXED_IO_mio(53 downto 0) => FIXED_IO_mio(53 downto 0),
+    FIXED_IO_ps_clk => FIXED_IO_ps_clk,
+    FIXED_IO_ps_porb => FIXED_IO_ps_porb,
+    FIXED_IO_ps_srstb => FIXED_IO_ps_srstb,
+    LEDoutB_0 => LEDoutB_0,
+    LEDoutG_0 => LEDoutG_0,
+    LEDoutR_0 => LEDoutR_0,
+    bDMABUSA_0 => bDMABUSA_0,
+    bDMABUSB_0 => bDMABUSB_0,
+    bDMABUSC_0 => bDMABUSC_0,
+    bDMABUSD_0 => bDMABUSD_0,
+    bDMABUSE_0 => bDMABUSE_0,
+    bDMABUSF_0 => bDMABUSF_0,
+    bDMABUSH_0 => bDMABUSH_0,
+    bDMABUSJ_0 => bDMABUSJ_0,
+    bDMABUSK_0 => bDMABUSK_0,
+    bDMABUSL_0 => bDMABUSL_0,
+    bDMABUSM_0 => bDMABUSM_0,
+    bDMABUSN_0 => bDMABUSN_0,
+    bFPI2CDATA_0 => bFPI2CDATA_0,
+    bMEMBUSA_0 => bMEMBUSA_0,
+    bMEMBUSB_0 => bMEMBUSB_0,
+    bMEMBUSC_0 => bMEMBUSC_0,
+    bMEMBUSD_0 => bMEMBUSD_0,
+    bMEMBUSE_0 => bMEMBUSE_0,
+    bMEMBUSF_0 => bMEMBUSF_0,
+    bMEMBUSH_0 => bMEMBUSH_0,
+    bMEMBUSJ_0 => bMEMBUSJ_0,
+    bMEMBUSK_0 => bMEMBUSK_0,
+    bMEMBUSL_0 => bMEMBUSL_0,
+    bMEMBUSM_0 => bMEMBUSM_0,
+    bMEMBUSN_0 => bMEMBUSN_0,
+    bPIOBUSA_0 => bPIOBUSA_0,
+    bPIOBUSB_0 => bPIOBUSB_0,
+    bPIOBUSC_0 => bPIOBUSC_0,
+    bPIOBUSD_0 => bPIOBUSD_0,
+    bPIOBUSE_0 => bPIOBUSE_0,
+    bPIOBUSF_0 => bPIOBUSF_0,
+    bPIOBUSH_0 => bPIOBUSH_0,
+    bPIOBUSJ_0 => bPIOBUSJ_0,
+    bPIOBUSK_0 => bPIOBUSK_0,
+    bPIOBUSL_0 => bPIOBUSL_0,
+    bPIOBUSM_0 => bPIOBUSM_0,
+    bPIOBUSN_0 => bPIOBUSN_0,
+    i3CYCLE_0 => i3CYCLE_0,
+    iAC_CLEAR_0 => iAC_CLEAR_0,
+    iBEMA_0 => iBEMA_0,
+    iBRK_RQST_0 => iBRK_RQST_0,
+    iEMA_0 => iEMA_0,
+    iEXTDMAADD_12_0 => iEXTDMAADD_12_0,
+    iFPI2CCLK_0 => iFPI2CCLK_0,
+    iFPI2CDDIR_0 => iFPI2CDDIR_0,
+    iINT_INHIBIT_0 => iINT_INHIBIT_0,
+    iINT_RQST_0 => iINT_RQST_0,
+    iIO_SKIP_0 => iIO_SKIP_0,
+    iMEMINCR_0 => iMEMINCR_0,
+    i_B36V1_0 => i_B36V1_0,
+    i_CA_INCRMNT_0 => i_CA_INCRMNT_0,
+    i_D36B2_0 => i_D36B2_0,
+    i_DATA_IN_0 => i_DATA_IN_0,
+    i_EA_0 => i_EA_0,
+    i_FPI2CDENA_0 => i_FPI2CDENA_0,
+    i_MEMDONE_0 => i_MEMDONE_0,
+    i_MEM_07_0 => i_MEM_07_0,
+    i_STROBE_0 => i_STROBE_0,
+    oBIOP1_0 => oBIOP1_0,
+    oBIOP2_0 => oBIOP2_0,
+    oBIOP4_0 => oBIOP4_0,
+    oBTP2_0 => oBTP2_0,
+    oBTP3_0 => oBTP3_0,
+    oBTS_1_0 => oBTS_1_0,
+    oBTS_3_0 => oBTS_3_0,
+    oBUSINIT_0 => oBUSINIT_0,
+    oB_RUN_0 => oB_RUN_0,
+    oC36B2_0 => oC36B2_0,
+    oD35B2_0 => oD35B2_0,
+    oE_SET_F_SET_0 => oE_SET_F_SET_0,
+    oJMP_JMS_0 => oJMP_JMS_0,
+    oLINE_LOW_0 => oLINE_LOW_0,
+    oMEMSTART_0 => oMEMSTART_0,
+    o_ADDR_ACCEPT_0 => o_ADDR_ACCEPT_0,
+    o_BF_ENABLE_0 => o_BF_ENABLE_0,
+    o_BWC_OVERFLOW_0 => o_BWC_OVERFLOW_0,
+    o_B_BREAK_0 => o_B_BREAK_0,
+    o_DF_ENABLE_0 => o_DF_ENABLE_0,
+    o_KEY_CLEAR_0 => o_KEY_CLEAR_0,
+    o_KEY_DF_0 => o_KEY_DF_0,
+    o_KEY_IF_0 => o_KEY_IF_0,
+    o_KEY_LOAD_0 => o_KEY_LOAD_0,
+    o_LOAD_SF_0 => o_LOAD_SF_0,
+    o_SP_CYC_NEXT_0 => o_SP_CYC_NEXT_0,
+    r_BAC_0 => r_BAC_0,
+    r_BMB_0 => r_BMB_0,
+    r_MA_0 => r_MA_0,
+    x_DMAADDR_0 => x_DMAADDR_0,
+    x_DMADATA_0 => x_DMADATA_0,
+    x_INPUTBUS_0 => x_INPUTBUS_0,
+    x_MEM_0 => x_MEM_0
+  );
 end STRUCTURE;

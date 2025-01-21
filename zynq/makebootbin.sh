@@ -10,6 +10,8 @@
 set -e -v
 cd `dirname $0`
 mydir=`pwd`
+hostnum=$1
+shift
 cd ../zplin
 source petadevel/settings.sh
 source /tools/Xilinx/Vivado/2018.3/settings64.sh
@@ -17,12 +19,12 @@ cd petakernl/zturn
 rm -f images/linux/BOOT.BIN
 petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit --u-boot
 ls -l `pwd`/images/linux/BOOT.BIN
-scp images/linux/BOOT.BIN root@zturn:/boot/BOOT.BIN
+scp images/linux/BOOT.BIN root@zturn$hostnum:/boot/BOOT.BIN
 set +e
-ssh root@zturn reboot
-ping -c 70 zturn
+ssh root@zturn$hostnum reboot
+ping -c 90 zturn$hostnum
 
-# ssh zturn
+# ssh zturn$hostnum
 # cd .../pdp8l/pipan8l
 # ./z8lsim run-d01b.tcl
 
