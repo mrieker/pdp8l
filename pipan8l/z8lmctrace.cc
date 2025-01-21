@@ -57,11 +57,14 @@ int main (int argc, char **argv)
     printf ("8L version %08X\n", pdpat[Z_VER]);
     printf ("XM version %08X\n", xmemat[Z_VER]);
 
-    if (argc > 1) {
-        if (strcmp (argv[1], "-?") == 0) {
+    bool readflag = false;
+    for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
             puts ("");
             puts ("  Print memory cycles as they happen:\n");
-            puts ("    ./z8lmctrace\n");
+            puts ("    ./z8lmctrace [-read]\n");
+            puts ("");
+            puts ("      -read : step at reads as well as writes");
             puts ("");
             puts ("  Must have -enlo4k mode set so extmem gets used for everything\n");
             puts ("    eg, ./z8lreal -enlo4k\n");
@@ -71,11 +74,15 @@ int main (int argc, char **argv)
             puts ("");
             return 0;
         }
-        if (strcasecmp (argv[1], "-clear") == 0) {
-            xmemat[1] &= ~ XM_MWHOLD;
+        if (strcasecmp (argv[i], "-clear") == 0) {
+            xmemat[1] &= ~ XM_MWHOLD & ~ XM_MRHOLD;
             return 0;
         }
-        fprintf (stderr, "unknown argument %s\n", argv[1]);
+        if (strcasecmp (argv[i], "-read") == 0) {
+            readflag = true;
+            continue;
+        }
+        fprintf (stderr, "unknown argument %s\n", argv[i]);
         return 1;
     }
 
@@ -85,6 +92,8 @@ int main (int argc, char **argv)
         fprintf (stderr, "enlo4k mode must be set\n");
         ABORT ();
     }
+
+    xmemat[1] = (xmemat[1] & ~ XM_MRHOLD) | XM_MWHOLD | (readflag ? XM_MRHOLD : 0);
 
     bool intack = false;
     bool wcca   = false;
@@ -96,9 +105,37 @@ int main (int argc, char **argv)
     uint16_t shadowir = 0;
     while (true) {
 
-        // tell pdp8lxmem.v to let processor do one mem cycle then stop
-        xmemat[1] |= XM_MWHOLD | XM_MWSTEP;
+        // tell pdp8lxmem.v to let processor do one mem cycle up to just before sending STROBE pulse
         bool halted = false;
+        uint16_t readdata = 0xFFFFU;
+        if (readflag) {
+            bool halted = false;
+            for (int i = 0; xmemat[1] & XM_MRSTEP; i ++) {
+                if (i > 10000) {
+                    if (FIELD (Z_RF, f_oB_RUN)) {
+                        fprintf (stderr, "timed out waiting for cycle to complete\n");
+                        ABORT ();
+                    }
+                    if (! halted) {
+                        printf ("processor halted\n");
+                        halted   = true;
+                        intack   = false;
+                        wcca     = false;
+                        shadowst = ST_UNKN;
+                        last_dmabrk = false;
+                        last_intack = false;
+                        last_jmpjms = false;
+                        last_wcca   = false;
+                    }
+                    usleep (10000);
+                    i = 0;
+                }
+            }
+            readdata = FIELD (Z_RC, c_i_MEM) ^ 07777;
+            xmemat[1] |= XM_MRSTEP;
+        }
+
+        // tell pdp8lxmem.v to let processor do one mem cycle up to just before sending MEMDONE pulse
         for (int i = 0; xmemat[1] & XM_MWSTEP; i ++) {
             if (i > 10000) {
                 if (FIELD (Z_RF, f_oB_RUN)) {
@@ -124,6 +161,7 @@ int main (int argc, char **argv)
         // pdp8lxmem.v is stopped just before it outputs the MEMDONE (TP4) signal
 
         uint16_t xaddr = FIELD (Z_RL, l_xbraddr);   // get 15-bit address left in extmem ram address register
+        uint16_t writedata = FIELD (Z_RH, h_oBMB);  // get what PDP is sending out to be written
         uint16_t wdata = extmem[xaddr];             // read extmem directly to get what ended up in there
 
         bool didio  = FIELD (Z_RF, f_didio);        // cycle did some i/o
@@ -173,8 +211,10 @@ int main (int argc, char **argv)
         }
 
         // print out mem cycle info
-        printf ("%08X:  %05o / %04o  DF=%o IF=%o IFAJ=%o ION=%o%s%s\n",
-            pdpat[Z_RN], xaddr, wdata,
+        printf ("%08X:  %05o / ", pdpat[Z_RN], xaddr);
+        if (readflag) printf ("%04o => ", readdata);
+        printf ("%04o %c %04o", writedata, ((writedata == wdata) ? '=' : '?'), wdata);
+        printf ("  DF=%o IF=%o IFAJ=%o ION=%o%s%s\n",
             (xmemat[2] & XM2_DFLD) / XM2_DFLD0,
             (xmemat[2] & XM2_IFLD) / XM2_IFLD0,
             (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0,
@@ -189,5 +229,7 @@ int main (int argc, char **argv)
 
         intack = ! FIELD (Z_RF, f_o_LOAD_SF);       // next cycle is interrupt acknowledge
         wcca   = ! FIELD (Z_RF, f_o_SP_CYC_NEXT);   // next cycle is wc or ca
+
+        xmemat[1] |= XM_MWSTEP;
     }
 }
