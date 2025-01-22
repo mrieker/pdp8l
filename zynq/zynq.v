@@ -302,7 +302,7 @@ module Zynq (
     reg[9:0] meminprog;
 
     reg bareit, simit, lastts1, lastts3, didio;
-    reg nanocontin, nanocstep, nanotrigger, softreset, brkwhenhltd;
+    reg nanocontin, nanocstep, nanotrigger, fpgareset, brkwhenhltd;
     wire iopstart, iopstop;
     wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
@@ -498,7 +498,7 @@ module Zynq (
             saxi_BVALID  <= 0;                         // we are not acknowledging any write
 
             simit       <= 0;
-            softreset   <= 0;
+            fpgareset   <= 0;
             nanocontin  <= 0;
             brkwhenhltd <= 0;
             bareit      <= 0;
@@ -574,7 +574,7 @@ module Zynq (
 
                     10'b0000000101: begin
                         simit             <= saxi_WDATA[00];
-                        softreset         <= saxi_WDATA[01];
+                        fpgareset         <= saxi_WDATA[01];
                         nanocontin        <= saxi_WDATA[02];
                         brkwhenhltd       <= saxi_WDATA[05];
                         bareit            <= saxi_WDATA[06];
@@ -808,7 +808,7 @@ module Zynq (
     assign regctld[31:16] = { 4'b0, dev_iDMADATA  };
 
     assign regctle[00] = simit;
-    assign regctle[01] = softreset;
+    assign regctle[01] = fpgareset;
     assign regctle[02] = nanocontin;
     assign regctle[03] = nanotrigger;
     assign regctle[04] = nanocstep;
@@ -872,7 +872,7 @@ module Zynq (
 
     // some arm program is resetting or zynq is powering up
     // - resets devices
-    wire pwronreset = softreset | ~ RESET_N;
+    wire pwronreset = fpgareset | ~ RESET_N;
 
     // count memory cycles
     // dectape uses it for timing in z8ltc08.cc

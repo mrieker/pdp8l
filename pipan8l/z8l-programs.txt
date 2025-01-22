@@ -11,7 +11,7 @@ automated test programs:
     ./z8lpiotest                test PIO circuits - uses DMA circuits to write program to PDP's memory
                                     runs on real PDP and simulator
 
-    ./z8lsimtest                test 8L sim (hold simit on, pulse softreset, pulse nanotrigger),
+    ./z8lsimtest                test 8L sim (hold simit on, pulse fpgareset, pulse nanotrigger),
                                     CM (always clears enable, set dma field), XM (always sets enable, enlo4k; all IOs tested)
 
     ./z8lxmemtest.armv7l        always sets enlo4k, reads & writes extmem block
@@ -28,7 +28,7 @@ other programs:
     z8lpin:                     individual pin access via tcl scripting
 
     z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus,
-        pulse e_softreset       set/clear xmem enlo4k, set/clear tty03 enable, set all other dev enables
+        pulse e_fpgareset       set/clear xmem enlo4k, set/clear tty03 enable, set all other dev enables
         clear e_simit           and always sets e_nanocontin (so devices are continuously clocked)
 
     z8lrk8je:                   process RK8JE io instructions
@@ -45,7 +45,7 @@ other programs:
     ./z8lsim bootos8dpack.tcl   boot OS/8 from decpack with interactive session
     ./z8lsim bootos8dtape.tcl   boot OS/8 from dectape with interactive session
 
-softreset - halts simulator, connects io devices to iobus, puts all in power-on reset state:
+fpgareset - halts simulator, connects io devices to iobus, puts all in power-on reset state:
     regctle[01]
     pwronreset
         pdp8lsim RESET

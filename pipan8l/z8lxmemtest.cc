@@ -54,7 +54,7 @@ int main (int argc, char **argv)
     pdpat[Z_RB] = 0;
     pdpat[Z_RC] = ZZ_RC;
     pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RE] = e_simit | e_softreset;
+    pdpat[Z_RE] = e_simit | e_fpgareset;
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
     pdpat[Z_RH] = 0;

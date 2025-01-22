@@ -149,7 +149,7 @@ int main (int argc, char **argv)
             pdpat[Z_RA]  = ZZ_RA;
 
             usleep (10);
-            pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_softreset;   // no e_simit
+            pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_fpgareset;   // no e_simit
             usleep (10);
             pdpat[Z_RA] = ZZ_RA;
             pdpat[Z_RB] = 0;
@@ -202,8 +202,8 @@ int main (int argc, char **argv)
     pdpat[Z_RC] = zrcwrite = ZZ_RC;
     pdpat[Z_RD] = zrdwrite = ZZ_RD;
     pdpat[Z_RE] = zrewrite =
-         fullreal ? e_softreset | e_nanocontin :
-        (halfreal ? e_simit | e_softreset | e_nanocontin : e_simit | e_softreset);
+         fullreal ? e_fpgareset | e_nanocontin :
+        (halfreal ? e_simit | e_fpgareset | e_nanocontin : e_simit | e_fpgareset);
     pdpat[Z_RF] = 0;
     pdpat[Z_RG] = 0;
     pdpat[Z_RH] = 0;
@@ -215,7 +215,7 @@ int main (int argc, char **argv)
     for (int i = 0; i < 5; i ++) clockit ();
 
     // release the reset
-    pdpat[Z_RE] = zrewrite &= ~ e_softreset;
+    pdpat[Z_RE] = zrewrite &= ~ e_fpgareset;
     for (int i = 0; i < 5; i ++) clockit ();
 
     // make low 4K memory accesses go to the external memory block by leaving _EA asserted all the time

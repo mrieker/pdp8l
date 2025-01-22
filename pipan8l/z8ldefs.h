@@ -83,7 +83,7 @@
 #define d_iDMADATA  (07777U << 16)
 
 #define e_simit         (1U <<  0)  //rw 0=real PDP-8/L; 1=pdp8lsim.v
-#define e_softreset     (1U <<  1)  //rw 0=normal; 1=power-on-reset (sim only)
+#define e_fpgareset     (1U <<  1)  //rw 0=normal; 1=power-on-reset
 #define e_nanocontin    (1U <<  2)  //rw 0=single step mode (sim only); 1=normal continuous running
 #define e_nanotrigger   (1U <<  3)  //rw 0=ignored; 1=trigger single step (sim only)
 #define e_nanocstep     (1U <<  4)  //ro 0=stopped; 1=stepping

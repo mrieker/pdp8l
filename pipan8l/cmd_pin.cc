@@ -113,7 +113,7 @@ static PinDef const pindefs[] = {
     { "iDMADATA_10",     DEV_8L, Z_RD, d_iDMADATA0 <<  1,  true  },
     { "iDMADATA_11",     DEV_8L, Z_RD, d_iDMADATA0 <<  0,  true  },
     { "simit",           DEV_8L, Z_RE, e_simit,            true  },
-    { "softreset",       DEV_8L, Z_RE, e_softreset,        true  },
+    { "fpgareset",       DEV_8L, Z_RE, e_fpgareset,        true  },
     { "nanocontin",      DEV_8L, Z_RE, e_nanocontin,       true  },
     { "nanotrigger",     DEV_8L, Z_RE, e_nanotrigger,      true  },
     { "nanocstep",       DEV_8L, Z_RE, e_nanocstep,        false },

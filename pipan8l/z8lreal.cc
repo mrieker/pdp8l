@@ -86,7 +86,7 @@ int main (int argc, char **argv)
     printf ("XM version %08X\n", xmemat[0]);
 
     // select real PDP-8/L and reset io devices
-    pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_softreset;   // no e_simit
+    pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_fpgareset;   // no e_simit
     usleep (10);
     pdpat[Z_RA] = ZZ_RA;
     pdpat[Z_RB] = 0;

@@ -421,7 +421,7 @@ proc readac {} {
 # there is a flipflop register between PIOBUS and oBMB that clocks whenever not doing an io pulse
 # so reset everything so flipflops clock then turn on the r_BMB 74T254s and read it
 proc readmb {} {
-    pin set softreset 1 nanocontin 1 simit 0 softreset 0
+    pin set fpgareset 1 nanocontin 1 simit 0 fpgareset 0
     pin set r_BAC 1 r_MA 1 x_INPUTBUS 1 bareit 1 r_BMB 0
     return [pin get oBMB set r_BMB 1]
 }
@@ -430,7 +430,7 @@ proc readmb {} {
 # there is a flipflop register between MEMBUS and oMA that clocks whenever r_MA is low
 # so reset everything and set r_MA=0 so flipflops clock then read it
 proc readma {} {
-    pin set softreset 1 nanocontin 1 simit 0 softreset 0
+    pin set fpgareset 1 nanocontin 1 simit 0 fpgareset 0
     pin set x_MEM 1 r_BMB 1 bareit 1 r_MA 0
     return [pin get oMA set r_MA 1]
 }
