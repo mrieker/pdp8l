@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4085;
+    localparam VERSION = 32'h384C4086;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -490,12 +490,12 @@ module Zynq (
     //        AXI4 write response dependency
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
-            saxi_ARREADY <= 1;                             // we are ready to accept read address
-            saxi_RVALID  <= 0;                             // we are not sending out read data
+            saxi_ARREADY <= 1;                         // we are ready to accept read address
+            saxi_RVALID  <= 0;                         // we are not sending out read data
 
-            saxi_AWREADY <= 1;                             // we are ready to accept write address
-            saxi_WREADY  <= 0;                             // we are not ready to accept write data
-            saxi_BVALID  <= 0;                             // we are not acknowledging any write
+            saxi_AWREADY <= 1;                         // we are ready to accept write address
+            saxi_WREADY  <= 0;                         // we are not ready to accept write data
+            saxi_BVALID  <= 0;                         // we are not acknowledging any write
 
             simit       <= 0;
             softreset   <= 0;
@@ -503,37 +503,6 @@ module Zynq (
             brkwhenhltd <= 0;
             bareit      <= 0;
 
-            arm_x_MEM      <= 1;
-            arm_x_INPUTBUS <= 1;
-            arm_x_DMADATA  <= 1;
-            arm_x_DMAADDR  <= 1;
-            arm_r_MA       <= 1;
-            arm_r_BMB      <= 1;
-            arm_r_BAC      <= 1;
-            arm_hizmembus  <= 1;
-
-            arm_iBEMA         <= 0;
-            arm_i_CA_INCRMNT  <= 1;
-            arm_i_DATA_IN     <= 1;
-            arm_iMEMINCR      <= 0;
-            arm_i_MEM_P       <= 1;
-            arm_i3CYCLE       <= 0;
-            arm_iAC_CLEAR     <= 0;
-            arm_iBRK_RQST     <= 0;
-            arm_i_EA          <= 1;
-            arm_iEMA          <= 0;
-            arm_iINT_INHIBIT  <= 0;
-            arm_iINT_RQST     <= 0;
-            arm_iIO_SKIP      <= 0;
-            arm_i_MEMDONE     <= 1;
-            arm_i_STROBE      <= 1;
-            i_B36V1           <= 1;
-            i_D36B2           <= 1;
-
-            arm_iINPUTBUS     <= 12'o0000;
-            arm_i_MEM         <= 12'o7777;
-            arm_iDMAADDR      <= 12'o0000;
-            arm_iDMADATA      <= 12'o0000;
         end else begin
 
             /////////////////////
@@ -639,6 +608,40 @@ module Zynq (
                     saxi_BVALID <= 0;
                 end
             end
+        end
+
+        if (~ armwrite & pwronreset) begin
+            arm_x_MEM         <= 1;
+            arm_x_INPUTBUS    <= 1;
+            arm_x_DMADATA     <= 1;
+            arm_x_DMAADDR     <= 1;
+            arm_r_MA          <= 1;
+            arm_r_BMB         <= 1;
+            arm_r_BAC         <= 1;
+            arm_hizmembus     <= 1;
+
+            arm_iBEMA         <= 0;
+            arm_i_CA_INCRMNT  <= 1;
+            arm_i_DATA_IN     <= 1;
+            arm_iMEMINCR      <= 0;
+            arm_i_MEM_P       <= 1;
+            arm_i3CYCLE       <= 0;
+            arm_iAC_CLEAR     <= 0;
+            arm_iBRK_RQST     <= 0;
+            arm_i_EA          <= 1;
+            arm_iEMA          <= 0;
+            arm_iINT_INHIBIT  <= 0;
+            arm_iINT_RQST     <= 0;
+            arm_iIO_SKIP      <= 0;
+            arm_i_MEMDONE     <= 1;
+            arm_i_STROBE      <= 1;
+            i_B36V1           <= 1;
+            i_D36B2           <= 1;
+
+            arm_iINPUTBUS     <= 12'o0000;
+            arm_i_MEM         <= 12'o7777;
+            arm_iDMAADDR      <= 12'o0000;
+            arm_iDMADATA      <= 12'o0000;
         end
     end
 
