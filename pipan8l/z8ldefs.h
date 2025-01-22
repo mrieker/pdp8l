@@ -323,6 +323,13 @@
 #define XM3_OS8STEP     (3U <<  0)
 #define XM3_OS8STEP0    (1U <<  0)
 
+#define XM4_ADDRLATCHWID  (0377U <<  0)
+#define XM4_READSTROBEDEL (0377U <<  8)
+#define XM4_READSTROBEWID (0377U << 16)
+#define XM4_WRITEENABDEL  (0377U << 24)
+#define XM5_WRITEENABWID  (0377U <<  0)
+#define XM5_WRITEDONEWID  (0377U <<  8)
+
 // pdp8lvc8.v registers
 #define VC1_REMOVE   (077777U << 17)
 #define VC1_INSERT   (077777U <<  0)

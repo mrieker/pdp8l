@@ -34,7 +34,7 @@
 #include "z8lutil.h"
 
 #define DEPTH 4096  // total number of elements in ilaarray
-#define AFTER 2000  // number of samples to take after sample containing trigger
+#define AFTER   96  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022

@@ -224,8 +224,11 @@ int main (int argc, char **argv)
                         eol,
                         idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
                         FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE), FIELD (i+1,XM_OS8ZAP), FIELD (i+3,XM3_OS8STEP), eol);
-                    printf ("                     mrhold,step=%o,%o  mwhold,step=%o,%o  xmstate=%2u  xmmemenab=%o%s",
+                    printf ("        mrhold,step=%o,%o  mwhold,step=%o,%o  xmstate=%2u  xmmemenab=%o%s",
                         FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MRSTEP), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MWSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
+                    printf ("        addrlatchwid=%u  readstrobedel=%u  readstrobewid=%u  writeenabdel=%u  writeenabwid=%u  writedonewid=%u\n",
+                        FIELD(i+4,XM4_ADDRLATCHWID), FIELD(i+4,XM4_READSTROBEDEL), FIELD(i+4,XM4_READSTROBEWID), FIELD(i+4,XM4_WRITEENABDEL),
+                        FIELD(i+5,XM5_WRITEENABWID), FIELD(i+5,XM5_WRITEDONEWID));
                 } else {
                     if ((idver & 0xF000U) == 0x0000U) {
                         printf ("%sVERSION=%08X %c%c %08X%s", eol, idver, idver >> 24, idver >> 16, z8ls[i+1], eol);

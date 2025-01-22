@@ -249,6 +249,12 @@ static PinDef const pindefs[] = {
     { "XM2__MWDONE",     DEV_XM, 2, XM2__MWDONE,           false },
     { "XM2__MRDONE",     DEV_XM, 2, XM2__MRDONE,           false },
     { "XM3_OS8STEP",     DEV_XM, 3, XM3_OS8STEP,           false },
+    { "ADDRLATCHWID",    DEV_XM, 4, XM4_ADDRLATCHWID,      true  },
+    { "READSTROBEDEL",   DEV_XM, 4, XM4_READSTROBEDEL,     true  },
+    { "READSTROBEWID",   DEV_XM, 4, XM4_READSTROBEWID,     true  },
+    { "WRITEENABDEL",    DEV_XM, 4, XM4_WRITEENABDEL,      true  },
+    { "WRITEENABWID",    DEV_XM, 5, XM5_WRITEENABWID,      true  },
+    { "WRITEDONEWID",    DEV_XM, 5, XM5_WRITEDONEWID,      true  },
     { "", 0, 0, 0, false }
 };
 

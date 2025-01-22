@@ -41,7 +41,7 @@ module pdp8lxmem (
     input CLOCK, CSTEP, RESET, BINIT,
 
     input armwrite,
-    input[1:0] armraddr, armwaddr,
+    input[2:0] armraddr, armwaddr,
     input[31:00] armwdata,
     output[31:00] armrdata,
 
@@ -82,6 +82,7 @@ module pdp8lxmem (
     reg[2:0] lastintack;
     reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] memdelay, numcycles;
+    reg[7:0] addrlatchwid, readstrobedel, readstrobewid, writeenabdel, writeenabwid, writedonewid;
 
     reg mwhold, mwstep, mrhold, mrstep, os8zap;
     reg[11:00] os8iszrdata;
@@ -101,10 +102,13 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D1027 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D2028 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmstate } :
-                      { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step };
+                      (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
+                      (armraddr == 4) ? { writeenabdel, readstrobewid, readstrobedel, addrlatchwid } :
+                      (armraddr == 5) ? { 16'b0, writedonewid, writeenabwid } :
+                      32'hDEADBEEF;
 
     assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
@@ -142,7 +146,15 @@ module pdp8lxmem (
                 xmstate       <= 0;
                 _mrdone       <= 1;
                 _mwdone       <= 1;
+
+                addrlatchwid  <=  8;                    // default extmem timing
+                readstrobedel <= 42;
+                readstrobewid <= 10;
+                writeenabdel  <= 85;
+                writeenabwid  <=  5;
+                writedonewid  <= 10;
             end
+
             // these get cleared on power up or start switch
             intinhibeduntiljump <= 0;
             lastintack <= 0;
@@ -165,6 +177,17 @@ module pdp8lxmem (
                     mwhold   <= armwdata[02];
                     mwstep   <= armwdata[01];
                     os8zap   <= armwdata[00];           // save os8zap enabled flag
+                end
+
+                4: begin
+                    addrlatchwid  <= armwdata[07:00];   // time at beg of cycle to latch address
+                    readstrobedel <= armwdata[15:08];   // time after that to beg of strobe pulse
+                    readstrobewid <= armwdata[23:16];   // width of strobe pulse
+                    writeenabdel  <= armwdata[31:24];   // time after strobe before writing ram
+                end
+                5: begin
+                    writeenabwid  <= armwdata[07:00];   // width of write pulse
+                    writedonewid  <= armwdata[15:08];   // width of memdone pulse
                 end
             endcase
         end else if (CSTEP) begin
@@ -348,7 +371,7 @@ module pdp8lxmem (
                 //   give us 80nS to latch MA contents from FPGA's MEMBUS (though it really comes in around 30-40nS)
                 //   this is analogous to waiting for the start of the core memory READ pulse in the real PDP
                 1: begin
-                    if (memdelay != 8) begin
+                    if (memdelay != addrlatchwid) begin
                         memdelay <= memdelay + 1;
                         r_MA     <= 0;
                         xbraddr  <= { field, memaddr };
@@ -365,7 +388,7 @@ module pdp8lxmem (
                     memrdat   <= xbrrdat;   // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
-                    if (memdelay != 42) begin
+                    if (memdelay != readstrobedel) begin
                         memdelay <= memdelay + 1;
                     end else begin
                         memdelay <= 0;
@@ -378,7 +401,7 @@ module pdp8lxmem (
                 // then we're 600nS into the cycle
                 3: begin
                     if (~ mrhold | mrstep) begin
-                        if (memdelay != 10) begin
+                        if (memdelay != readstrobewid) begin
                             memdelay <= memdelay + 1;
                             _mrdone  <= 0;
                         end else begin
@@ -393,7 +416,7 @@ module pdp8lxmem (
                 // then we're 1450nS into the cycle
                 // supposedly the PDP has come up with data by then
                 44: begin
-                    if (memdelay != 85) begin
+                    if (memdelay != writeenabdel) begin
                         memdelay <= memdelay + 1;
                     end else begin
                         memdelay <= 0;
@@ -405,7 +428,7 @@ module pdp8lxmem (
                 // write the FPGA memory for 50nS
                 // then we're 1500nS into the cycle
                 55: begin
-                    if (memdelay != 5) begin
+                    if (memdelay != writeenabwid) begin
                         memdelay <= memdelay + 1;
                     end else if (~ armwrite) begin
                         memdelay <= 0;
@@ -421,7 +444,7 @@ module pdp8lxmem (
                 // but wait for stepper if we are doing stepping
                 6: begin
                     if (~ mwhold | mwstep) begin
-                        if (memdelay != 10) begin
+                        if (memdelay != writedonewid) begin
                             _mwdone  <= 0;
                             memdelay <= memdelay + 1;
                         end else begin
