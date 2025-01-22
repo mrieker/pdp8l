@@ -88,7 +88,7 @@ module Zynq (
     output     i_B36V1,
     output     iBEMA,
     output     i_CA_INCRMNT,
-    output reg i_D36B2,
+    output     i_D36B2,
     output     i_DATA_IN,
     output     iINT_RQST,
     output     i_MEM_07,
@@ -263,6 +263,8 @@ module Zynq (
     wire dev_iIO_SKIP;
     wire dev_i_MEMDONE;
     wire dev_i_STROBE;
+    wire dev_i_B36V1 = 1;
+    wire dev_i_D36B2;
     wire[11:00] dev_oBAC;
     wire dev_oBIOP1;
     wire dev_oBIOP2;
@@ -344,6 +346,7 @@ module Zynq (
     reg arm_iIO_SKIP;
     reg arm_i_MEMDONE;
     reg arm_i_STROBE;
+    reg arm_i_D36B2;
     reg arm_swCONT;
     reg arm_swDEP;
     reg arm_swDFLD;
@@ -419,6 +422,10 @@ module Zynq (
     wire[11:00] vcibus;
     wire vcacclr, vcintrq, vcioskp;
 
+    // pulsebit interface wires
+    wire[31:00] pbardata;
+    wire pulsebit;
+
     // bus values that are constants
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
@@ -469,6 +476,7 @@ module Zynq (
         (readaddr[11:04] ==  8'b00010101)   ? tt46ardata :  // 00010101xx00
         (readaddr[11:03] ==  9'b000101100)  ? tcardata   :  // 000101100x00
         (readaddr[11:03] ==  9'b000101101)  ? prardata   :  // 000101101x00
+        (readaddr[11:03] ==  9'b000101110)  ? pbardata   :  // 000101110x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
@@ -484,6 +492,7 @@ module Zynq (
     wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
     wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101100;  // 000101100x00
     wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101101;  // 000101101x00
+    wire pbawrite   = armwrite & writeaddr[11:03] == 9'b000101110;  // 000101110x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -545,7 +554,7 @@ module Zynq (
                         arm_i_MEMDONE     <= saxi_WDATA[13];
                         arm_i_STROBE      <= saxi_WDATA[14];
                         ////i_B36V1           <= saxi_WDATA[15];
-                        i_D36B2           <= saxi_WDATA[16];
+                        arm_i_D36B2       <= saxi_WDATA[16];
                     end
 
                     10'b0000000010: begin
@@ -636,7 +645,7 @@ module Zynq (
             arm_i_MEMDONE     <= 1;
             arm_i_STROBE      <= 1;
             ////i_B36V1           <= 1;
-            i_D36B2           <= 1;
+            arm_i_D36B2       <= 1;
 
             arm_iINPUTBUS     <= 12'o0000;
             arm_i_MEM         <= 12'o7777;
@@ -734,6 +743,7 @@ module Zynq (
     assign     iIO_SKIP       = simit ? 0       : dev_iIO_SKIP;
     assign     i_MEMDONE      = simit ? 1       : dev_i_MEMDONE;
     assign     i_STROBE       = simit ? 1       : dev_i_STROBE;
+    assign     i_D36B2        = dev_i_D36B2;
 
     // when simulating, send signals from the simulated PDP-8/L on to the devices
     // when not simming, send signals from the hardware PDP-8/L on to the devices
@@ -785,8 +795,8 @@ module Zynq (
     assign regctla[12] = dev_iIO_SKIP;
     assign regctla[13] = dev_i_MEMDONE;
     assign regctla[14] = dev_i_STROBE;
-    assign regctla[15] = i_B36V1;
-    assign regctla[16] = i_D36B2;
+    assign regctla[15] = dev_i_B36V1;
+    assign regctla[16] = dev_i_D36B2;
     assign regctla[25:17] = 0;
 
     assign regctlb[00] = arm_swCONT;
@@ -1199,6 +1209,7 @@ module Zynq (
     assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp));
     assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
     assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
+    assign dev_i_D36B2       = ~ (~ arm_i_D36B2       | ~ bareit & ~ pulsebit);
 
     ///////////////////////////////////
     //  simulated PDP-8/L processor  //
@@ -1757,6 +1768,24 @@ module Zynq (
         .AC_CLEAR (pracclr),
         .IO_SKIP  (prioskp),
         .INT_RQST (printrq)
+    );
+
+    // pulse bit interface
+    pdp8lpbit pbinst (
+        .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
+        .RESET (pwronreset),
+
+        .armwrite (pbawrite),
+        .armraddr (readaddr[2]),
+        .armwaddr (writeaddr[2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (pbardata),
+
+        .iopstart (iopstart),
+        .ioopcode (dev_oBMB),
+
+        .pulse (pulsebit)
     );
 
     // integrated logic analyzer
