@@ -427,6 +427,7 @@ module pdp8lsim (
                 end
 
                 TS_TP1END: begin
+                    o_ADDR_ACCEPT <= 1;
                     if (timedelay != 5) begin
                         timedelay <= timedelay + 1;
                     end else if (memen | i_STROBE) begin
@@ -698,6 +699,7 @@ module pdp8lsim (
                             // end of break
                             MS_BRK, MS_BRKWH: begin
                                 o_ADDR_ACCEPT <= 0;         // 350-450nS pulse starting at TP4 (pdp-8/l users handbook p38)
+                                                            // ends with next cycle STROBE pulse (TP1)
                                 madr <= pctr;               // MS_BRK: doesn't matter; MS_BRKWH: set up to halt with PC in MA
                             end
                         endcase
@@ -735,10 +737,7 @@ module pdp8lsim (
 
                 TS_TP4END: begin
                     if (timedelay != 5) timedelay <= timedelay + 1;
-                    else begin
-                        o_ADDR_ACCEPT <= 1;                 // just do 50nS ADDR_ACCEPT pulse (it's ok cuz pdp8lcmem.v is only thing that uses it)
-                        timestate     <= TS_TSIDLE;
-                    end
+                    else timestate <= TS_TSIDLE;
                 end
             endcase
 
