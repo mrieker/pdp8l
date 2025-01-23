@@ -85,7 +85,7 @@ module Zynq (
     output     iMEMINCR,
     output     i_STROBE,
 
-    output reg i_B36V1,
+    output     i_B36V1,
     output     iBEMA,
     output     i_CA_INCRMNT,
     output reg i_D36B2,
@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4086;
+    localparam VERSION = 32'h384C4088;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -544,7 +544,7 @@ module Zynq (
                         arm_iIO_SKIP      <= saxi_WDATA[12];
                         arm_i_MEMDONE     <= saxi_WDATA[13];
                         arm_i_STROBE      <= saxi_WDATA[14];
-                        i_B36V1           <= saxi_WDATA[15];
+                        ////i_B36V1           <= saxi_WDATA[15];
                         i_D36B2           <= saxi_WDATA[16];
                     end
 
@@ -635,7 +635,7 @@ module Zynq (
             arm_iIO_SKIP      <= 0;
             arm_i_MEMDONE     <= 1;
             arm_i_STROBE      <= 1;
-            i_B36V1           <= 1;
+            ////i_B36V1           <= 1;
             i_D36B2           <= 1;
 
             arm_iINPUTBUS     <= 12'o0000;
@@ -1032,6 +1032,7 @@ module Zynq (
     //    use PIOBUS to update local copy of MB
     //  end
 
+    reg[1:0] memmadel, piobacdel, piobmbdel;
     reg[2:0] sincets3;
 
     wire[11:00] bmbbits = {
@@ -1044,6 +1045,9 @@ module Zynq (
             dev_r_BAC <= 1;
             dev_r_BMB <= 1;
             dev_x_INPUTBUS <= 1;
+            memmadel  <= 0;
+            piobacdel <= 0;
+            piobmbdel <= 0;
             sincets3  <= 0;
         end else if (nanocstep) begin
             if ((iopsetcount == 0) & (iopclrcount == 7)) begin
@@ -1129,7 +1133,12 @@ module Zynq (
             // - updates during first part of i/o pulses so it is valid for i/o opcode processing
             // - also updates just after end of TS3 so AC is updated for console while running
             // - also updates when PDP stops for console while stopped
-            if (~ dev_r_BAC) begin
+            // delay when first turned on to give gates time to turn around, eliminating a glitch
+            if (dev_r_BAC) begin
+                piobacdel <= 0;
+            end else if (piobacdel != 3) begin
+                piobacdel <= piobacdel + 1;
+            end else begin
                 oBAC <= {
                     bPIOBUSA, bPIOBUSH, bPIOBUSB, bPIOBUSJ, bPIOBUSC, bPIOBUSK,
                     bPIOBUSD, bPIOBUSE, bPIOBUSM, bPIOBUSL, bPIOBUSN, bPIOBUSF };
@@ -1141,12 +1150,21 @@ module Zynq (
             //   and data read from memory for DMA cycles
             //   and data to write to memory for external memory cycles
             //   and is also up-to-date for console
-            if (~ dev_r_BMB) begin
+            // delay when first turned on to give gates time to turn around, eliminating a glitch
+            if (dev_r_BMB) begin
+                piobmbdel <= 0;
+            end else if (piobmbdel != 3) begin
+                piobmbdel <= piobmbdel + 1;
+            end else begin
                 oBMB <= bmbbits;
             end
 
             // likewise with MA while we're at it
-            if (~ dev_r_MA) begin
+            if (dev_r_MA) begin
+                memmadel <= 0;
+            end else if (memmadel != 3) begin
+                memmadel <= memmadel + 1;
+            end else begin
                 oMA <= {
                     bMEMBUSH, bMEMBUSA, bMEMBUSB,  bMEMBUSJ, bMEMBUSE, bMEMBUSM,
                     bMEMBUSN, bMEMBUSF, bMEMBUSK,  bMEMBUSC, bMEMBUSL, bMEMBUSD };
@@ -1746,6 +1764,9 @@ module Zynq (
     //             1: waiting for trigger condition
     //  ilaafter = number of cycles to record after trigger condition satisfied
     //  ilaindex = next entry in ilaarray to write
+
+    assign i_B36V1 = ilaarmed;
+
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
             ilaarmed <= 0;
@@ -1764,7 +1785,11 @@ module Zynq (
 
             // capture signals
             ilaarray[ilaindex] <= {
-                bmbbits,
+                9'b0,
+                oBTP2,      // TP2
+                oC36B2,     // IR02
+                oD35B2,     // REGBUS02
+
                 dev_oMA,
                 dev_oBMB,
                 dev_i_MEM,

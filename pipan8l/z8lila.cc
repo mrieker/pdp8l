@@ -49,17 +49,32 @@ int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
+    bool asisflag = false;
+    for (int i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-asis") == 0) {
+            asisflag = true;
+            continue;
+        }
+        fprintf (stderr, "unkasisn argument %s\n", argv[i]);
+        return 1;
+    }
+
     Z8LPage z8p;
     uint32_t volatile *pdpat = z8p.findev ("8L", NULL, NULL, false);
 
-    // tell zynq.v to start collecting samples
-    // tell it to stop when collected trigger sample plus AFTER thereafter
-    pdpat[ILACTL] = CTL_ARMED | AFTER * CTL_AFTER0;
-    printf ("armed\n");
-
-    // wait for sampling to stop
     uint32_t ctl;
-    while (((ctl = pdpat[ILACTL]) & (CTL_ARMED | CTL_AFTER)) != 0) sleep (1);
+    if (asisflag) {
+        ctl = pdpat[ILACTL] & CTL_INDEX;
+    } else {
+
+        // tell zynq.v to start collecting samples
+        // tell it to stop when collected trigger sample plus AFTER thereafter
+        pdpat[ILACTL] = CTL_ARMED | AFTER * CTL_AFTER0;
+        printf ("armed\n");
+
+        // wait for sampling to stop
+        while (((ctl = pdpat[ILACTL]) & (CTL_ARMED | CTL_AFTER)) != 0) sleep (1);
+    }
 
     // read array[index] = next entry to be overwritten = oldest entry
     pdpat[ILACTL] = ctl & CTL_INDEX;
@@ -76,10 +91,13 @@ int main (int argc, char **argv)
 
         // print thisentry - but use ... if same as prev and next
         if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %04o %04o %04o %04o  %o %o %o  %o %o %o  %2u  %o %o %o %o\n",
+            printf ("%6.2f  %o %o %o  %04o %04o %04o  %o %o %o  %o %o %o  %2u  %o %o %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 52) & 07777,   // bmbbits
+                (unsigned) (thisentry >> 54) & 1,       // oBTP2
+                (unsigned) (thisentry >> 53) & 1,       // oC36B2=oIR02
+                (unsigned) (thisentry >> 52) & 1,       // oD35B2=oREGBUS02
+
                 (unsigned) (thisentry >> 40) & 07777,   // oMA
                 (unsigned) (thisentry >> 28) & 07777,   // oBMB
                 (unsigned) (thisentry >> 16) & 07777,   // i_MEM

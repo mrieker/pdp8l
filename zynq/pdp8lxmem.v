@@ -37,6 +37,21 @@
 //                  NOP ; x <= 0
 //              must have enlo4k set for it to work in low 4K
 
+//  addrlatchwid  = width to capture MA from PDP/sim
+//                  TP4 of previous cycle loads MA (vol 2 p? C-7)
+//  readstrobedel = delay from end of addrlatchwid to STROBE pulse
+//                  time to read from RAM + make it to PDP/sim + soak thru muxes, adders, to DFF inputs
+//  readstrobewid = width of STROBE pulse
+//                  max 150nS or TS2 will not clear (vol 2 p? C-6)
+//                  directly generates TP1 pulse
+//                  TP1 delayed by 150nS is TP2 pulse
+//                  TP1 delayed by 400nS is TP3 pulse
+//                  TP2 loads IR during FETCH cycle
+//                  TP2 loads MB during any cycle
+//  writeenabdel  = delay for PDP/sim to compute writeback value in MB
+//  writeenabwid  = width to write to RAM
+//  writedonewid  = width of MEMDONE pulse
+
 module pdp8lxmem (
     input CLOCK, CSTEP, RESET, BINIT,
 
