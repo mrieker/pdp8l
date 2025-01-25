@@ -106,8 +106,6 @@ module pdp8lsim (
     ,output reg lastswSTART
     ,output debounced
     ,output memen
-
-    ,input brkwhenhltd
 );
 
     localparam MS_HALT  =  0;       // waiting for console
@@ -120,7 +118,6 @@ module pdp8lsim (
     localparam MS_INTAK =  7;       // memory cycle is for interrupt acknowledge
     localparam MS_DEPOS =  8;       // memory cycle is for deposit switch
     localparam MS_EXAM  =  9;       // memory cycle is for examine switch
-    localparam MS_BRKWH = 10;       // memory cycle is for break when halted
 
     localparam TS_TSIDLE  =  0;     // figure out what to do next, does console switch processing if not running
     localparam TS_TS1BODY =  1;     // tell memory to start reading location addressed by MA
@@ -175,7 +172,7 @@ module pdp8lsim (
     assign o_KEY_CLEAR = 1;                             // B36-J1,p22 C-5,J12-68,,,
 
     assign lbAC   = acum;
-    assign lbBRK  = (majstate == MS_BRK) | (majstate == MS_BRKWH);
+    assign lbBRK  = (majstate == MS_BRK);
     assign lbCA   = (majstate == MS_CA);
     assign lbDEF  = (majstate == MS_DEFER);
     assign lbEA   = ~ i_EA;
@@ -334,15 +331,8 @@ module pdp8lsim (
                         // not running, process console switches
                         MS_HALT: begin
 
-                            // testing- handle DMA while halted
-                            if (brkwhenhltd & iBRK_RQST) begin
-                                madr      <= iDMAADDR;
-                                majstate  <= MS_BRKWH;      // do break then halt afterward
-                                nextmajst <= MS_BRKWH;      // cycles start with nextmajst = majstate
-                            end
-
                             // load address switch
-                            else if (debounced & lastswLDAD & ~ swLDAD) begin
+                            if (debounced & lastswLDAD & ~ swLDAD) begin
                                 ldad      <= 1;
                                 madr      <= swSR;
                                 pctr      <= swSR;
@@ -467,7 +457,7 @@ module pdp8lsim (
                             MS_CA: begin
                                 if (~ i_CA_INCRMNT) mbuf <= mbuf + 1;
                             end
-                            MS_BRK, MS_BRKWH: begin
+                            MS_BRK: begin
                                 mbuf <= breakdata;      // data must be ready in time for TS3 (pdp-8/l user's handbook p39)
                             end
                             MS_DEPOS: begin
@@ -531,11 +521,6 @@ module pdp8lsim (
 
                             // nearing end of break-while-running
                             MS_BRK: nextmajst <= hltbrkintfet;
-
-                            // after the break-while-halted, do an EXAM cycle
-                            // break-while-halted puts the PC in the MA at the end
-                            // so the following EXAM will display what is at the PC location
-                            MS_BRKWH: nextmajst <= MS_EXAM;
 
                             // something else, halt next
                             default: nextmajst <= MS_HALT;
@@ -697,10 +682,9 @@ module pdp8lsim (
                             MS_CA: madr <= mbuf;            // set up value as address for dma transfer
 
                             // end of break
-                            MS_BRK, MS_BRKWH: begin
+                            MS_BRK: begin
                                 o_ADDR_ACCEPT <= 0;         // 350-450nS pulse starting at TP4 (pdp-8/l users handbook p38)
                                                             // ends with next cycle STROBE pulse (TP1)
-                                madr <= pctr;               // MS_BRK: doesn't matter; MS_BRKWH: set up to halt with PC in MA
                             end
                         endcase
                         timedelay <= 0;

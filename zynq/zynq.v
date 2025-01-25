@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4088;
+    localparam VERSION = 32'h384C4089;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -304,7 +304,7 @@ module Zynq (
     reg[9:0] meminprog;
 
     reg bareit, simit, lastts1, lastts3, didio;
-    reg nanocontin, nanocstep, nanotrigger, fpgareset, brkwhenhltd;
+    reg nanocontin, nanocstep, nanotrigger, fpgareset;
     wire iopstart, iopstop;
     wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
@@ -368,6 +368,9 @@ module Zynq (
     reg dev_r_BMB, dev_r_BAC;
     wire dev_x_MEM, dev_r_MA, dev_hizmembus;
     wire hizmembus;
+
+    // shadow interface wires
+    wire[31:00] shardata;
 
     // tty interface wires
     wire[31:00] ttardata;
@@ -468,31 +471,33 @@ module Zynq (
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
         (readaddr[11:05] ==  8'b0000111)    ? xmardata   :  // 0000111xxx00
-        (readaddr[11:04] ==  8'b00010000)   ? cmardata   :  // 00010000xx00
-        (readaddr[11:04] ==  8'b00010001)   ? ttardata   :  // 00010001xx00
-        (readaddr[11:04] ==  8'b00010010)   ? tt40ardata :  // 00010010xx00
-        (readaddr[11:04] ==  8'b00010011)   ? tt42ardata :  // 00010011xx00
-        (readaddr[11:04] ==  8'b00010100)   ? tt44ardata :  // 00010100xx00
-        (readaddr[11:04] ==  8'b00010101)   ? tt46ardata :  // 00010101xx00
-        (readaddr[11:03] ==  9'b000101100)  ? tcardata   :  // 000101100x00
-        (readaddr[11:03] ==  9'b000101101)  ? prardata   :  // 000101101x00
-        (readaddr[11:03] ==  9'b000101110)  ? pbardata   :  // 000101110x00
+        (readaddr[11:05] ==  8'b0001000)    ? shardata   :  // 0001000xxx00
+        (readaddr[11:04] ==  8'b00010010)   ? cmardata   :  // 00010010xx00
+        (readaddr[11:04] ==  8'b00010011)   ? ttardata   :  // 00010011xx00
+        (readaddr[11:04] ==  8'b00010100)   ? tt40ardata :  // 00010100xx00
+        (readaddr[11:04] ==  8'b00010101)   ? tt42ardata :  // 00010101xx00
+        (readaddr[11:04] ==  8'b00010110)   ? tt44ardata :  // 00010110xx00
+        (readaddr[11:04] ==  8'b00010111)   ? tt46ardata :  // 00010111xx00
+        (readaddr[11:03] ==  9'b000110000)  ? tcardata   :  // 000110000x00
+        (readaddr[11:03] ==  9'b000110001)  ? prardata   :  // 000110001x00
+        (readaddr[11:03] ==  9'b000110010)  ? pbardata   :  // 000110010x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
     wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;    // 0000100xxx00
     wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;    // 0000101xxx00
     wire fpi2cwrite = armwrite & writeaddr[11:05] == 7'b0000110;    // 0000110xxx00
-    wire xmawrite   = armwrite & writeaddr[11:05] == 8'b0000111;    // 0000111xxx00
-    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010000;   // 00010000xx00
-    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00010001;   // 00010001xx00
-    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
-    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
-    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
-    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
-    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000101100;  // 000101100x00
-    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000101101;  // 000101101x00
-    wire pbawrite   = armwrite & writeaddr[11:03] == 9'b000101110;  // 000101110x00
+    wire xmawrite   = armwrite & writeaddr[11:05] == 7'b0000111;    // 0000111xxx00
+    wire shawrite   = armwrite & writeaddr[11:05] == 7'b0001000;    // 0001000xxx00
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
+    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
+    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010110;   // 00010110xx00
+    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010111;   // 00010111xx00
+    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000110000;  // 000110000x00
+    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000110001;  // 000110001x00
+    wire pbawrite   = armwrite & writeaddr[11:03] == 9'b000110010;  // 000110010x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -509,7 +514,6 @@ module Zynq (
             simit       <= 0;
             fpgareset   <= 0;
             nanocontin  <= 0;
-            brkwhenhltd <= 0;
             bareit      <= 0;
 
         end else begin
@@ -585,7 +589,6 @@ module Zynq (
                         simit             <= saxi_WDATA[00];
                         fpgareset         <= saxi_WDATA[01];
                         nanocontin        <= saxi_WDATA[02];
-                        brkwhenhltd       <= saxi_WDATA[05];
                         bareit            <= saxi_WDATA[06];
                     end
 
@@ -822,7 +825,7 @@ module Zynq (
     assign regctle[02] = nanocontin;
     assign regctle[03] = nanotrigger;
     assign regctle[04] = nanocstep;
-    assign regctle[05] = brkwhenhltd;
+    assign regctle[05] = 0;
     assign regctle[06] = bareit;
     assign regctle[31:07] = 0;
 
@@ -1323,11 +1326,78 @@ module Zynq (
         .debounced      (debounced),
         .lastswLDAD     (lastswLDAD),
         .lastswSTART    (lastswSTART),
-        .memen          (simmemen),
-        .brkwhenhltd    (brkwhenhltd)
+        .memen          (simmemen)
     );
 
     assign regctlk[31:29] = 0;
+
+    ////////////////////////////////
+    //  shadow PDP-8/L processor  //
+    ////////////////////////////////
+
+    wire shad_error;
+
+    pdp8lshad shadinst (
+        .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
+        .RESET (pwronreset),
+
+        .armwrite (shawrite),
+        .armraddr (readaddr[4:2]),
+        .armwaddr (writeaddr[4:2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (shardata),
+
+        .iBEMA          (dev_iBEMA),
+        .i_CA_INCRMNT   (dev_i_CA_INCRMNT),
+        .i_DATA_IN      (dev_i_DATA_IN),
+        .iINPUTBUS      (dev_iINPUTBUS),
+        .iMEMINCR       (dev_iMEMINCR),
+        .i_MEM          (dev_i_MEM),
+        .i_MEM_P        (dev_i_MEM_P),
+        .i3CYCLE        (dev_i3CYCLE),
+        .iAC_CLEAR      (dev_iAC_CLEAR),
+        .iBRK_RQST      (dev_iBRK_RQST),
+        .iDMAADDR       (dev_iDMAADDR),
+        .iDMADATA       (dev_iDMADATA),
+        .i_EA           (dev_i_EA),
+        .iEMA           (dev_iEMA),
+        .iINT_INHIBIT   (dev_iINT_INHIBIT),
+        .iINT_RQST      (dev_iINT_RQST),
+        .iIO_SKIP       (dev_iIO_SKIP),
+        .i_MEMDONE      (dev_i_MEMDONE),
+        .i_STROBE       (dev_i_STROBE),
+
+        .oBAC           (dev_oBAC),
+        .oBIOP1         (dev_oBIOP1),
+        .oBIOP2         (dev_oBIOP2),
+        .oBIOP4         (dev_oBIOP4),
+        .oBMB           (dev_oBMB),
+        .oBTP2          (dev_oBTP2),
+        .oBTP3          (dev_oBTP3),
+        .oBTS_1         (dev_oBTS_1),
+        .oBTS_3         (dev_oBTS_3),
+        .o_BWC_OVERFLOW (dev_o_BWC_OVERFLOW),
+        .o_B_BREAK      (dev_o_B_BREAK),
+        .oE_SET_F_SET   (dev_oE_SET_F_SET),
+        .oJMP_JMS       (dev_oJMP_JMS),
+        .oLINE_LOW      (dev_oLINE_LOW),
+        .oMA            (dev_oMA),
+        .oMEMSTART      (dev_oMEMSTART),
+        .o_ADDR_ACCEPT  (dev_o_ADDR_ACCEPT),
+        .o_BF_ENABLE    (dev_o_BF_ENABLE),
+        .oBUSINIT       (dev_oBUSINIT),
+        .oB_RUN         (dev_oB_RUN),
+        .o_DF_ENABLE    (dev_o_DF_ENABLE),
+        .o_KEY_CLEAR    (dev_o_KEY_CLEAR),
+        .o_KEY_DF       (dev_o_KEY_DF),
+        .o_KEY_IF       (dev_o_KEY_IF),
+        .o_KEY_LOAD     (dev_o_KEY_LOAD),
+        .o_LOAD_SF      (dev_o_LOAD_SF),
+        .o_SP_CYC_NEXT  (dev_o_SP_CYC_NEXT),
+
+        .error          (shad_error)
+    );
 
     /////////////////////
     //  io interfaces  //
@@ -1843,7 +1913,7 @@ module Zynq (
             if (~ ilaarmed) ilaafter <= ilaafter - 1;
 
             // check trigger condition
-            else if (xbrenab & xbrwena & (xbraddr == 15'o0) & (xbrwdat == 12'o0002)) begin
+            else if (shad_error) begin
                 ilaarmed <= 0;
             end
         end
