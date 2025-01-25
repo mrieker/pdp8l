@@ -399,9 +399,8 @@ int main (int argc, char **argv)
                 // for IOs, only allow processor (600x) and xmem (62xx)
                 while (true) {
                     opcode = randbits (12);
-                    if ((opcode & 07401) == 07401) continue;    // group 3
-                    if (realmode && ((opcode & 07401) == 07400)) {
-                        opcode &= 07770;    // don't do OSR,HLT,Group 3 in real mode
+                    if ((opcode & 07400) == 07400) {
+                        opcode &= 07770;    // don't do OSR,HLT,Group 3
                     }
                     if ((opcode & 07400) == 07000) {
                         if ((opcode & 016) == 002) continue;    // bsw

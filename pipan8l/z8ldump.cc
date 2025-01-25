@@ -231,7 +231,7 @@ int main (int argc, char **argv)
                         FIELD(i+5,XM5_WRITEENABWID), FIELD(i+5,XM5_WRITEDONEWID));
                 } else if (((idver >> 24) == 'S') && (((idver >> 16) & 255) == 'H')) {
                     char *shst = formatshadow (&z8ls[i]);
-                    printf ("%sVERSION=%08X SH  %s%s", eol, idver, shst, eol);
+                    printf ("%sVERSION=%08X SH %s%s", eol, idver, shst, eol);
                     free (shst);
                 } else {
                     if ((idver & 0xF000U) == 0x0000U) {

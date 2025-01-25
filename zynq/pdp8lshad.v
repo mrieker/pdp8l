@@ -179,34 +179,56 @@ module pdp8lshad (
     wire g2acknown = (acknown | ireg[07]) & ~ ireg[02];
     wire[11:00] g2acum = ireg[07] ? 0 : acum;
 
-    // main processing loop
+    // misc state
 
     reg didio, dmabrk, intack, wcca;
     reg last_dmabrk, last_intack, last_wcca, lastbiop, last_jmpjms, lastts1, lastts3;
 
     reg[7:0] breaksr, intacksr, wccasr;
-    wire nextfetch = breaksr[7] ? MS_BREAK : wccasr[7] ? (wcca ? MS_CURAD : MS_WRDCT) : intacksr[7] ? MS_INTAK : MS_FETCH;
+    wire[3:0] nextfetch = breaksr[7] ? MS_BREAK :
+            wccasr[7] ? (wcca ? MS_CURAD : MS_WRDCT) :
+            intacksr[7] ? MS_INTAK : MS_FETCH;
 
     wire[3:0] timedelayinc = (timedelay == 15) ? 15 : timedelay + 1;
+
+    // main processing loop
 
     always @(posedge CLOCK) begin
 
         if (RESET) begin
-            majstate  <= MS_UNKN;
-            nextmajst <= MS_UNKN;
-            timedelay <= 0;
-            timestate <= TS_U;
-
-            acknown <= 0;
-            eaknown <= 0;
-            irknown <= 0;
-            lnknown <= 0;
-            maknown <= 0;
-            mbknown <= 0;
-            pcknown <= 0;
-            last_jmpjms <= oJMP_JMS;
-
-            err <= 0;
+            acknown     <= 0;
+            acum        <= 0;
+            breaksr     <= 0;
+            didio       <= 0;
+            dmabrk      <= 0;
+            eadr        <= 0;
+            eaknown     <= 0;
+            err         <= 0;
+            intack      <= 0;
+            intacksr    <= 0;
+            ireg        <= 0;
+            irknown     <= 0;
+            last_dmabrk <= 0;
+            last_intack <= 0;
+            last_jmpjms <= 0;
+            last_wcca   <= 0;
+            lastbiop    <= 0;
+            lastts1     <= 0;
+            lastts3     <= 0;
+            link        <= 0;
+            lnknown     <= 0;
+            madr        <= 0;
+            maknown     <= 0;
+            majstate    <= MS_UNKN;
+            mbknown     <= 0;
+            mbuf        <= 0;
+            nextmajst   <= MS_UNKN;
+            pcknown     <= 0;
+            pctr        <= 0;
+            timedelay   <= 0;
+            timestate   <= TS_U;
+            wcca        <= 0;
+            wccasr      <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -221,15 +243,38 @@ module pdp8lshad (
             // pulse from START swtich during MFTP0
             if (oBUSINIT) begin
                 acknown     <= 1;
-                lnknown     <= 1;
-                pcknown     <= 0;
-                last_jmpjms <= oJMP_JMS;
                 acum        <= 0;
-                link        <= 0;
+                breaksr     <= 0;
+                didio       <= 0;
+                dmabrk      <= 0;
+                eadr        <= 0;
+                eaknown     <= 0;
                 err         <= 0;
+                intack      <= 0;
+                intacksr    <= 0;
+                ireg        <= 0;
+                irknown     <= 0;
+                last_dmabrk <= 0;
+                last_intack <= 0;
+                last_jmpjms <= 0;
+                last_wcca   <= 0;
+                lastbiop    <= 0;
+                lastts1     <= 0;
+                lastts3     <= 0;
+                link        <= 0;
+                lnknown     <= 1;
+                madr        <= 0;
+                maknown     <= 0;
                 majstate    <= MS_START;
+                mbknown     <= 0;
+                mbuf        <= 0;
                 nextmajst   <= MS_FETCH;
+                pcknown     <= 0;
+                pctr        <= 0;
+                timedelay   <= 0;
                 timestate   <= TS_U;
+                wcca        <= 0;
+                wccasr      <= 0;
             end
 
             else if (~ error) begin
@@ -358,21 +403,30 @@ module pdp8lshad (
                                 end
 
                                 // verify major state
-                                // also if FETCH, IR was loaded from MEM back at TP2
-                                // also compute EA and capture PC
+                                // also if FETCH, IR was loaded from MEM back at TP2, and compute EA and capture PC
+                                // also convert MS_INTAK to MS_EXEC
                                 9: begin
                                     if ((majstate != MS_UNKN) & (nextmajst != MS_UNKN) & (majstate != nextmajst)) err[04] <= 1;
-                                    if (majstate == MS_FETCH) begin
-                                        irknown     <= 1;
-                                        ireg        <= ~ i_MEM;
-                                        eaknown     <= 1;
-                                        eadr[11:07] <= i_MEM[07] ? 5'b0 : oMA[11:07];
-                                        eadr[06:00] <= ~ i_MEM[06:00];
-                                        if (~ pcknown) begin
-                                            pcknown <= 1;
-                                            pctr <= oMA;
+                                    case (majstate)
+                                        MS_FETCH: begin
+                                            eaknown     <= 1;
+                                            eadr[11:07] <= i_MEM[07] ? 5'b0 : oMA[11:07];
+                                            eadr[06:00] <= ~ i_MEM[06:00];
+                                            irknown     <= 1;
+                                            ireg        <= ~ i_MEM;
+                                            if (~ pcknown) begin
+                                                pcknown <= 1;
+                                                pctr <= oMA;
+                                            end
                                         end
-                                    end
+                                        MS_INTAK: begin
+                                            eaknown  <= 1;
+                                            eadr     <= 0;
+                                            irknown  <= 1;
+                                            ireg     <= 12'o4000;
+                                            majstate <= MS_EXEC;
+                                        end
+                                    endcase
 
                                     // next step will try to compute what MA, MB should be
                                     maknown <= 0;
@@ -445,7 +499,7 @@ module pdp8lshad (
                                             if (~ i3CYCLE) err[11] <= 1;
                                             maknown <= 1;
                                             mbknown <= 1;
-                                            madr <= iDMAADDR;
+                                            madr <= iDMAADDR + 1;
                                             eadr <= ~ i_MEM + (i_CA_INCRMNT ? 0 : 1);
                                             mbuf <= ~ i_MEM + (i_CA_INCRMNT ? 0 : 1);
                                         end
@@ -456,7 +510,7 @@ module pdp8lshad (
                                             maknown <= 1;
                                             mbknown <= 1;
                                             madr <= i3CYCLE ? eadr : iDMAADDR;
-                                            mbuf <= ~ i_MEM + (iMEMINCR ? 1 : 0);
+                                            mbuf <= (i_DATA_IN ? ~ i_MEM : iDMADATA) + (iMEMINCR ? 1 : 0);
                                         end
                                     endcase
                                 end
