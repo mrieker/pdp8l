@@ -227,6 +227,50 @@ void Z8LPage::cmunlk ()
     cmemat[3] = lkpid;
 }
 
+// format shadow string
+char *formatshadow (uint32_t volatile *shat)
+{
+    uint32_t sh1 = shat[1];
+    uint32_t sh2 = shat[2];
+    uint32_t sh3 = shat[3];
+    uint32_t sh4 = shat[4];
+
+    char iregstr[5], pctrstr[5], mbufstr[5], madrstr[5], acumstr[5], eadrstr[5];
+    sprintf (iregstr, "%04o", (sh2 & SH2_IREG) / (SH2_IREG & - SH2_IREG));
+    sprintf (pctrstr, "%04o", (sh2 & SH2_PCTR) / (SH2_PCTR & - SH2_PCTR));
+    sprintf (mbufstr, "%04o", (sh3 & SH3_MBUF) / (SH3_MBUF & - SH3_MBUF));
+    sprintf (madrstr, "%04o", (sh3 & SH3_MADR) / (SH3_MADR & - SH3_MADR));
+    sprintf (acumstr, "%04o", (sh4 & SH4_ACUM) / (SH4_ACUM & - SH4_ACUM));
+    sprintf (eadrstr, "%04o", (sh4 & SH4_EADR) / (SH4_EADR & - SH4_EADR));
+
+    char *buf;
+    int rc = asprintf (&buf,
+        "err=%04X"
+        " majst=%u"
+        " timest=%u+%2u"
+        " ireg=%s"
+        " pctr=%s"
+        " mbuf=%s"
+        " madr=%s"
+        " l.ac=%c.%s"
+        " eadr=%s",
+
+        (sh1 & SH_ERROR) / (SH_ERROR & - SH_ERROR),
+        (sh2 & SH2_MAJSTATE) / (SH2_MAJSTATE & - SH2_MAJSTATE),
+        (sh2 & SH2_TIMESTATE) / (SH2_TIMESTATE & - SH2_TIMESTATE),
+                (sh3 & SH3_TIMEDELAY) / (SH3_TIMEDELAY & - SH3_TIMEDELAY),
+        (sh1 & SH_IRKNOWN) ? iregstr : "----",
+        (sh1 & SH_PCKNOWN) ? pctrstr : "----",
+        (sh1 & SH_MBKNOWN) ? mbufstr : "----",
+        (sh1 & SH_MAKNOWN) ? madrstr : "----",
+        (sh1 & SH_LNKNOWN) ? '0' + (sh4 & SH4_LINK) / SH4_LINK : '-',
+                (sh1 & SH_ACKNOWN) ? acumstr : "----",
+        (sh1 & SH_EAKNOWN) ? eadrstr : "----");
+
+    ASSERT (rc > 0);
+    return buf;
+}
+
 // generate a random number
 uint32_t randbits (int nbits)
 {

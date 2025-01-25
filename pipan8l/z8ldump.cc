@@ -229,6 +229,10 @@ int main (int argc, char **argv)
                     printf ("        addrlatchwid=%u  readstrobedel=%u  readstrobewid=%u  writeenabdel=%u  writeenabwid=%u  writedonewid=%u\n",
                         FIELD(i+4,XM4_ADDRLATCHWID), FIELD(i+4,XM4_READSTROBEDEL), FIELD(i+4,XM4_READSTROBEWID), FIELD(i+4,XM4_WRITEENABDEL),
                         FIELD(i+5,XM5_WRITEENABWID), FIELD(i+5,XM5_WRITEDONEWID));
+                } else if (((idver >> 24) == 'S') && (((idver >> 16) & 255) == 'H')) {
+                    char *shst = formatshadow (&z8ls[i]);
+                    printf ("%sVERSION=%08X SH  %s%s", eol, idver, shst, eol);
+                    free (shst);
                 } else {
                     if ((idver & 0xF000U) == 0x0000U) {
                         printf ("%sVERSION=%08X %c%c %08X%s", eol, idver, idver >> 24, idver >> 16, z8ls[i+1], eol);

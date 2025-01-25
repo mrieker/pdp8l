@@ -97,16 +97,16 @@ module pdp8lshad (
 
     reg acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown;
     reg[11:00] acum, eadr, ireg, madr, mbuf, pctr;
-    reg[3:0] majstate, nextmajst, timestate;
+    reg[3:0] majstate, nextmajst, timedelay, timestate;
     reg[15:00] err;
     reg link;
 
     assign error = (err != 0);
 
-    assign armrdata = (armraddr == 0) ? 32'h53482006 : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h53482007 : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 9'b0, err } :
                       (armraddr == 2) ? { majstate, timestate, ireg, pctr } :
-                      (armraddr == 3) ? { 8'b0, mbuf, madr } :
+                      (armraddr == 3) ? { timedelay, 4'b0, mbuf, madr } :
                       (armraddr == 4) ? { 7'b0, link, acum, eadr } :
                       32'hDEADBEEF;
 
@@ -167,7 +167,7 @@ module pdp8lshad (
 
     // - maybe increment PC for skip
     wire g2pcknown = pcknown & (~ ireg[06] | acknown) & (~ ireg[06] | acknown) & (~ ireg[04] | lnknown);
-    wire[11:00] g2pctr = pctr + (
+    wire[11:00] g2pctr = pctr + 1 + (
                   ((ireg[06] & acum[11]) |    // SMA
                    (ireg[05] & (acum == 0)) | // SZA
                    (ireg[04] & link)) ^       // SNL
@@ -187,7 +187,6 @@ module pdp8lshad (
     reg[7:0] breaksr, intacksr, wccasr;
     wire nextfetch = breaksr[7] ? MS_BREAK : wccasr[7] ? (wcca ? MS_CURAD : MS_WRDCT) : intacksr[7] ? MS_INTAK : MS_FETCH;
 
-    reg[3:0] timedelay;
     wire[3:0] timedelayinc = (timedelay == 15) ? 15 : timedelay + 1;
 
     always @(posedge CLOCK) begin
@@ -520,7 +519,7 @@ module pdp8lshad (
                                 // EXEC:
                                 //  AND,TAD,DCA: update according to opcode
                                 //  ISZ: maybe increment PC
-                                //  JMS: PC = MA + 1
+                                //  JMS: PC = EA + 1
                                 MS_EXEC: begin
                                     if (irknown) case (ireg[11:09])
                                         0: begin
@@ -535,6 +534,10 @@ module pdp8lshad (
                                         3: begin
                                             acknown <= 1;
                                             acum <= 0;
+                                        end
+                                        4: begin
+                                            pcknown <= eaknown;
+                                            pctr <= eadr + 1;
                                         end
                                     endcase
                                 end

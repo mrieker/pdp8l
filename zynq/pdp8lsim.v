@@ -146,7 +146,7 @@ module pdp8lsim (
     wire runff, tp1, tp2, tp3, tp4, ts1, ts2, ts3, ts4;
     reg[2:0] ireg;
     reg[3:0] hltbrkintfet;
-    reg[11:00] acum, madr, mbuf, pctr;
+    reg[11:00] acum, madr, mbuf, newma, pctr;
     reg[23:00] debounce;
 
     // various outputs that can be derived with a few gates or passthrough
@@ -606,14 +606,13 @@ module pdp8lsim (
                     else begin timedelay <= 0; timestate <= TS_DOIOP4; end
                 end
 
-                // output third io pulse for 580nS
-                // real PDP-8/L is 500nS, but stretch for 4.25uS IO instr time
+                // output third io pulse for 500nS
                 TS_DOIOP4: begin
-                    if (timedelay != 58) timedelay <= timedelay + 1;
+                    if (timedelay != 50) timedelay <= timedelay + 1;
                     else begin
                         acum <= ioac;
                         if (iIO_SKIP) pctr <= pctr + 1;
-                        timedelay <= 8;             // TS4 is 400nS
+                        timedelay <= 0;
                         timestate <= TS_TS4BODY;
                     end
                 end
@@ -623,11 +622,11 @@ module pdp8lsim (
                 ///////////////////////////////
                 // - do any final processing for the state such as update acum, link, pctr
 
-                // finish up this cycle (260nS if did io, otherwise 340nS)
-                // - real PDP is 400/480nS but do 260/340 to make 1.60uS cycles
+                // finish up this cycle (340nS)
                 TS_TS4BODY: begin
-                    if (timedelay != 34) timedelay <= timedelay + 1;
-                    else begin
+                    if (timedelay == 0) begin
+
+                        // real PDP-8/L updates AC via TP3 so update it here at beginning of TS4
 
                         // finish off cycle
                         case (majstate)
@@ -637,11 +636,11 @@ module pdp8lsim (
                                 if (~ iopea) case (ireg)
 
                                     // add, tad, isz, dca, jms
-                                    0, 1, 2, 3, 4: madr <= effaddr;
+                                    0, 1, 2, 3, 4: newma <= effaddr;
 
                                     // jmp
                                     5: begin
-                                        if (mbuf[08]) madr <= effaddr;
+                                        if (mbuf[08]) newma <= effaddr;
                                                  else pctr <= effaddr;
                                     end
 
@@ -661,7 +660,7 @@ module pdp8lsim (
                             // end of DEFER cycle
                             MS_DEFER: begin
                                 if (ireg == 5) pctr <= mbuf;
-                                          else madr <= mbuf;
+                                          else newma <= mbuf;
                             end
 
                             // end of EXEC cycle
@@ -676,17 +675,13 @@ module pdp8lsim (
                             end
 
                             // end of wordcount
-                            MS_WC: madr <= madr + 1;
-
-                            // end of currentaddress
-                            MS_CA: madr <= mbuf;            // set up value as address for dma transfer
-
-                            // end of break
-                            MS_BRK: begin
-                                o_ADDR_ACCEPT <= 0;         // 350-450nS pulse starting at TP4 (pdp-8/l users handbook p38)
-                                                            // ends with next cycle STROBE pulse (TP1)
-                            end
+                            MS_WC: newma <= madr + 1;
                         endcase
+                    end
+
+                    if (timedelay != 34) begin
+                        timedelay <= timedelay + 1;
+                    end else begin
                         timedelay <= 0;
                         timestate <= TS_TP4BEG;
                     end
@@ -695,10 +690,14 @@ module pdp8lsim (
                 TS_TP4BEG: begin
                     case (timedelay)
                         0: begin
+                            if (majstate == MS_BRK) begin
+                                o_ADDR_ACCEPT <= 0;         // 350-450nS pulse starting at TP4 (pdp-8/l users handbook p38)
+                                                            // ends with next cycle STROBE pulse (TP1)
+                            end
                             case (nextmajst)
                                 MS_FETCH: madr <= pctr;
                                 MS_WC:    madr <= iDMAADDR;
-                                MS_BRK:   if (majstate != MS_CA) madr <= iDMAADDR;
+                                MS_BRK:   madr <= (majstate == MS_CA) ? mbuf : iDMAADDR;
                                 MS_INTAK: begin
                                     intdelayed <= 0;
                                     intenabled <= 0;
@@ -706,6 +705,7 @@ module pdp8lsim (
                                     iopea      <= 0;
                                     madr       <= 0;
                                 end
+                                default: madr <= newma;
                             endcase
                             timedelay <= 1;
                         end

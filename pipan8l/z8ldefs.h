@@ -292,6 +292,29 @@
 #define PR_FLAG 0x80000000
 #define PR_FULL 0x40000000
 
+// pdp8lshad.v registers
+#define SH_ACKNOWN (1U << 31)
+#define SH_EAKNOWN (1U << 30)
+#define SH_IRKNOWN (1U << 29)
+#define SH_LNKNOWN (1U << 28)
+#define SH_MAKNOWN (1U << 27)
+#define SH_MBKNOWN (1U << 26)
+#define SH_PCKNOWN (1U << 25)
+#define SH_ERROR   (0177777U)
+
+#define SH2_MAJSTATE  (15U << 28)
+#define SH2_TIMESTATE (15U << 24)
+#define SH2_IREG   (07777U << 12)
+#define SH2_PCTR   (07777U <<  0)
+
+#define SH3_TIMEDELAY (15U << 28)
+#define SH3_MBUF   (07777U << 12)
+#define SH3_MADR   (07777U <<  0)
+
+#define SH4_LINK     (1U << 24)
+#define SH4_ACUM (07777U << 12)
+#define SH4_EADR (07777U <<  0)
+
 // pdp8lxmem.v registers
 #define XM_OS8ZAP (1U <<  0)
 #define XM_MWSTEP (1U <<  1)

@@ -51,6 +51,7 @@ private:
     static uint32_t mypid;
 };
 
+char *formatshadow (uint32_t volatile *shat);
 uint32_t randbits (int nbits);
 
 #endif

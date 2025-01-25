@@ -68,6 +68,7 @@ static uint32_t zrawrite, zrcwrite, zrdwrite, zrewrite;
 static uint32_t volatile *extmemptr;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *cmemat;
+static uint32_t volatile *shat;
 static uint32_t volatile *xmemat;
 
 static bool xmem_intdisableduntiljump;
@@ -89,6 +90,7 @@ static void clockit ();
 static bool g2skip (uint16_t opcode);
 static void verify12 (int index, uint32_t mask, uint16_t expect, char const *msg);
 static void verifybit (int index, uint32_t mask, bool expect, char const *msg);
+static void printshadow (FILE *out);
 static void fatalerr (char const *fmt, ...);
 static void dumpstate ();
 
@@ -235,6 +237,10 @@ int main (int argc, char **argv)
         }
         fputc ('\n', stderr);
     }
+
+    // reset pdp8lshad.v shadow errors
+    shat = z8p.findev ("SH", NULL, NULL, false);
+    shat[1] = 0;
 
     // set up a DOT: JMP DOT instruction to begin with
     extmemptr[DOTJMPDOT] = DOTJMPDOT;
@@ -393,10 +399,11 @@ int main (int argc, char **argv)
                 // for IOs, only allow processor (600x) and xmem (62xx)
                 while (true) {
                     opcode = randbits (12);
-                    if (realmode && ((opcode & 07400) == 07400)) {
-                        opcode &= 07770;            // don't do OSR,HLT,Group 3 in real mode
+                    if ((opcode & 07401) == 07401) continue;    // group 3
+                    if (realmode && ((opcode & 07401) == 07400)) {
+                        opcode &= 07770;    // don't do OSR,HLT,Group 3 in real mode
                     }
-                    if (realmode && ((opcode & 07400) == 07000)) {
+                    if ((opcode & 07400) == 07000) {
                         if ((opcode & 016) == 002) continue;    // bsw
                         if ((opcode & 014) == 014) continue;    // 6,7
                     }
@@ -625,9 +632,6 @@ int main (int argc, char **argv)
 
                 // opr
                 case 7: {
-                    if (! realmode) {   // can't verify cuz instruction has already executed (we are just before TP4)
-                        verify12 (Z_RH, h_oBAC, acum, "AC bad at beginning of OPR instruction");
-                    }
                     if (! (opcode & 0400)) {
                         if (opcode & 00200) acum  = 0;
                         if (opcode & 00100) linc  = false;
@@ -711,6 +715,8 @@ int main (int argc, char **argv)
             uint32_t clocks = clockno - startclockno;
             printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
         }
+
+        printshadow (stdout);
     }
 
     fprintf (stderr, "stopping for control-C\n");
@@ -928,6 +934,12 @@ static void memorycyclx (uint32_t state, uint8_t field, uint16_t addr, uint16_t 
             fatalerr ("address %05o contained %04o at end of cycle, should be %04o\n", vfywaddr, vdata, vfywdata);
         }
     }
+
+    if (shat[1] & 0xFFFFU) {
+        printf ("\n");
+        printshadow (stderr);
+        fatalerr ("shadow error %08X\n", shat[1]);
+    }
 }
 
 // maybe request dma or interrupt
@@ -1032,6 +1044,13 @@ static void verifybit (int index, uint32_t mask, bool expect, char const *msg)
     if (actual != expect) {
         fatalerr ("%s, is %o should be %o\n", msg, actual, expect);
     }
+}
+
+static void printshadow (FILE *out)
+{
+    char *shst = formatshadow (shat);
+    fprintf (out, "            shadow: %s\n", shst);
+    free (shst);
 }
 
 static void fatalerr (char const *fmt, ...)
