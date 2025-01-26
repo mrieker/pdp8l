@@ -79,42 +79,54 @@ int main (int argc, char **argv)
     // read array[index] = next entry to be overwritten = oldest entry
     pdpat[ILACTL] = ctl & CTL_INDEX;
     uint64_t thisentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
+    uint32_t thisentr2 = pdpat[ILADAT+2];
 
     // loop through all entries in the array
     bool indotdotdot = false;
     uint64_t preventry = 0;
+    uint32_t preventr2 = 0;
     for (int i = 0; i < DEPTH; i ++) {
 
         // read array[index+i+1] = array entry after thisentry
         pdpat[ILACTL] = (ctl + i * CTL_INDEX0 + CTL_INDEX0) & CTL_INDEX;
         uint64_t nextentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
+        uint32_t nextentr2 = pdpat[ILADAT+2];
 
         // print thisentry - but use ... if same as prev and next
-        if ((i == 0) || (i == DEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            printf ("%6.2f  %o %o %o  %04o %04o %04o  %o %o %o  %o %o %o  %2u  %o %o %o %o\n",
+        if ((i == 0) || (i == DEPTH - 1) ||
+                (thisentry != preventry) || (thisentry != nextentry) ||
+                (thisentr2 != preventr2) || (thisentr2 != nextentr2)) {
+
+            printf ("%6.2f  %04o %o %o  %2u+%2u  %o %o %o %o  %04o %04o %04o %04o  %o %o %o  %2u  %o %o %o %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 54) & 1,       // oBTP2
-                (unsigned) (thisentry >> 53) & 1,       // oC36B2=oIR02
-                (unsigned) (thisentry >> 52) & 1,       // oD35B2=oREGBUS02
+                (unsigned) (thisentr2 >> 12) & 07777,   // dev_iINPUTBUS
+                (unsigned) (thisentr2 >> 11) & 1,       // dev_x_INPUTBUS
+                (unsigned) (thisentr2 >>  8) & 7,       // xmdfld
 
-                (unsigned) (thisentry >> 40) & 07777,   // oMA
-                (unsigned) (thisentry >> 28) & 07777,   // oBMB
-                (unsigned) (thisentry >> 16) & 07777,   // i_MEM
+                (unsigned) (thisentr2 >>  4) & 017,     // shad_tstate
+                (unsigned) (thisentr2 >>  0) & 017,     // shad_tdelay
 
-                (unsigned) (thisentry >> 15) & 1,       // oMEMSTART
-                (unsigned) (thisentry >> 14) & 1,       // i_STROBE
-                (unsigned) (thisentry >> 13) & 1,       // i_MEMDONE
+                (unsigned) (thisentry >> 63) & 1,       // oBIOP4
+                (unsigned) (thisentry >> 62) & 1,       // oBTP2
+                (unsigned) (thisentry >> 61) & 1,       // oC36B2=oIR02
+                (unsigned) (thisentry >> 60) & 1,       // oD35B2=oREGBUS02
 
-                (unsigned) (thisentry >> 12) & 1,       // cmbrkrqst
-                (unsigned) (thisentry >> 11) & 1,       // dev_i_EA
-                (unsigned) (thisentry >> 10) & 1,       // dev_o_B_BREAK
+                (unsigned) (thisentry >> 48) & 07777,   // oMA
+                (unsigned) (thisentry >> 36) & 07777,   // oBMB
+                (unsigned) (thisentry >> 24) & 07777,   // oBAC
+                (unsigned) (thisentry >> 12) & 07777,   // i_MEM
 
-                (unsigned) (thisentry >>  4) & 63,      // xmstate[5:0]
+                (unsigned) (thisentry >> 11) & 1,       // oBTS_1
+                (unsigned) (thisentry >> 10) & 1,       // oBTS_3
+                (unsigned) (thisentry >>  9) & 1,       // oMEMSTART
 
-                (unsigned) (thisentry >>  3) & 1,       // hizmembus
-                (unsigned) (thisentry >>  2) & 1,       // r_MA
-                (unsigned) (thisentry >>  1) & 1,       // x_MEM
+                (unsigned) (thisentry >>  5) & 15,      // xmstate[3:0]
+
+                (unsigned) (thisentry >>  4) & 1,       // hizmembus
+                (unsigned) (thisentry >>  3) & 1,       // r_MA
+                (unsigned) (thisentry >>  2) & 1,       // x_MEM
+                (unsigned) (thisentry >>  1) & 1,       // r_BAC
                 (unsigned) (thisentry >>  0) & 1        // r_BMB
             );
             indotdotdot = false;
@@ -126,6 +138,8 @@ int main (int argc, char **argv)
         // shuffle entries for next time through
         preventry = thisentry;
         thisentry = nextentry;
+        preventr2 = thisentr2;
+        thisentr2 = nextentr2;
     }
     return 0;
 }

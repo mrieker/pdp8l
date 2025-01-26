@@ -77,6 +77,7 @@ module pdp8lshad (
     input o_LOAD_SF,            // B36-M1,p22 C-5,J12-52,,,
     input o_SP_CYC_NEXT,        // B36-D1,p22 C-6,J12-67,,,
 
+    output reg[3:0] majstate, nextmajst, timedelay, timestate,
     output error
 );
 
@@ -110,14 +111,13 @@ module pdp8lshad (
 
     reg acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown;
     reg[11:00] acum, eadr, ireg, madr, mbuf, pctr;
-    reg[3:0] majstate, nextmajst, timedelay, timestate;
     reg[15:00] err;
-    reg link;
+    reg clearit, link;
 
     assign error = (err != 0);
 
-    assign armrdata = (armraddr == 0) ? 32'h53482008 : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 9'b0, err } :
+    assign armrdata = (armraddr == 0) ? 32'h5348200B : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 8'b0, clearit, err } :
                       (armraddr == 2) ? { majstate, timestate, ireg, pctr } :
                       (armraddr == 3) ? { timedelay, 4'b0, mbuf, madr } :
                       (armraddr == 4) ? { 7'b0, link, acum, eadr } :
@@ -213,55 +213,27 @@ module pdp8lshad (
     always @(posedge CLOCK) begin
 
         if (RESET) begin
-            acknown     <= 0;
-            acum        <= 0;
-            breaksr     <= 0;
-            didio       <= 0;
-            dmabrk      <= 0;
-            eadr        <= 0;
-            eaknown     <= 0;
-            err         <= 0;
-            intack      <= 0;
-            intacksr    <= 0;
-            ireg        <= 0;
-            irknown     <= 0;
-            last_dmabrk <= 0;
-            last_intack <= 0;
-            last_jmpjms <= 0;
-            last_wcca   <= 0;
-            lastbiop    <= 0;
-            lastts1     <= 0;
-            lastts3     <= 0;
-            link        <= 0;
-            lnknown     <= 0;
-            madr        <= 0;
-            maknown     <= 0;
-            majstate    <= MS_UNKN;
-            mbknown     <= 0;
-            mbuf        <= 0;
-            nextmajst   <= MS_UNKN;
-            pcknown     <= 0;
-            pctr        <= 0;
-            timedelay   <= 0;
-            timestate   <= TS_U;
-            wcca        <= 0;
-            wccasr      <= 0;
+            clearit <= 1;
         end
 
         // arm processor is writing one of the registers
         else if (armwrite) begin
             case (armwaddr)
-                1: err <= armwdata[15:00];
+                1: begin
+                    err <= armwdata[15:00];
+                    clearit <= armwdata[16];
+                end
             endcase
         end
 
         else if (CSTEP) begin
 
             // pulse from START swtich during MFTP0
-            if (oBUSINIT) begin
-                acknown     <= 1;
+            if (oBUSINIT | clearit) begin
+                acknown     <= oBUSINIT;
                 acum        <= 0;
                 breaksr     <= 0;
+                clearit     <= 0;
                 didio       <= 0;
                 dmabrk      <= 0;
                 eadr        <= 0;
@@ -279,13 +251,13 @@ module pdp8lshad (
                 lastts1     <= 0;
                 lastts3     <= 0;
                 link        <= 0;
-                lnknown     <= 1;
+                lnknown     <= oBUSINIT;
                 madr        <= 0;
                 maknown     <= 0;
-                majstate    <= MS_START;
+                majstate    <= oBUSINIT ? MS_START : MS_UNKN;
                 mbknown     <= 0;
                 mbuf        <= 0;
-                nextmajst   <= MS_FETCH;
+                nextmajst   <= oBUSINIT ? MS_FETCH : MS_UNKN;
                 pcknown     <= 0;
                 pctr        <= 0;
                 timedelay   <= 0;

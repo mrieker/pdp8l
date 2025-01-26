@@ -90,12 +90,13 @@ module pdp8lxmem (
     output reg xbrenab,             // ... chip enable
     output reg xbrwena              // ... write enable
 
-    ,output xmstate
+    ,output reg[3:0] xmstate
+    ,output reg[2:0] dfld
 );
 
     reg ctlenab, ctllo4k, ctlwrite, intinhibeduntiljump;
     reg[2:0] lastintack;
-    reg[2:0] dfld, ifld, ifldafterjump, saveddfld, savedifld;
+    reg[2:0] ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] memdelay, numcycles;
     reg[7:0] addrlatchwid, readstrobedel, readstrobewid, writeenabdel, writeenabwid, writedonewid;
 
@@ -104,7 +105,6 @@ module pdp8lxmem (
     reg[14:00] os8iszxaddr;
     reg[1:0] os8step;
     reg[6:0] os8iszopcad;
-    reg[5:0] xmstate;
 
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
@@ -117,9 +117,9 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D2028 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D2029 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
-                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 2'b0, xmstate } :
+                      (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
                       (armraddr == 4) ? { writeenabdel, readstrobewid, readstrobedel, addrlatchwid } :
                       (armraddr == 5) ? { 16'b0, writedonewid, writeenabwid } :
@@ -422,7 +422,7 @@ module pdp8lxmem (
                         end else begin
                             memdelay <= 0;
                             _mrdone  <= 1;
-                            xmstate  <= 44;
+                            xmstate  <= 4;
                         end
                     end
                 end
@@ -430,19 +430,19 @@ module pdp8lxmem (
                 // write to FPGA memory after another 850nS
                 // then we're 1450nS into the cycle
                 // supposedly the PDP has come up with data by then
-                44: begin
+                4: begin
                     if (memdelay != writeenabdel) begin
                         memdelay <= memdelay + 1;
                     end else begin
                         memdelay <= 0;
                         xbrwena  <= 1;
-                        xmstate  <= 55;
+                        xmstate  <= 5;
                     end
                 end
 
                 // write the FPGA memory for 50nS
                 // then we're 1500nS into the cycle
-                55: begin
+                5: begin
                     if (memdelay != writeenabwid) begin
                         memdelay <= memdelay + 1;
                     end else if (~ armwrite) begin

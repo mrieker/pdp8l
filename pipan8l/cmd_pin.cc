@@ -40,8 +40,9 @@ struct PinDef {
 #define DEV_CM 1
 #define DEV_TT 2
 #define DEV_XM 3
+#define DEV_SH 4
 
-static uint32_t volatile *devs[4];
+static uint32_t volatile *devs[5];
 
 static PinDef const pindefs[] = {
     { "iBEMA",           DEV_8L, Z_RA, a_iBEMA,            true  },
@@ -255,6 +256,25 @@ static PinDef const pindefs[] = {
     { "WRITEENABDEL",    DEV_XM, 4, XM4_WRITEENABDEL,      true  },
     { "WRITEENABWID",    DEV_XM, 5, XM5_WRITEENABWID,      true  },
     { "WRITEDONEWID",    DEV_XM, 5, XM5_WRITEDONEWID,      true  },
+    { "SH_ACKNOWN",      DEV_SH, 1, SH_ACKNOWN,            false },
+    { "SH_EAKNOWN",      DEV_SH, 1, SH_EAKNOWN,            false },
+    { "SH_IRKNOWN",      DEV_SH, 1, SH_IRKNOWN,            false },
+    { "SH_LNKNOWN",      DEV_SH, 1, SH_LNKNOWN,            false },
+    { "SH_MAKNOWN",      DEV_SH, 1, SH_MAKNOWN,            false },
+    { "SH_MBKNOWN",      DEV_SH, 1, SH_MBKNOWN,            false },
+    { "SH_PCKNOWN",      DEV_SH, 1, SH_PCKNOWN,            false },
+    { "SH_CLEARIT",      DEV_SH, 1, SH_CLEARIT,            true  },
+    { "SH_ERROR",        DEV_SH, 1, SH_ERROR,              true  },
+    { "SH2_MAJSTATE",    DEV_SH, 2, SH2_MAJSTATE,          false },
+    { "SH2_TIMESTATE",   DEV_SH, 2, SH2_TIMESTATE,         false },
+    { "SH2_IREG",        DEV_SH, 2, SH2_IREG,              false },
+    { "SH2_PCTR",        DEV_SH, 2, SH2_PCTR,              false },
+    { "SH3_TIMEDELAY",   DEV_SH, 3, SH3_TIMEDELAY,         false },
+    { "SH3_MBUF",        DEV_SH, 3, SH3_MBUF,              false },
+    { "SH3_MADR",        DEV_SH, 3, SH3_MADR,              false },
+    { "SH4_LINK",        DEV_SH, 4, SH4_LINK,              false },
+    { "SH4_ACUM",        DEV_SH, 4, SH4_ACUM,              false },
+    { "SH4_EADR",        DEV_SH, 4, SH4_EADR,              false },
     { "", 0, 0, 0, false }
 };
 
@@ -264,6 +284,8 @@ static uint32_t volatile *extmemptr;
 int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "help") == 0)) {
+        puts ("");
+        puts ("  pin list - list all the pins");
         puts ("");
         puts ("  pin {get pin ...} | {set pin val ...} | {test pin ...} ...");
         puts ("    defaults to get");
@@ -281,13 +303,24 @@ int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_OK;
     }
 
+    if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "list") == 0)) {
+        for (PinDef const *pte = pindefs; pte->name[0] != 0; pte ++) {
+            uint32_t volatile *ptr = devs[pte->dev];
+            printf ("  %-16s  %c%c[%2u]  %08X\n",
+                pte->name, (ptr[0] >> 24) & 0xFFU, (ptr[0] >> 16) & 0xFFU, pte->reg, pte->mask);
+        }
+        return TCL_OK;
+    }
+
     if (z8p == NULL) {
+
         // access the zynq io page and find devices thereon
         z8p = new Z8LPage ();
         devs[DEV_8L] = z8p->findev ("8L", NULL, NULL, false);
         devs[DEV_CM] = z8p->findev ("CM", NULL, NULL, false);
         devs[DEV_TT] = z8p->findev ("TT", NULL, NULL, false);
         devs[DEV_XM] = z8p->findev ("XM", NULL, NULL, false);
+        devs[DEV_SH] = z8p->findev ("SH", NULL, NULL, false);
 
         // get pointer to the 32K-word ram
         // maps each 12-bit word into low 12 bits of 32-bit word

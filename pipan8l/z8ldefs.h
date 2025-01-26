@@ -300,6 +300,7 @@
 #define SH_MAKNOWN (1U << 27)
 #define SH_MBKNOWN (1U << 26)
 #define SH_PCKNOWN (1U << 25)
+#define SH_CLEARIT (1U << 16)
 #define SH_ERROR   (0177777U)
 
 #define SH2_MAJSTATE  (15U << 28)

@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4089;
+    localparam VERSION = 32'h384C408A;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -308,7 +308,7 @@ module Zynq (
     wire iopstart, iopstop;
     wire acclr, intrq, ioskp;
     reg[3:0] iopsetcount;               // count fpga cycles where an IOP is on
-    reg[2:0] iopclrcount;               // count fpga cycles where no IOP is on
+    reg[3:0] iopclrcount;               // count fpga cycles where no IOP is on
     reg[31:00] memcycctr;
 
     // synchroniSed input wires
@@ -433,7 +433,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[63:00] ilaarray[4095:0], ilardata;
+    reg[87:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -465,8 +465,9 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { ilardata[63:32] } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? {        ilardata[63:32] } :
+        (readaddr        == 10'b0000010100) ? {  8'b0, ilardata[87:64] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1045,6 +1046,10 @@ module Zynq (
     //    use PIOBUS to update local copy of MB
     //  end
 
+    // io pulses (oBIOP1,2,4) from the PDP are at least 440nS wide
+    //   and have at least 240nS separating them from anything else
+    // (maint vol 1 p 4-22)
+
     reg[1:0] memmadel, piobacdel, piobmbdel;
     reg[2:0] sincets3;
 
@@ -1063,7 +1068,7 @@ module Zynq (
             piobmbdel <= 0;
             sincets3  <= 0;
         end else if (nanocstep) begin
-            if ((iopsetcount == 0) & (iopclrcount == 7)) begin
+            if ((iopsetcount == 0) & (iopclrcount == 15)) begin
 
                 // not doing any i/o, stop sending reply back to PDP
                 dev_x_INPUTBUS <= 1;
@@ -1123,22 +1128,28 @@ module Zynq (
                     endcase
                 end
             end else if (iopsetcount ==  1 & iopclrcount == 0) begin
-                // just started a long (500+ nS) io pulse, turn off receiving MB from PIOBUS
+                // just started a long (440+ nS) io pulse, turn off receiving MB from PIOBUS
                 // ...and leave oBMB contents as they were (contains io opcode)
                 dev_r_BMB <= 1;
                 sincets3  <= 0;
-            end else if (iopsetcount ==  2 & iopclrcount == 0) begin
+            end else if (iopsetcount ==  2 & iopclrcount ==  0) begin
                 // ... then turn on receiving AC from PIOBUS
                 dev_r_BAC <= 0;
-            end else if (iopsetcount == 14 & iopclrcount == 0) begin
+            end else if (iopsetcount == 14 & iopclrcount ==  0) begin
                 // ... then turn off receiving AC from PIOBUS
                 dev_r_BAC <= 1;
-            end else if (iopsetcount == 15 & iopclrcount == 0) begin
+            end else if (iopsetcount == 15 & iopclrcount ==  0) begin
                 // ... then turn on sending io results to PIOBUS
                 dev_x_INPUTBUS <= 0;
-            end else if (iopsetcount ==  0 & iopclrcount == 4) begin
+            end else if (iopsetcount ==  0 & iopclrcount ==  7) begin
                 // ... then turn off sending io results to PIOBUS
                 dev_x_INPUTBUS <= 1;
+            end else if (iopsetcount ==  0 & iopclrcount ==  8) begin
+                // ... then turn on retrieving possibly updated AC via PIOBUS
+                dev_r_BAC <= 0;
+            end else if (iopsetcount ==  0 & iopclrcount == 14) begin
+                // ... then turn off receiving AC from PIOBUS
+                dev_r_BAC <= 1;
             end
 
             // update local copy of AC whenever it is gated onto PIOBUS
@@ -1336,6 +1347,8 @@ module Zynq (
     ////////////////////////////////
 
     wire shad_error;
+    wire[3:0] shad_tstate;
+    wire[3:0] shad_tdelay;
 
     pdp8lshad shadinst (
         .CLOCK (CLOCK),
@@ -1396,6 +1409,8 @@ module Zynq (
         .o_LOAD_SF      (dev_o_LOAD_SF),
         .o_SP_CYC_NEXT  (dev_o_SP_CYC_NEXT),
 
+        .timestate      (shad_tstate),
+        .timedelay      (shad_tdelay),
         .error          (shad_error)
     );
 
@@ -1423,9 +1438,9 @@ module Zynq (
 
     always @(posedge CLOCK) begin
         if (pwronreset) begin
-            didio       <= 0;
-            iopsetcount <= 0;
-            iopclrcount <= 7;
+            didio       <=  0;
+            iopsetcount <=  0;
+            iopclrcount <= 15;
         end else if (nanocstep) begin
             if (lastts1 & ~ dev_oBTS_1) didio <= 0;
             else if (dev_oBIOP1 | dev_oBIOP2 | dev_oBIOP4) begin
@@ -1438,9 +1453,9 @@ module Zynq (
                 end
             end else begin
                 // somewhere outside an IOPn for an instruction
-                // 70nS into the void, raise and hold the stop signal until next iopulse (from this or other IO instruction)
+                // 150nS into the void, raise and hold the stop signal until next iopulse (from this or other IO instruction)
                 iopsetcount <= 0;
-                if (iopclrcount < 7) begin
+                if (iopclrcount != 15) begin
                     iopclrcount <= iopclrcount + 1;
                 end
             end
@@ -1454,7 +1469,7 @@ module Zynq (
                                                     // any 110xxxxxx000 never executes
 
     assign iopstart = iopsetcount == 13 & firstiop & ~ armwrite;    // IOP started 130nS ago, process the opcode in dev_oBMB, start driving busses
-    assign iopstop  = iopclrcount ==  7;                            // IOP finished 70nS ago, stop driving io busses (output zeroes)
+    assign iopstop  = iopclrcount == 15;                            // IOP finished 150nS ago, stop driving io busses (output zeroes)
 
     // teletype interfaces
 
@@ -1604,8 +1619,8 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
-    reg xmfreeze;
-    wire[5:0] xmstate;
+    wire[3:0] xmstate;
+    wire[2:0] xmdfld;
 
     pdp8lxmem xminst (
         .CLOCK (CLOCK),
@@ -1663,7 +1678,7 @@ module Zynq (
         .xbrwena (xbrwena)
 
         ,.xmstate (xmstate)
-        ////,.xmfreeze (xmfreeze)
+        ,.dfld (xmdfld)
     );
 
     // core memory interface
@@ -1870,7 +1885,6 @@ module Zynq (
         if (~ RESET_N) begin
             ilaarmed <= 0;
             ilaafter <= 0;
-            xmfreeze <= 0;
         end else if (armwrite & (writeaddr == 10'b0000010001)) begin
 
             // arm processor is writing control register
@@ -1878,34 +1892,38 @@ module Zynq (
             ilaafter <= saxi_WDATA[27:16];
             ilaindex <= saxi_WDATA[11:00];
             ilardata <= ilaarray[saxi_WDATA[11:00]];
-
-            if (saxi_WDATA[31]) xmfreeze <= 0;
         end else if (ilaarmed | (ilaafter != 0)) begin
 
             // capture signals
             ilaarray[ilaindex] <= {
-                9'b0,
+                dev_iINPUTBUS,
+                dev_x_INPUTBUS,
+                xmdfld,
+
+                shad_tstate,
+                shad_tdelay,
+
+                oBIOP4,     // raw IOP4
                 oBTP2,      // TP2
                 oC36B2,     // IR02
                 oD35B2,     // REGBUS02
 
                 dev_oMA,
                 dev_oBMB,
+                dev_oBAC,
                 dev_i_MEM,
 
-                dev_oMEMSTART,
-                dev_i_STROBE,
-                dev_i_MEMDONE,
+                dev_oBTS_1,
+                dev_oBTS_3,
 
-                cmbrkrqst,
-                dev_i_EA,
-                dev_o_B_BREAK,
+                dev_oMEMSTART,
 
                 xmstate,
 
                 dev_hizmembus,
                 dev_r_MA,
                 dev_x_MEM,
+                dev_r_BAC,
                 dev_r_BMB
             };
 
