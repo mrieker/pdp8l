@@ -614,7 +614,7 @@ static int showstatus (int argc, char **argv)
     while (true) {
         struct timeval tvnow;
         if (gettimeofday (&tvnow, NULL) < 0) ABORT ();
-        usleep (1000 - tvnow.tv_usec % 1000);
+        usleep (50000 - tvnow.tv_usec % 50000);
 
         // ping the server so it sends something out
     ping:;
