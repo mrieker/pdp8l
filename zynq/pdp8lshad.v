@@ -19,6 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Verify the PDP-8/L operation, memory cycle by cycle
+// Requires xmem enlo4k set so it sees all data read from memory
 
 module pdp8lshad (
     input CLOCK, CSTEP, RESET,  // fpga 100MHz clock and reset
@@ -61,7 +62,7 @@ module pdp8lshad (
     input o_B_BREAK,            // C36-P2,p15 B-2,J11-26,,,
     input oE_SET_F_SET,         // B36-D2,p22 C-3,J12-72,,,
     input oJMP_JMS,             // B36-E2,p22 C-3,J11-63,,,
-    input oLINE_LOW,            // B36-V2,p18 B-7,J12-43,,,?? op amp output maybe needs clipping diodes
+    input oLINE_LOW,            // B36-V2,p18 B-7,J12-43,,,
     input[11:00] oMA,           // B34-D1,p22 D-8,MEMBUSH,,,gated from CPU onto MEMBUS by r_MA
     input oMEMSTART,            // B34-P2,p4 D-8,J11-57,,B33,
     input o_ADDR_ACCEPT,        // C36-S2,p15 S-2,J11-22,,,
@@ -79,7 +80,7 @@ module pdp8lshad (
     output error
 );
 
-    localparam MS_UNKN  =  0;       // waiting for console
+    localparam MS_UNKN  =  0;       // major state unknown
     localparam MS_FETCH =  1;       // memory cycle is fetching instruction
     localparam MS_DEFER =  2;       // memory cycle is reading pointer
     localparam MS_EXEC  =  3;       // memory cycle is for executing instruction
@@ -87,13 +88,25 @@ module pdp8lshad (
     localparam MS_CURAD =  5;       // memory cycle is for reading dma address
     localparam MS_BREAK =  6;       // memory cycle is for dma data word transfer
     localparam MS_INTAK =  7;       // memory cycle is for interrupt acknowledge
-    localparam MS_START =  8;
+    localparam MS_START =  8;       // memory cycle initiated by START key
 
-    localparam TS_U =  0;       // figure out what to do next, does console switch processing if not running
-    localparam TS_1 =  1;       // tell memory to start reading location addressed by MA
-    localparam TS_2 =  2;       // get contents of memory into MB and modify according to majstate S_...
-    localparam TS_3 =  3;       // write contents of MB back to memory
-    localparam TS_4 =  4;       // finish up instruction (modify ac, link, pc, etc)
+    localparam TS_U =  0;       // time state unknown
+    localparam TS_1 =  1;       // read memory (EA sampled at posedge TS1)
+                                // - TP1: sample BRK_RQST; inc PC (FETCH); clear ADDR_ACCEPT
+    localparam TS_2 =  2;       // compute update to memory
+                                // - TP2: load IR (FETCH); load MB; load WC_OVERFLOW
+    localparam TS_3 =  3;       // write memory, update registers
+                                // - TP3: load L,AC (AND,TAD,DCA,OPR); load PC (jumps, skips); sample INT_RQST
+    localparam TS_4 =  4;       // determine next state
+                                // - TP4: set IR=4 (INTAK next); load F,D,E,WC,CA,B; load MA; load ADDR_ACCEPT (BREAK)
+
+                                // we do io pulses as part of TS_4
+                                // - AC,PC updated at end of each pulse
+
+                                // STROBE is exactly TP1
+                                // MEMDONE can happen any time after TP1 but typically 800nS+
+                                // - see MEM_IDLE ff, TP4 will wait for it
+                                // - WC_OVERFLOW cleared every MEMDONE
 
     reg acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown;
     reg[11:00] acum, eadr, ireg, madr, mbuf, pctr;
@@ -103,7 +116,7 @@ module pdp8lshad (
 
     assign error = (err != 0);
 
-    assign armrdata = (armraddr == 0) ? 32'h53482007 : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h53482008 : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 9'b0, err } :
                       (armraddr == 2) ? { majstate, timestate, ireg, pctr } :
                       (armraddr == 3) ? { timedelay, 4'b0, mbuf, madr } :
@@ -166,7 +179,7 @@ module pdp8lshad (
     // calculate accumulator and program counter for group 2 instruction
 
     // - maybe increment PC for skip
-    wire g2pcknown = pcknown & (~ ireg[06] | acknown) & (~ ireg[06] | acknown) & (~ ireg[04] | lnknown);
+    wire g2pcknown = pcknown & (~ ireg[06] | acknown) & (~ ireg[05] | acknown) & (~ ireg[04] | lnknown);
     wire[11:00] g2pctr = pctr + 1 + (
                   ((ireg[06] & acum[11]) |    // SMA
                    (ireg[05] & (acum == 0)) | // SZA
@@ -181,13 +194,17 @@ module pdp8lshad (
 
     // misc state
 
-    reg didio, dmabrk, intack, wcca;
+    reg didio, dmabrk, intack, wcca, wcov, wcovkwn;
     reg last_dmabrk, last_intack, last_wcca, lastbiop, last_jmpjms, lastts1, lastts3;
 
     reg[7:0] breaksr, intacksr, wccasr;
     wire[3:0] nextfetch = breaksr[7] ? MS_BREAK :
             wccasr[7] ? (wcca ? MS_CURAD : MS_WRDCT) :
             intacksr[7] ? MS_INTAK : MS_FETCH;
+
+    wire[11:00] autoinc = ~ i_MEM + ((oMA[11:03] == 1) ? 1 : 0);
+    wire[11:00] brkdata = i_DATA_IN ? ~ i_MEM : iDMADATA;
+    wire[11:00] curaddr = ~ i_MEM + (i_CA_INCRMNT ? 0 : 1);
 
     wire[3:0] timedelayinc = (timedelay == 15) ? 15 : timedelay + 1;
 
@@ -308,6 +325,7 @@ module pdp8lshad (
 
                     // beginning of new major state
                     TS_1: begin
+                        if (i_EA) err[13] <= 1;     // can't see core stack read data
                         if (oBTS_1) begin
                             timedelay <= timedelayinc;
                         end else begin
@@ -431,6 +449,8 @@ module pdp8lshad (
                                     // next step will try to compute what MA, MB should be
                                     maknown <= 0;
                                     mbknown <= 0;
+                                    wcovkwn <= 0;
+                                    wcov <= 0;
                                 end
 
                                 // compute what address and writeback should be
@@ -444,6 +464,7 @@ module pdp8lshad (
                                             mbknown <= 1;
                                             madr <= pctr;
                                             mbuf <= ~ i_MEM;
+                                            wcovkwn <= 1;
                                         end
 
                                         // address is effective address
@@ -453,8 +474,9 @@ module pdp8lshad (
                                             eaknown <= 1;
                                             mbknown <= 1;
                                             madr <= eadr;
-                                            eadr <= ~ i_MEM + ((oMA[11:03] == 1) ? 1 : 0);
-                                            mbuf <= ~ i_MEM + ((oMA[11:03] == 1) ? 1 : 0);
+                                            eadr <= autoinc;
+                                            mbuf <= autoinc;
+                                            wcovkwn <= 1;
                                         end
 
                                         // address is effective address
@@ -481,6 +503,7 @@ module pdp8lshad (
                                                 end
                                                 default: err[05] <= 1;      // shouldn't get EXEC for anything else
                                             endcase
+                                            wcovkwn <= 1;
                                         end
 
                                         // address is DMA address
@@ -489,8 +512,10 @@ module pdp8lshad (
                                             if (~ i3CYCLE) err[10] <= 1;
                                             maknown <= 1;
                                             mbknown <= 1;
+                                            wcovkwn <= 1;
                                             madr <= iDMAADDR;
                                             mbuf <= ~ i_MEM + 1;
+                                            wcov <= (i_MEM == 0);
                                         end
 
                                         // address is DMA address + 1
@@ -500,8 +525,9 @@ module pdp8lshad (
                                             maknown <= 1;
                                             mbknown <= 1;
                                             madr <= iDMAADDR + 1;
-                                            eadr <= ~ i_MEM + (i_CA_INCRMNT ? 0 : 1);
-                                            mbuf <= ~ i_MEM + (i_CA_INCRMNT ? 0 : 1);
+                                            eadr <= curaddr;
+                                            mbuf <= curaddr;
+                                            wcovkwn <= 1;
                                         end
 
                                         // address is from CA or DMA address
@@ -509,8 +535,10 @@ module pdp8lshad (
                                         MS_BREAK: begin
                                             maknown <= 1;
                                             mbknown <= 1;
+                                            wcovkwn <= 1;
                                             madr <= i3CYCLE ? eadr : iDMAADDR;
-                                            mbuf <= (i_DATA_IN ? ~ i_MEM : iDMADATA) + (iMEMINCR ? 1 : 0);
+                                            mbuf <= brkdata + (iMEMINCR ? 1 : 0);
+                                            wcov <= iMEMINCR & (brkdata == 12'o7777);
                                         end
                                     endcase
                                 end
@@ -519,6 +547,7 @@ module pdp8lshad (
                                 11: begin
                                     if (maknown & (madr != oMA))  err[01] <= 1;
                                     if (mbknown & (mbuf != oBMB)) err[06] <= 1;
+                                    if (wcovkwn & (wcov == o_BWC_OVERFLOW)) err[12] <= 1;
                                 end
                             endcase
 

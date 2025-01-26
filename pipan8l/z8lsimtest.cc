@@ -345,7 +345,7 @@ int main (int argc, char **argv)
                 dmaaddr = (dmaaddr + 1) & 07777;
                 uint16_t oldcuraddr = randbits (12);
                 uint16_t newcuraddr = (oldcuraddr + dmacainc) & 07777;
-                printf ("  CA:%04o / %04o => %04o", dmaaddr, oldwordcount, newwordcount);
+                printf ("  CA:%04o / %04o => %04o", dmaaddr, oldcuraddr, newcuraddr);
                 memorycycle (g_lbCA, 0, dmaaddr, oldcuraddr, newcuraddr);
                 dmaaddr = newcuraddr;
             }
