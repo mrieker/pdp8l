@@ -164,6 +164,8 @@ int main (int argc, char **argv)
 
     nsperus = 1000;
     debug = 0;
+    char const *dbgenv = getenv ("z8lrk8je_debug");
+    if (dbgenv != NULL) debug = atoi (dbgenv);
 
     // if -load option, load files then just run io calls
     if (loadit) {
