@@ -18,7 +18,7 @@ LIBS = lib.$(MACH).a
 
 default: i2czsrv.$(MACH) mcp23017.$(MACH) pipan8l.$(MACH) z8lcmemtest.$(MACH) z8lcore.$(MACH) z8ldmaloop.$(MACH) z8ldump.$(MACH) \
 	z8lkbjam.$(MACH) z8lila.$(MACH) z8lmctrace.$(MACH) z8lpanel.$(MACH) z8lpin.$(MACH) z8lpiotest.$(MACH) z8lptr.$(MACH) z8lreal.$(MACH) z8lrk8je.$(MACH) \
-	z8lshadow.$(MACH) z8lsimtest.$(MACH) z8ltc08.$(MACH) z8ltrace.$(MACH) z8ltty.$(MACH) z8lvc8.$(MACH) z8lxmemtest.$(MACH)
+	z8lsimtest.$(MACH) z8ltc08.$(MACH) z8ltrace.$(MACH) z8ltty.$(MACH) z8lvc8.$(MACH) z8lxmemtest.$(MACH)
 
 lib.$(MACH).a: \
 		assemble.$(MACH).o \
@@ -85,9 +85,6 @@ z8lreal.$(MACH): z8lreal.$(MACH).o $(LIBS)
 
 z8lrk8je.$(MACH): z8lrk8je.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
-
-z8lshadow.$(MACH): z8lshadow.$(MACH).o $(LIBS)
-	$(GPP) -o $@ $^ -lpthread
 
 z8lsimtest.$(MACH): z8lsimtest.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
