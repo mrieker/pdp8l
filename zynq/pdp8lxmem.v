@@ -101,10 +101,14 @@ module pdp8lxmem (
     reg[7:0] addrlatchwid, readstrobedel, readstrobewid, writeenabdel, writeenabwid, writedonewid;
 
     reg mwhold, mwstep, mrhold, mrstep, os8zap;
-    reg[11:00] os8iszrdata;
-    reg[14:00] os8iszxaddr;
-    reg[1:0] os8step;
-    reg[6:0] os8iszopcad;
+
+    reg[14:00] os8iszxaddr;                     // address of ISZ instruction
+    reg[11:00] os8iszwdata;                     // ISZ operand value, incremented
+    reg[6:0] os8iszopcad;                       // address of ISZ operand
+    reg[1:0] os8step;                           // 0:looking / 1:ISZ fetch / 2:ISZ exec / 3:JMP fetch
+    wire[6:0] os8jmpopcad = os8iszxaddr + 1;    // address of JMP instruction
+    wire os8isourjmp = (xbraddr == { os8iszxaddr[14:07], os8jmpopcad }) &   // fetching JMP .-1 following the ISZ
+                       (xbrrdat == { 5'b10101, os8iszxaddr[06:00] });
 
     // the _xx_enab inputs are valid in the cycle before the one they are needed in
     // ...and they go away right around the start of TS1 where they are needed
@@ -128,9 +132,7 @@ module pdp8lxmem (
     assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
 
-    wire[6:0] os8jmpopcad = os8iszopcad + 1;
-
-    assign xbrwdat = memwdat;               // data being written to external memory (from PDP/sim's MB register)
+    assign xbrwdat = (os8step == 3) ? 12'o0000 : memwdat;   // data being written to external memory (from PDP/sim's MB register)
 
     // main processing loop
     always @(posedge CLOCK) begin
@@ -329,7 +331,45 @@ module pdp8lxmem (
             //   next fetch: new IF
             //
             else if (tp3 & jmpjms & exefet) begin
+
+                // exefet is dependent on TP3 so can change during TS4
+                // then by the time the PDP clocks the major state at TP4 it is different than what we have here
+                // but the MC-8/L clocks it at TP3 so we do the same here
+
+                // note: TP3* below indicates TP3 but delayed to end of io pulses for IOT instructions, ie, beginning of TS4
+
+                //  esetfset = eset | fset
+                //  TP2,3*,4,intinhibit
+
+                //  eset     = intok | defer & ~ jmp | fetch & ~ mb03 & ~ jmp & ~ iot & ~ opr
+                //  TP2,3*,4   TP2,3*  TP4       TP2   TP4       TP2      TP2     TP2     TP2
+
+                //  fset = ~ dset & ~ eset & ~ breakok & ~ specialcycle
+                //  TP2,3*,4 TP2,3*,4 TP2,3*,4 TP4         TP4
+
+                //  dset = fetch & mb03 & ~ iot & ~ opr
+                //  TP2,4  TP4     TP2      TP2     TP2
+
+                //  intok = intsync & intdelay & ~ intinhibit & (irmb != 600x)
+                //  TP2,3*  TP3*      TP3*                       TP2
+
+                //  breakok = ~ eset & ~ fset & ~ specialcycle & brksync
+                //                                TP4            TP1
+
+                //  specialcycle = wordcount | currentaddress
+                //  TP4            TP4         TP4
+
+                //  intstrobe = ioend | tp3 & ~ iot
+                //  TP3* = start of TS4
+
+                // MC-8/L
+                //   INT_INH clock = posedge (LOAD_IF | KEY_CLEAR)  (p11 C-4)
+                //   LOAD_IF       = jmpjms & tp3 & exefet  (p11 C-4)
                 intinhibeduntiljump <= 0;
+
+                // MC-8/L
+                //   IF clock = posedge LOAD_IF  (p11 C-7)
+                //   LOAD_IF  = jmpjms & tp3 & exefet  (p11 C-4)
                 ifld <= ifldafterjump;
             end
 
@@ -400,7 +440,8 @@ module pdp8lxmem (
 
                 // wait another 420nS then send out STROBE pulse to PDP/sim saying data is valid
                 2: begin
-                    memrdat   <= xbrrdat;   // save latest value read from extmem ram
+                    memrdat   <= ((os8step == 2) & os8isourjmp) ? 12'o7000 : xbrrdat;
+                                            // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
                     if (memdelay != readstrobedel) begin
@@ -409,6 +450,42 @@ module pdp8lxmem (
                         memdelay <= 0;
                         mrstep   <= 0;      // tell stepper we are about to stop
                         xmstate  <= 3;      // ...then start sending strobe pulse
+
+                        case (os8step)
+                            // see if have ISZ direct on page
+                            // if so, save opcode, address of ISZ instruction, set to state 1
+                            // if we get false positive (this isn't a fetch), we detect that on further steps
+                            0: begin
+                                if (os8zap & (xbraddr[06:00] != 127) & (xbrrdat[11:07] == 5'b01001)) begin
+                                    os8iszopcad <= xbrrdat[06:00];
+                                    os8iszxaddr <= xbraddr;
+                                    os8step <= 1;
+                                end
+                            end
+                            // if prev cycle looked like an ISZ direct on page, see if this cycle is accessing operand
+                            // if so, save operand and set to state 2
+                            1: begin
+                                if (xbraddr == { os8iszxaddr[14:07], os8iszopcad }) begin
+                                    os8iszwdata <= xbrrdat + 1;
+                                    os8step <= 2;
+                                end else begin
+                                    os8step <= 0;
+                                end
+                            end
+                            // if prev cycle accessed ISZ operand and this is a JMP .-1,
+                            //   return a NOP opcode
+                            //   also change mem addr to re-write ISZ operand = 0 during write portion of cycle
+                            2: begin
+                                if (os8isourjmp) begin
+                                    os8step <= 3;
+                                    xbraddr <= { os8iszxaddr[14:07], os8iszopcad };
+                                end else begin
+                                    os8step <= 0;
+                                end
+                            end
+                            // zap complete
+                            3: os8step <= 0;
+                        endcase
                     end
                 end
 
@@ -437,6 +514,7 @@ module pdp8lxmem (
                         memdelay <= 0;
                         xbrwena  <= 1;
                         xmstate  <= 5;
+                        if ((os8step == 2) & (memwdat != os8iszwdata)) os8step <= 0;
                     end
                 end
 

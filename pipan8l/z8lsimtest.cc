@@ -39,7 +39,7 @@
 
 #define FIELD(index,mask) ((pdpat[index] & mask) / (mask & - mask))
 
-#define TESTOS8ZAP false
+#define TESTOS8ZAP true
 
 static char const *const majstatenames[] = { MS_NAMES };
 static char const *const timestatenames[] = { TS_NAMES };
