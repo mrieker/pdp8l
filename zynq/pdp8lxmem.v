@@ -99,8 +99,8 @@ module pdp8lxmem (
     reg[2:0] ifld, ifldafterjump, saveddfld, savedifld;
     reg[7:0] memdelay, numcycles;
     reg[7:0] addrlatchwid, readstrobedel, readstrobewid, writeenabdel, writeenabwid, writedonewid;
-
-    reg mwhold, mwstep, mrhold, mrstep, os8zap;
+    reg[9:0] exefetsr;
+    reg mwhold, mwstep, mrhold, mrstep, os8zap, thisexefet;
 
     reg[14:00] os8iszxaddr;                     // address of ISZ instruction
     reg[11:00] os8iszwdata;                     // ISZ operand value, incremented
@@ -121,7 +121,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D2029 :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D202A :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
@@ -394,6 +394,12 @@ module pdp8lxmem (
             // 1000..1500nS : write data coming from PDP/sim MB register to FPGA memory
             // 1500..1600nS : send MEMDONE pule to PDP/sim saying write is complete
 
+            // see if this is a FETCH or EXEC cycle
+            // exefet settles sometime in the 400nS TS4 timestate (after TS3 and all the io pulses if any)
+            // so sample it 100nS before the end of TS4 = 100nS before start of TS1
+            if (ts1) thisexefet <= exefetsr[9];
+            else exefetsr <= { exefetsr[8:0], exefet };
+
             case (xmstate)
 
                 // wait for PDP/sim to start a memory cycle for external memory
@@ -440,7 +446,7 @@ module pdp8lxmem (
 
                 // wait another 420nS then send out STROBE pulse to PDP/sim saying data is valid
                 2: begin
-                    memrdat   <= ((os8step == 2) & os8isourjmp) ? 12'o7000 : xbrrdat;
+                    memrdat   <= ((os8step == 2) & os8isourjmp & thisexefet) ? 12'o7000 : xbrrdat;
                                             // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
@@ -451,10 +457,13 @@ module pdp8lxmem (
                         mrstep   <= 0;      // tell stepper we are about to stop
                         xmstate  <= 3;      // ...then start sending strobe pulse
 
-                        case (os8step)
-                            // see if have ISZ direct on page
-                            // if so, save opcode, address of ISZ instruction, set to state 1
-                            // if we get false positive (this isn't a fetch), we detect that on further steps
+                        // all cycles dealing with os8zap are either FETCH or EXEC
+                        // so if this cycle isn't, then abandon any zap detection
+                        if (~ thisexefet) os8step <= 0;
+                        else case (os8step)
+                            // see if have ISZ direct on page with room for a following JMP on the page
+                            // if so, save address of operand and address of ISZ instruction, set to state 1
+                            // if we get false positive (this isn't a FETCH), we detect that on the next cycle
                             0: begin
                                 if (os8zap & (xbraddr[06:00] != 127) & (xbrrdat[11:07] == 5'b01001)) begin
                                     os8iszopcad <= xbrrdat[06:00];
@@ -464,6 +473,9 @@ module pdp8lxmem (
                             end
                             // if prev cycle looked like an ISZ direct on page, see if this cycle is accessing operand
                             // if so, save operand and set to state 2
+                            // if this cycle is a FETCH and not and EXEC, we detect this when we get a writeback of
+                            // ...the operand below because it won't be incremented
+                            // so we will know that this is an EXEC and the previous cycle was a FETCH of an ISZ
                             1: begin
                                 if (xbraddr == { os8iszxaddr[14:07], os8iszopcad }) begin
                                     os8iszwdata <= xbrrdat + 1;
@@ -473,7 +485,7 @@ module pdp8lxmem (
                                 end
                             end
                             // if prev cycle accessed ISZ operand and this is a JMP .-1,
-                            //   return a NOP opcode
+                            //   return a NOP opcode instead of JMP .-1 (see above memrdat <= ...)
                             //   also change mem addr to re-write ISZ operand = 0 during write portion of cycle
                             2: begin
                                 if (os8isourjmp) begin
@@ -514,6 +526,8 @@ module pdp8lxmem (
                         memdelay <= 0;
                         xbrwena  <= 1;
                         xmstate  <= 5;
+
+                        // abandon os8zap if we are expecting this cycle to be the incremented ISZ operand
                         if ((os8step == 2) & (memwdat != os8iszwdata)) os8step <= 0;
                     end
                 end
