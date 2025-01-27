@@ -188,9 +188,6 @@ module pdp8lsim (
 
     assign debounced = debounce[1]; // 84mS:[23];
 
-    // IR holds an IO opcode (including extended arithmetic)
-    reg iopea;
-
     // currently in BREAK state
     assign o_B_BREAK = majstate != MS_BRK;
 
@@ -244,7 +241,7 @@ module pdp8lsim (
     wire[11:00] g2acum = (mbuf[07] ? 0 : acum) | (mbuf[02] ? swSR : 0);
 
     // this memory cycle does io
-    wire withio = (majstate == MS_FETCH) & iopea;
+    wire withio = (majstate == MS_FETCH) & (ireg == 6);
 
     // get incoming ac bits from io bus
     wire[11:00] ioac = (iAC_CLEAR ? 0 : acum) | iINPUTBUS;
@@ -302,7 +299,6 @@ module pdp8lsim (
             hidestep    <= 0;
             intdelayed  <= 0;
             intenabled  <= 0;
-            iopea       <= 0;
             ldad        <= 0;
             lastswCONT  <= 0;
             lastswDEP   <= 0;
@@ -438,7 +434,6 @@ module pdp8lsim (
                             MS_FETCH: begin
                                 intenabled <= intdelayed;
                                 ireg       <= mbuf[11:09];
-                                iopea      <= mbuf[11] & mbuf[10] & (~ mbuf[9] | (mbuf[8] & mbuf[0]));
                                 irusedf    <= ~ mbuf[11] & mbuf[08];
                                 pctr       <= pctr + 1;
                             end
@@ -633,7 +628,7 @@ module pdp8lsim (
 
                             // end of FETCH cycle
                             MS_FETCH: begin
-                                if (~ iopea) case (ireg)
+                                case (ireg)
 
                                     // add, tad, isz, dca, jms
                                     0, 1, 2, 3, 4: newma <= effaddr;
@@ -644,7 +639,7 @@ module pdp8lsim (
                                                  else pctr <= effaddr;
                                     end
 
-                                    // opr (other than extended arithmetic) - perform operation and start another fetch
+                                    // opr - perform operation and start another fetch
                                     7: begin
                                         if (~ mbuf[08]) begin
                                             acum <= g1acum;
@@ -702,7 +697,6 @@ module pdp8lsim (
                                     intdelayed <= 0;
                                     intenabled <= 0;
                                     ireg       <= 4;
-                                    iopea      <= 0;
                                     madr       <= 0;
                                 end
                                 default: madr <= newma;
