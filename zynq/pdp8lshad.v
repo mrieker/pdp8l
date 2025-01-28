@@ -78,7 +78,7 @@ module pdp8lshad (
     input o_SP_CYC_NEXT,        // B36-D1,p22 C-6,J12-67,,,
 
     output reg[3:0] majstate, nextmajst, timedelay, timestate,
-    output error
+    output error, freeze
 );
 
     localparam MS_UNKN  =  0;       // major state unknown
@@ -109,15 +109,16 @@ module pdp8lshad (
                                 // - see MEM_IDLE ff, TP4 will wait for it
                                 // - WC_OVERFLOW cleared every MEMDONE
 
-    reg acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown;
+    reg acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, frzonerr;
     reg[11:00] acum, eadr, ireg, madr, mbuf, pctr;
     reg[15:00] err;
     reg clearit, link;
 
-    assign error = (err != 0);
+    assign error  = (err != 0);
+    assign freeze = error & frzonerr;
 
-    assign armrdata = (armraddr == 0) ? 32'h5348200B : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 8'b0, clearit, err } :
+    assign armrdata = (armraddr == 0) ? 32'h5348200C : // [31:16] = 'SH'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { acknown, eaknown, irknown, lnknown, maknown, mbknown, pcknown, 7'b0, frzonerr, clearit, err } :
                       (armraddr == 2) ? { majstate, timestate, ireg, pctr } :
                       (armraddr == 3) ? { timedelay, 4'b0, mbuf, madr } :
                       (armraddr == 4) ? { 7'b0, link, acum, eadr } :
@@ -213,15 +214,17 @@ module pdp8lshad (
     always @(posedge CLOCK) begin
 
         if (RESET) begin
-            clearit <= 1;
+            clearit  <= 1;
+            frzonerr <= 0;
         end
 
         // arm processor is writing one of the registers
         else if (armwrite) begin
             case (armwaddr)
                 1: begin
-                    err <= armwdata[15:00];
-                    clearit <= armwdata[16];
+                    err   <= armwdata[15:00];
+                    clearit  <= armwdata[16];
+                    frzonerr <= armwdata[17];
                 end
             endcase
         end

@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C408A;
+    localparam VERSION = 32'h384C408B;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -1346,7 +1346,7 @@ module Zynq (
     //  shadow PDP-8/L processor  //
     ////////////////////////////////
 
-    wire shad_error;
+    wire shad_error, shad_freeze;
     wire[3:0] shad_tstate;
     wire[3:0] shad_tdelay;
 
@@ -1411,7 +1411,8 @@ module Zynq (
 
         .timestate      (shad_tstate),
         .timedelay      (shad_tdelay),
-        .error          (shad_error)
+        .error          (shad_error),
+        .freeze         (shad_freeze)
     );
 
     /////////////////////
@@ -1639,6 +1640,8 @@ module Zynq (
         .ioopcode (dev_oBMB),           // io opcode
         .cputodev (dev_oBAC),           // data being sent to device
         .devtocpu (xmibus),             // data being received from device
+
+        .freeze   (shad_freeze),        //< freeze on shadow error
 
         .memstart (dev_oMEMSTART),      // pulse to start reading
         .memaddr  (dev_oMA),            // address within memory

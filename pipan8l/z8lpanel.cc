@@ -98,7 +98,7 @@ static I2CZLib *padlib;
 static pthread_mutex_t padmutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int showstatus (int argc, char **argv);
-static void *udpthread (void *dummy);
+static void udpserver ();
 
 
 
@@ -133,6 +133,9 @@ int main (int argc, char **argv)
             puts ("     display ascii-art front panel");
             puts ("     runs on pc, raspi, zturn");
             puts ("     <hostname-or-ip-address-of-z8lpanel> defaults to localhost");
+            puts ("");
+            puts ("  ./z8lpanel -status server");
+            puts ("     act as UDP server for the ascii-art front panel");
             puts ("");
             return 0;
         }
@@ -174,13 +177,6 @@ int main (int argc, char **argv)
 
     padlib = new I2CZLib ();
     padlib->openpads (dislo4k, enlo4k, real, sim);
-
-    // create udp server thread
-    {
-        pthread_t udptid;
-        int rc = pthread_create (&udptid, NULL, udpthread, NULL);
-        if (rc != 0) ABORT ();
-    }
 
     // process tcl commands
     return tclmain (fundefs, argv[0], "z8lpanel", logname, getenv ("z8lpanelini"), argc - tclargs, argv + tclargs);
@@ -512,7 +508,7 @@ static int cmd_setsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
 // continuously display what would be on the PDP-8/L front panel
 // reads panel lights and switches from z8lpanel via udp
 
-// with -z8l, reads lights & switches from pdp8lsim.v simulator running in zynq
+// requires './z8lpanel -status server' running in background on zturn
 
 #define ESC_NORMV "\033[m"             /* go back to normal video */
 #define ESC_REVER "\033[7m"            /* turn reverse video on */
@@ -567,6 +563,12 @@ static int showstatus (int argc, char **argv)
 
     // running on some system to read panel state form z8lpanel.cc via udp
     if (ipaddr == NULL) ipaddr = "127.0.0.1";
+
+    // if server, act as the server end of the udp
+    if (strcasecmp (ipaddr, "server") == 0) {
+        udpserver ();
+        return 0;
+    }
 
     struct sockaddr_in server;
     memset (&server, 0, sizeof server);
@@ -684,25 +686,27 @@ static int showstatus (int argc, char **argv)
 
 
 // pass state of processor to whoever asks via udp
-static void *udpthread (void *dummy)
+static void udpserver ()
 {
-    pthread_detach (pthread_self ());
-
     // create a socket to listen on
     int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
     if (udpfd < 0) ABORT ();
 
-    // prevent TCL script exec commands from inheriting the fd and keeping it open
-    if (fcntl (udpfd, F_SETFD, FD_CLOEXEC) < 0) ABORT ();
-
+    // listen for packets coming in for a certain port
     struct sockaddr_in server;
     memset (&server, 0, sizeof server);
     server.sin_family = AF_INET;
     server.sin_port   = htons (UDPPORT);
     if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
-        fprintf (stderr, "udpthread: error binding to %d: %m\n", UDPPORT);
+        fprintf (stderr, "udpserver: error binding to %d: %m\n", UDPPORT);
         ABORT ();
     }
+
+    // access lights and switches
+    padlib = new I2CZLib ();
+    padlib->openpads (false, false, false, false);
+
+    fprintf (stderr, "udpserver: listening on port %d\n", UDPPORT);
 
     while (true) {
         struct sockaddr_in client;
@@ -711,9 +715,9 @@ static void *udpthread (void *dummy)
         int rc = recvfrom (udpfd, &udppkt, sizeof udppkt, 0, (struct sockaddr *) &client, &clilen);
         if (rc != sizeof udppkt) {
             if (rc < 0) {
-                fprintf (stderr, "udpthread: error receiving udp packet: %m\n");
+                fprintf (stderr, "udpserver: error receiving udp packet: %m\n");
             } else {
-                fprintf (stderr, "udpthread: only received %d of %d bytes\n", rc, (int) sizeof udppkt);
+                fprintf (stderr, "udpserver: only received %d of %d bytes\n", rc, (int) sizeof udppkt);
             }
             continue;
         }
@@ -725,9 +729,9 @@ static void *udpthread (void *dummy)
         rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &client, sizeof client);
         if (rc != sizeof udppkt) {
             if (rc < 0) {
-                fprintf (stderr, "udpthread: error sending udp packet: %m\n");
+                fprintf (stderr, "udpserver: error sending udp packet: %m\n");
             } else {
-                fprintf (stderr, "udpthread: only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
+                fprintf (stderr, "udpserver: only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
             }
         }
     }

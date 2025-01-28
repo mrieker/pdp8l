@@ -293,15 +293,16 @@
 #define PR_FULL 0x40000000
 
 // pdp8lshad.v registers
-#define SH_ACKNOWN (1U << 31)
-#define SH_EAKNOWN (1U << 30)
-#define SH_IRKNOWN (1U << 29)
-#define SH_LNKNOWN (1U << 28)
-#define SH_MAKNOWN (1U << 27)
-#define SH_MBKNOWN (1U << 26)
-#define SH_PCKNOWN (1U << 25)
-#define SH_CLEARIT (1U << 16)
-#define SH_ERROR   (0177777U)
+#define SH_ACKNOWN  (1U << 31)
+#define SH_EAKNOWN  (1U << 30)
+#define SH_IRKNOWN  (1U << 29)
+#define SH_LNKNOWN  (1U << 28)
+#define SH_MAKNOWN  (1U << 27)
+#define SH_MBKNOWN  (1U << 26)
+#define SH_PCKNOWN  (1U << 25)
+#define SH_FRZONERR (1U << 17)
+#define SH_CLEARIT  (1U << 16)
+#define SH_ERROR    (0177777U)
 
 #define SH2_MAJSTATE  (15U << 28)
 #define SH2_TIMESTATE (15U << 24)

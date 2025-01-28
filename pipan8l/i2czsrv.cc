@@ -77,6 +77,13 @@
 #define OLATA    0x14   // output pin latch
 #define OLATB    0x15
 
+struct Client {
+    Client *next;
+    uint64_t lastseq;
+    uint32_t ipaddr;
+    uint16_t portno;
+};
+
 static uint16_t read16 (int i2cfd, uint8_t addr, uint8_t reg);
 static void write16 (int i2cfd, uint8_t addr, uint8_t reg, uint16_t word);
 
@@ -111,7 +118,7 @@ int main ()
 
     printf ("listening on %d\n", I2CZUDPPORT);
 
-    uint64_t lastseq = 0;
+    Client *clients = NULL;
 
     while (true) {
 
@@ -125,10 +132,24 @@ int main ()
             continue;
         }
 
+        // find client
+        Client *client;
+        for (client = clients; client != NULL; client = client->next) {
+            if ((servaddr.sin_port == client->portno) && (servaddr.sin_addr.s_addr == client->ipaddr)) break;
+        }
+        if (client == NULL) {
+            client = (Client *) malloc (sizeof *client);
+            client->next    = clients;
+            client->lastseq = 0;
+            client->ipaddr  = servaddr.sin_addr.s_addr;
+            client->portno  = servaddr.sin_port;
+            clients = client;
+        }
+
         // skip stale packets
         // it is ok to re-process last one received (maybe reply got lost)
-        if (lastseq > udppkt.seq) continue;
-        lastseq = udppkt.seq;
+        if (client->lastseq > udppkt.seq) continue;
+        client->lastseq = udppkt.seq;
 
         // process command
         switch (udppkt.cmd) {

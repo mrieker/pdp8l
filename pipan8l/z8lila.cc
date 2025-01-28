@@ -51,11 +51,21 @@ int main (int argc, char **argv)
 
     bool asisflag = false;
     for (int i = 0; ++ i < argc;) {
+        if (strcmp (argv[i], "-?") == 0) {
+            puts ("");
+            puts ("  arm then dump zynq.v ilaarray when triggered");
+            puts ("");
+            puts ("    ./z8lila [-asis]");
+            puts ("");
+            puts ("      -asis = don't arm and wait, just dump as is");
+            puts ("");
+            return 0;
+        }
         if (strcasecmp (argv[i], "-asis") == 0) {
             asisflag = true;
             continue;
         }
-        fprintf (stderr, "unkasisn argument %s\n", argv[i]);
+        fprintf (stderr, "unknown argument %s\n", argv[i]);
         return 1;
     }
 

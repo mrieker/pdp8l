@@ -11,7 +11,10 @@ set -e -v
 cd `dirname $0`
 mydir=`pwd`
 hostnum=$1
-shift
+if [ "$hostnum" != "" ]
+then
+    shift
+fi
 cd ../zplin
 source petadevel/settings.sh
 source /tools/Xilinx/Vivado/2018.3/settings64.sh

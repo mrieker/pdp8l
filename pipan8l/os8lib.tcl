@@ -17,6 +17,7 @@ proc os8dpackloadandboot {{sourcedisk ""}} {
     atexit "exec kill $rk8pid"
     after 1000
 
+    pin set xm_os8zap 1
     startat [os8dpacktoggleinboot]
 }
 
@@ -52,6 +53,7 @@ proc os8dtapeloadandboot {{sourcetape ""}} {
     atexit "exec kill $tc08pid"
     after 1000
 
+    pin set xm_os8zap 1
     startat [os8dtapetoggleinboot]
 }
 

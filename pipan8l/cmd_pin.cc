@@ -263,6 +263,7 @@ static PinDef const pindefs[] = {
     { "SH_MAKNOWN",      DEV_SH, 1, SH_MAKNOWN,            false },
     { "SH_MBKNOWN",      DEV_SH, 1, SH_MBKNOWN,            false },
     { "SH_PCKNOWN",      DEV_SH, 1, SH_PCKNOWN,            false },
+    { "SH_FRZONERR",     DEV_SH, 1, SH_FRZONERR,           true  },
     { "SH_CLEARIT",      DEV_SH, 1, SH_CLEARIT,            true  },
     { "SH_ERROR",        DEV_SH, 1, SH_ERROR,              true  },
     { "SH2_MAJSTATE",    DEV_SH, 2, SH2_MAJSTATE,          false },

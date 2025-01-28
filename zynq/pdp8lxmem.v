@@ -67,6 +67,8 @@ module pdp8lxmem (
 
     output reg[11:00] devtocpu,
 
+    input freeze,
+
     input memstart,                 // pulse from cpu to start memory cycle (150..500nS)
     input[11:00] memaddr,
     input[11:00] memwdat,
@@ -304,7 +306,7 @@ module pdp8lxmem (
             //                      <- here with jmpjms = 1, exefet = 1
             //   next fetch: new IF
             //
-            //  indirect JMP:
+            //  indirect JMP (the usual case, return-from-interrupt):
             //                      <- here with jmpjms = 0
             //   jmp fetch:  old IF
             //                      <- here with jmpjms = 1, exefet = 0
@@ -332,11 +334,14 @@ module pdp8lxmem (
             //
             else if (tp3 & jmpjms & exefet) begin
 
-                // exefet is dependent on TP3 so can change during TS4
+                // exefet is dependent on TP3* for interrupt requests so can change during the beginning of TS4
                 // then by the time the PDP clocks the major state at TP4 it is different than what we have here
                 // but the MC-8/L clocks it at TP3 so we do the same here
 
-                // note: TP3* below indicates TP3 but delayed to end of io pulses for IOT instructions, ie, beginning of TS4
+                // since this changes things only when intinhibeduntiljump is set, exefet should be steady
+                // at this point and reflect FETCH/EXEC is next assuming no interrupt pending
+
+                // note: TP3* indicates TP3 but delayed to end of io pulses for IOT instructions, ie, beginning of TS4
 
                 //  esetfset = eset | fset
                 //  TP2,3*,4,intinhibit
@@ -549,8 +554,9 @@ module pdp8lxmem (
                 // output 100nS write complete pulse to processor
                 // then we're 1600nS into the cycle
                 // but wait for stepper if we are doing stepping
+                // and wait if frozen by shadow error
                 6: begin
-                    if (~ mwhold | mwstep) begin
+                    if (~ freeze & (~ mwhold | mwstep)) begin
                         if (memdelay != writedonewid) begin
                             _mwdone  <= 0;
                             memdelay <= memdelay + 1;

@@ -230,7 +230,7 @@ void Z8LPage::cmunlk ()
 // format shadow string
 char *formatshadow (uint32_t volatile *shat)
 {
-    static char const *const msstr[] = { "UN", "F ", "D ", "E ", "WC", "CA", "BR", "IA",
+    static char const *const msstr[] = { "--", "F ", "D ", "E ", "WC", "CA", "BR", "IA",
                                          "ST", "09", "10", "11", "12", "13", "14", "15" };
 
     uint32_t sh1 = shat[1];
@@ -249,16 +249,18 @@ char *formatshadow (uint32_t volatile *shat)
     char *buf;
     int rc = asprintf (&buf,
         "err=%04X"
-        " majst=%s"
-        " timest=%u+%2u"
-        " ireg=%s"
-        " pctr=%s"
-        " mbuf=%s"
-        " madr=%s"
+        " foe=%o"
+        " ms=%s"
+        " ts=%u+%2u"
+        " ir=%s"
+        " pc=%s"
+        " mb=%s"
+        " ma=%s"
         " l.ac=%c.%s"
-        " eadr=%s",
+        " ea=%s",
 
         (sh1 & SH_ERROR) / (SH_ERROR & - SH_ERROR),
+        (sh1 & SH_FRZONERR) / SH_FRZONERR,
         msstr[(sh2&SH2_MAJSTATE)/(SH2_MAJSTATE&-SH2_MAJSTATE)],
         (sh2 & SH2_TIMESTATE) / (SH2_TIMESTATE & - SH2_TIMESTATE),
                 (sh3 & SH3_TIMEDELAY) / (SH3_TIMEDELAY & - SH3_TIMEDELAY),

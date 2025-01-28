@@ -619,9 +619,11 @@ module pdp8lsim (
 
                 // finish up this cycle (340nS)
                 TS_TS4BODY: begin
-                    if (timedelay == 0) begin
+                    if (timedelay == 0) newma <= madr;
+                    if (timedelay == 1) begin
 
                         // real PDP-8/L updates AC via TP3 so update it here at beginning of TS4
+                        // also compute new MA to be loaded at TP4 like real PDP-8/L
 
                         // finish off cycle
                         case (majstate)
