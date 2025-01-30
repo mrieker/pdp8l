@@ -44,15 +44,15 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
     output reg[63:00] comand;
     output reg[63:00] status;
 
-    output reg[13:00] count;
+    output reg[14:00] count;
     reg[2:0] state;
 
-    wire[8:0] countlo = count[08:00];
-    wire[4:0] counthi = count[13:09];
+    wire[9:0] countlo = count[09:00];
+    wire[4:0] counthi = count[14:10];
     wire countloend = countlo == 499;
 
-    wire[13:00] countloinc = { count[13:09], count[08:00] + 9'b1 };
-    wire[13:00] counthiinc = { count[13:09] + 5'b1, 9'b0 };
+    wire[14:00] countloinc = { count[14:10], count[09:00] + 10'b1 };
+    wire[14:00] counthiinc = { count[14:10] + 5'b1, 10'b0 };
 
     localparam[2:0] IDLE  = 0;
     localparam[2:0] START = 1;
@@ -60,6 +60,7 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
     localparam[2:0] READ  = 3;
     localparam[2:0] WRITE = 4;
     localparam[2:0] STOP  = 5;
+    localparam[2:0] RSTRT = 6;
 
     always @(posedge CLOCK) begin
         if (RESET) begin
@@ -123,11 +124,9 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                             sdao  <= 0;
                             state <= STOP;
                         end
-                    2'b01:  // 01 - start sending another START bit
+                    2'b01:  // 01 - start sending a RESTART bit
                         begin
-                            sclo  <= 1;
-                            sdao  <= 1;
-                            state <= START;
+                            state <= RSTRT;
                         end
                     2'b10:  // 10 - start reading 8 bits from slave
                         begin
@@ -293,11 +292,14 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                     end
                 end
 
-                // start with both clock and data low
-                // wait 5uS, drive clock high
-                // wait 5uS, drive data high
-                // wait 5uS, say we're idle
-            STOP:
+                // send restart bit
+                // clock, count and data all zero to start
+                // wait 5uS, data up
+                // wait 5uS, clock up
+                // wait 5uS, data down
+                // wait 5uS, clock down
+                // wait 5uS, done
+            RSTRT:
                 begin
                     if (~ countloend) begin
                         count <= countloinc;
@@ -306,17 +308,26 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                         0:
                             begin
                                 count <= counthiinc;
-                                sclo  <= 1;
+                                sdao  <= 1;
                             end
                         1:
                             begin
                                 count <= counthiinc;
-                                sdao  <= 1;
+                                sclo  <= 1;
                             end
                         2:
                             begin
-                                state <= IDLE;
-                                status[63:62] <= 2'b00;
+                                count <= counthiinc;
+                                sdao  <= 0;
+                            end
+                        3:
+                            begin
+                                count <= counthiinc;
+                                sclo  <= 0;
+                            end
+                        4:
+                            begin
+                                state <= BEGIN;
                             end
                         endcase
                     end

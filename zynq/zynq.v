@@ -433,7 +433,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[87:00] ilaarray[4095:0], ilardata;
+    reg[1:0] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -465,9 +465,7 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? {        ilardata[63:32] } :
-        (readaddr        == 10'b0000010100) ? {  8'b0, ilardata[87:64] } :
+        (readaddr        == 10'b0000010010) ? { 30'b0, ilardata[1:0] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1815,7 +1813,7 @@ module Zynq (
         end
     end
 
-    wire[13:00] i2ccount;
+    wire[14:00] i2ccount;
     wire[63:00] i2cstatus;
     pdp8lfpi2c fpi2cinst (
         .CLOCK (CLOCK),
@@ -1883,59 +1881,42 @@ module Zynq (
     //  ilaindex = next entry in ilaarray to write
 
     assign i_B36V1 = ilaarmed;
+    reg[6:0] microsec;
 
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
             ilaarmed <= 0;
             ilaafter <= 0;
-        end else if (armwrite & (writeaddr == 10'b0000010001)) begin
+            microsec <= 0;
+        end else begin
 
-            // arm processor is writing control register
-            ilaarmed <= saxi_WDATA[31];
-            ilaafter <= saxi_WDATA[27:16];
-            ilaindex <= saxi_WDATA[11:00];
-            ilardata <= ilaarray[saxi_WDATA[11:00]];
-        end else if (ilaarmed | (ilaafter != 0)) begin
+            if (armwrite & (writeaddr == 10'b0000010001)) begin
 
-            // capture signals
-            ilaarray[ilaindex] <= {
-                dev_iINPUTBUS,
-                dev_x_INPUTBUS,
-                xmdfld,
+                // arm processor is writing control register
+                ilaarmed <= saxi_WDATA[31];
+                ilaafter <= saxi_WDATA[27:16];
+                ilaindex <= saxi_WDATA[11:00];
+                ilardata <= ilaarray[saxi_WDATA[11:00]];
+            end else begin
 
-                shad_tstate,
-                shad_tdelay,
+                if ((microsec == 0) & (ilaarmed | (ilaafter != 0))) begin
 
-                oBIOP4,     // raw IOP4
-                oBTP2,      // TP2
-                oC36B2,     // IR02
-                oD35B2,     // REGBUS02
+                    // capture signals
+                    ilaarray[ilaindex] <= {
+                        oC36B2,     // SDA
+                        oD35B2      // SCL
+                    };
 
-                dev_oMA,
-                dev_oBMB,
-                dev_oBAC,
-                dev_i_MEM,
+                    ilaindex <= ilaindex + 1;
+                    if (~ ilaarmed) ilaafter <= ilaafter - 1;
+                end
 
-                dev_oBTS_1,
-                dev_oBTS_3,
+                // check trigger condition
+                else if (~ oC36B2) begin
+                    ilaarmed <= 0;
+                end
 
-                dev_oMEMSTART,
-
-                xmstate,
-
-                dev_hizmembus,
-                dev_r_MA,
-                dev_x_MEM,
-                dev_r_BAC,
-                dev_r_BMB
-            };
-
-            ilaindex <= ilaindex + 1;
-            if (~ ilaarmed) ilaafter <= ilaafter - 1;
-
-            // check trigger condition
-            else if (shad_error) begin
-                ilaarmed <= 0;
+                microsec <= (microsec == 99) ? 0 : microsec + 1;
             end
         end
     end
