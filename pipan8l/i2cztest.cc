@@ -19,10 +19,10 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // Tests I2C code in Zynq that accesses front panel board that is piggy-backed to backplane
+// Uses pdp8lfpi2c.v and i2cmaster.v instead of /dev/i2c-0 or 1
 // Setup:
-//  zturn36 board with zynq+5<->pdp8+5 jumper, not plugged into pdp, powered by usb
-//  zturn35 board connected to zturn36 board and with +5 hooked up
-//  i2c 3-wire connected to pipan8l/pcb3 board not plugged into pdp, with +5 hooked up
+//  zturn36 board with 3-wire i2c cable connected to pipan8l/pcb3 board
+//  neither needs to be plugged into pdp
 
 #include <signal.h>
 #include <stdio.h>
@@ -73,52 +73,10 @@
 #define ZSTEPON 2U      // 1=use ZSTEPIT to clock i2cmaster.v; 0=use 100MHz FPAG clock
 #define ZSTEPIT 1U
 
-#define ILADEPTH 4096   // total number of elements in ilaarray
-#define ILAAFTER 4000   // number of samples to take after sample containing trigger
-
-#define ILACTL 021
-#define ILADAT 022
-
-#define ILACTL_ARMED  0x80000000U
-#define ILACTL_AFTER0 0x00010000U
-#define ILACTL_INDEX0 0x00000001U
-#define ILACTL_AFTER  (ILACTL_AFTER0 * (ILADEPTH - 1))
-#define ILACTL_INDEX  (ILACTL_INDEX0 * (ILADEPTH - 1))
-
-uint64_t previla[ILADEPTH];
-
-static bool volatile aborted;
 static uint32_t volatile *pdpat;
 static uint32_t volatile *fpat;
 
-uint8_t read8 (uint8_t addr, uint8_t reg);
-void write8 (uint8_t addr, uint8_t reg, uint8_t byte);
-uint16_t read16 (uint8_t addr, uint8_t reg);
-void write16 (uint8_t addr, uint8_t reg, uint16_t word);
 uint64_t doi2ccycle (uint64_t cmd);
-void ilaarm ();
-void ilasave (uint64_t *save);
-void iladump (uint64_t const *save);
-
-// when using software I2C code
-// fpga I2C code has its own internal timing
-void bitdelay ()
-{
-    uint32_t beg, now;
-    asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (beg));
-    do asm volatile ("mrc p15,0,%0,c9,c13,0" : "=r" (now));
-    while (now - beg < 666);   // 1uS
-    //                3333);   // 5uS
-}
-
-// have ctrl-C abort on I2C message boundaries
-// only useful when using software I2C code
-// fpga I2C code always tries to complete the message
-void siginthand (int signum)
-{
-    if (aborted) exit (1);
-    aborted = true;
-}
 
 int main ()
 {
@@ -153,9 +111,6 @@ datok:;
 
     // order of addressing MCP23017s
     uint16_t ns[4] = { 0, 1, 2, 3 };
-
-    // set up to detect ctrl-C
-    signal (SIGINT, siginthand);
 
     uint16_t writeval = 0;
     while (true) {
@@ -212,223 +167,9 @@ datok:;
     }
 }
 
-// read 8-bit value from mcp23017 reg at addr
-uint8_t read8 (uint8_t addr, uint8_t reg)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send restart bit
-    //  send-8-bits-to-i2cbus 7-bit-address 1=read
-    //  read-8-bits-from-i2cbus
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQST << 42) |
-        (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
-        (ZYNQRD << 30);
-
-    uint64_t sts = doi2ccycle (cmd);
-
-    // value in low 8 bits of status register
-    return (uint8_t) sts;
-}
-
-// write 8-bit value to mcp23017 reg at addr
-void write8 (uint8_t addr, uint8_t reg, uint8_t byte)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send-8-bits-to-i2cbus 8-bit-register-value
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQWR << 42) | ((uint64_t) byte << 34);
-
-    doi2ccycle (cmd);
-}
-
-// read 16-bit value from MCP23017 on I2C bus
-//  input:
-//   addr = MCP23017 address
-//   reg = starting register within MCP23017
-//  output:
-//   returns [07:00] = reg+0 contents
-//           [15:08] = reg+1 contents
-uint16_t read16 (uint8_t addr, uint8_t reg)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send restart bit
-    //  send-8-bits-to-i2cbus 7-bit-address 1=read
-    //  read-8-bits-from-i2cbus (reg+0)
-    //  read-8-bits-from-i2cbus (reg+1)
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQST << 42) |
-        (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
-        (ZYNQRD << 30) |
-        (ZYNQRD << 28);
-
-    uint64_t sts = doi2ccycle (cmd);
-
-    // values in low 16 bits of status register
-    //  <15:08> = reg+0
-    //  <07:00> = reg+1
-    return (uint16_t) ((sts << 8) | ((sts >> 8) & 0xFFU));
-}
-
-// write 16-bit value to MCP23017 registers on I2C bus
-//  input:
-//   addr = MCP23017 address
-//   reg = starting register within MCP23017
-//   word = value to write
-//          word[07:00] => reg+0
-//          word[15:08] => reg+1
-void write16 (uint8_t addr, uint8_t reg, uint16_t word)
-{
-    // build 64-bit command
-    //  send-8-bits-to-i2cbus 7-bit-address 0=write
-    //  send-8-bits-to-i2cbus 8-bit-register-number
-    //  send-8-bits-to-i2cbus 8-bit-reg+0-value
-    //  send-8-bits-to-i2cbus 8-bit-reg+1-value
-    //  0...
-    uint64_t cmd =
-        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
-        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
-        (ZYNQWR << 42) | ((uint64_t) (word & 0xFFU) << 34) |
-        (ZYNQWR << 32) | ((uint64_t) (word >> 8) << 24);
-
-    doi2ccycle (cmd);
-}
-
-// send command to MCP23017 via pdp8lfpi2c.v then read response
+// send command to MCP23017 via pdp8lfpi2c.v and i2cmaster.v then read response
 uint64_t doi2ccycle (uint64_t cmd)
 {
-    if (aborted) {
-        fflush (stdout);
-        fprintf (stderr, "\ndoi2ccycle: aborted\n");
-        exit (0);
-    }
-#if 000///111
-    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-    bitdelay ();
-    fpat[5] = SCLK | MANUAL | ZCLEAR;
-    bitdelay ();
-    fpat[5] = MANUAL | ZCLEAR;
-
-    uint64_t sts = 0;
-    while (true) {
-        switch (cmd >> 62) {
-
-            // send stop bit and return status
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SCLK
-            // wait 5uS, set SDAT
-            case 0: {
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                return sts;
-            }
-
-            // send a restart bit
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SDAO
-            // wait 5uS, set SCLK
-            // wait 5uS, clear SDAO
-            // wait 5uS, clear SCLK
-            case ZYNQST: {
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            // read 8 bits then send ack bit
-            // starts with SCLK=0, SDAO=0
-            // wait 5uS, set SDAT to open-drain the data line
-            // repeat 8 times:
-            //   wait 5uS, set SCLK
-            //   wait 5uS, shift SDAI into sts, clear SCLK
-            // wait 5uS, clear SDAT to send ACK bit
-            // wait 5uS, set SCLK
-            // wait 5uS, clear SCLK
-            // ends with SCLK=0, SDAO=0
-            case ZYNQRD: {
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                for (int i = 0; i < 8; i ++) {
-                    bitdelay ();
-                    fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                    bitdelay ();
-                    sts = (sts << 1) | ((fpat[5] / SDAI) & 1);
-                    fpat[5] = SDAO | MANUAL | ZCLEAR;
-                }
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            // write 8 bits then read ack bit
-            // starts with SCLK=0, SDAO=0
-            // repeat 8 times:
-            //   wait 5uS, set SDAO to top data bit
-            //   wait 5uS, set SCLK
-            //   wait 5uS, clear SCLK
-            // wait 5uS, set SDAO to recv ACK bit
-            // wait 5uS, set SCLK
-            // wait 5uS, check SDAI is low, clear SCLK
-            // wait 5uS, clear SDAO
-            // ends with SCLK=0, SDAO=0
-            case ZYNQWR: {
-                for (int i = 0; i < 8; i ++) {
-                    uint32_t x = ((cmd >> 61) & 1) * SDAO | MANUAL | ZCLEAR;
-                    bitdelay ();
-                    fpat[5] = x;
-                    bitdelay ();
-                    fpat[5] = SCLK | x;
-                    bitdelay ();
-                    fpat[5] = x;
-                    cmd <<= 1;
-                }
-                bitdelay ();
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = SCLK | SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                if (fpat[5] & SDAI) {
-                    return (uint64_t) -1LL;
-                }
-                fpat[5] = SDAO | MANUAL | ZCLEAR;
-                bitdelay ();
-                fpat[5] = MANUAL | ZCLEAR;
-                break;
-            }
-
-            default: ABORT ();
-        }
-        cmd <<= 2;
-    }
-#endif
-#if 111///000
-
     // writing high-order word triggers i/o, so write low-order first
     fpat[ZPI2CCMD+0] = cmd;
     fpat[ZPI2CCMD+1] = cmd >> 32;
@@ -451,62 +192,4 @@ uint64_t doi2ccycle (uint64_t cmd)
     }
     fprintf (stderr, "doi2ccycle: i2c I/O timeout\n");
     ABORT ();
-#endif
-}
-
-void ilaarm ()
-{
-    // tell zynq.v to start collecting samples
-    // tell it to stop when collected trigger sample plus ILAAFTER thereafter
-    pdpat[ILACTL] = ILACTL_ARMED | ILAAFTER * ILACTL_AFTER0;
-}
-
-void ilasave (uint64_t *save)
-{
-    // wait for sampling to stop
-    uint32_t ctl;
-    while (((ctl = pdpat[ILACTL]) & (ILACTL_ARMED | ILACTL_AFTER)) != 0) usleep (10000);
-
-    // copy oldest to newest entries
-    // ctl<index>+0 = next entry to be overwritten = oldest entry
-    for (int i = 0; i < ILADEPTH; i ++) {
-        pdpat[ILACTL] = (ctl + i * ILACTL_INDEX0) & ILACTL_INDEX;
-        save[i] = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
-    }
-}
-
-void iladump (uint64_t const *save)
-{
-    uint64_t thisentry = *(save ++);
-
-    // loop through all entries in the array
-    bool indotdotdot = false;
-    uint64_t preventry = 0;
-    for (int i = 0; i < ILADEPTH; i ++) {
-
-        // read array entry after thisentry
-        uint64_t nextentry = (i == ILADEPTH - 1) ? 0 : *(save ++);
-
-        // print thisentry - but use ... if same as prev and next
-        if ((i == 0) || (i == ILADEPTH - 1) || (thisentry != preventry) || (thisentry != nextentry)) {
-            uint64_t swapentry = (thisentry >> 32) | (thisentry << 32);
-            printf ("%6.2f  %o  %o  %o %o  %03X  %08X\n",
-                (i - ILADEPTH + ILAAFTER + 1) / 100.0,          // trigger shows as 0.00uS
-                (unsigned) (swapentry >> 45) & 7,               // status[63:61]
-                (unsigned) (swapentry >> 44) & 1,               // fpi2cwrite
-                (unsigned) (swapentry >> 43) & 1,               // save_RVALID
-                (unsigned) (swapentry >> 42) & 1,               // saxi_RREADY
-                (unsigned) (swapentry >> 30) & 0xFFCU,          // readaddr
-                (unsigned) (swapentry >>  0) & 0xFFFFFFFFU);    // saxi_RDATA
-
-            indotdotdot = false;
-        } else if (! indotdotdot) {
-            printf ("    ...\n");
-            indotdotdot = true;
-        }
-
-        // shuffle entries for next time through
-        preventry = thisentry;
-        thisentry = nextentry;
-    }
 }
