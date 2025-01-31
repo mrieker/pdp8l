@@ -132,7 +132,7 @@ int main (int argc, char **argv)
             puts ("  ./z8lpanel -status [<hostname-or-ip-address-of-z8lpanel>]");
             puts ("     display ascii-art front panel");
             puts ("     runs on pc, raspi, zturn");
-            puts ("     <hostname-or-ip-address-of-z8lpanel> defaults to localhost");
+            puts ("     <hostname-or-ip-address-of-z8lpanel-status-server> defaults to localhost");
             puts ("");
             puts ("  ./z8lpanel -status server");
             puts ("     act as UDP server for the ascii-art front panel");

@@ -379,4 +379,17 @@
 #define VC4_YCOORD0       (1U << 10)
 #define VC4_XCOORD0       (1U <<  0)
 
+// pdp8lfpi2c.v
+#define FP1_CMDLO 0xFFFFFFFFU
+#define FP2_CMDHI 0xFFFFFFFFU
+#define FP3_STSLO 0xFFFFFFFFU
+#define FP4_STSHI 0xFFFFFFFFU
+#define FP5_STEPON      (1U <<  1)
+#define FP5_CLEAR        (1U << 2)
+#define FP5_MANUAL       (1U << 3)
+#define FP5_I2CCOUNT (32767U << 4)
+#define FP5_I2CDAI      (1U << 29)
+#define FP5_I2CDAO      (1U << 30)
+#define FP5_I2CCLK      (1U << 31)
+
 #endif

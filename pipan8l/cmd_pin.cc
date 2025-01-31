@@ -41,8 +41,9 @@ struct PinDef {
 #define DEV_TT 2
 #define DEV_XM 3
 #define DEV_SH 4
+#define DEV_FP 5
 
-static uint32_t volatile *devs[5];
+static uint32_t volatile *devs[6];
 
 static PinDef const pindefs[] = {
     { "iBEMA",           DEV_8L, Z_RA, a_iBEMA,            true  },
@@ -240,16 +241,16 @@ static PinDef const pindefs[] = {
     { "XM_MRHOLD",       DEV_XM, 1, XM_MRHOLD,             true  },
     { "XM_ENLO4K",       DEV_XM, 1, XM_ENLO4K,             true  },
     { "XM_ENABLE",       DEV_XM, 1, XM_ENABLE,             true  },
-    { "XM2_XMSTATE",     DEV_XM, 2, XM2_XMSTATE,           false },
-    { "XM2_SAVEDIFLD",   DEV_XM, 2, XM2_SAVEDIFLD,         false },
-    { "XM2_SAVEDDFLD",   DEV_XM, 2, XM2_SAVEDDFLD,         false },
-    { "XM2_IFLDAFJMP",   DEV_XM, 2, XM2_IFLDAFJMP,         false },
-    { "XM2_IFLD",        DEV_XM, 2, XM2_IFLD,              false },
-    { "XM2_DFLD",        DEV_XM, 2, XM2_DFLD,              false },
-    { "XM2_FIELD",       DEV_XM, 2, XM2_FIELD,             false },
-    { "XM2__MWDONE",     DEV_XM, 2, XM2__MWDONE,           false },
-    { "XM2__MRDONE",     DEV_XM, 2, XM2__MRDONE,           false },
-    { "XM3_OS8STEP",     DEV_XM, 3, XM3_OS8STEP,           false },
+    { "XM_XMSTATE",      DEV_XM, 2, XM2_XMSTATE,           false },
+    { "XM_SAVEDIFLD",    DEV_XM, 2, XM2_SAVEDIFLD,         false },
+    { "XM_SAVEDDFLD",    DEV_XM, 2, XM2_SAVEDDFLD,         false },
+    { "XM_IFLDAFJMP",    DEV_XM, 2, XM2_IFLDAFJMP,         false },
+    { "XM_IFLD",         DEV_XM, 2, XM2_IFLD,              false },
+    { "XM_DFLD",         DEV_XM, 2, XM2_DFLD,              false },
+    { "XM_FIELD",        DEV_XM, 2, XM2_FIELD,             false },
+    { "XM__MWDONE",      DEV_XM, 2, XM2__MWDONE,           false },
+    { "XM__MRDONE",      DEV_XM, 2, XM2__MRDONE,           false },
+    { "XM_OS8STEP",      DEV_XM, 3, XM3_OS8STEP,           false },
     { "ADDRLATCHWID",    DEV_XM, 4, XM4_ADDRLATCHWID,      true  },
     { "READSTROBEDEL",   DEV_XM, 4, XM4_READSTROBEDEL,     true  },
     { "READSTROBEWID",   DEV_XM, 4, XM4_READSTROBEWID,     true  },
@@ -266,16 +267,27 @@ static PinDef const pindefs[] = {
     { "SH_FRZONERR",     DEV_SH, 1, SH_FRZONERR,           true  },
     { "SH_CLEARIT",      DEV_SH, 1, SH_CLEARIT,            true  },
     { "SH_ERROR",        DEV_SH, 1, SH_ERROR,              true  },
-    { "SH2_MAJSTATE",    DEV_SH, 2, SH2_MAJSTATE,          false },
-    { "SH2_TIMESTATE",   DEV_SH, 2, SH2_TIMESTATE,         false },
-    { "SH2_IREG",        DEV_SH, 2, SH2_IREG,              false },
-    { "SH2_PCTR",        DEV_SH, 2, SH2_PCTR,              false },
-    { "SH3_TIMEDELAY",   DEV_SH, 3, SH3_TIMEDELAY,         false },
-    { "SH3_MBUF",        DEV_SH, 3, SH3_MBUF,              false },
-    { "SH3_MADR",        DEV_SH, 3, SH3_MADR,              false },
-    { "SH4_LINK",        DEV_SH, 4, SH4_LINK,              false },
-    { "SH4_ACUM",        DEV_SH, 4, SH4_ACUM,              false },
-    { "SH4_EADR",        DEV_SH, 4, SH4_EADR,              false },
+    { "SH_MAJSTATE",     DEV_SH, 2, SH2_MAJSTATE,          false },
+    { "SH_TIMESTATE",    DEV_SH, 2, SH2_TIMESTATE,         false },
+    { "SH_IREG",         DEV_SH, 2, SH2_IREG,              false },
+    { "SH_PCTR",         DEV_SH, 2, SH2_PCTR,              false },
+    { "SH_TIMEDELAY",    DEV_SH, 3, SH3_TIMEDELAY,         false },
+    { "SH_MBUF",         DEV_SH, 3, SH3_MBUF,              false },
+    { "SH_MADR",         DEV_SH, 3, SH3_MADR,              false },
+    { "SH_LINK",         DEV_SH, 4, SH4_LINK,              false },
+    { "SH_ACUM",         DEV_SH, 4, SH4_ACUM,              false },
+    { "SH_EADR",         DEV_SH, 4, SH4_EADR,              false },
+    { "FP_CMDLO",        DEV_FP, 1, FP1_CMDLO,             true  },
+    { "FP_CMDHI",        DEV_FP, 2, FP2_CMDHI,             true  },
+    { "FP_STSLO",        DEV_FP, 3, FP3_STSLO,             false },
+    { "FP_STSHI",        DEV_FP, 4, FP4_STSHI,             false },
+    { "FP_STEPON",       DEV_FP, 5, FP5_STEPON,            true  },
+    { "FP_CLEAR",        DEV_FP, 5, FP5_CLEAR,             true  },
+    { "FP_MANUAL",       DEV_FP, 5, FP5_MANUAL,            true  },
+    { "FP_I2CCOUNT",     DEV_FP, 5, FP5_I2CCOUNT,          false },
+    { "FP_I2CDAI",       DEV_FP, 5, FP5_I2CDAI,            false },
+    { "FP_I2CDAO",       DEV_FP, 5, FP5_I2CDAO,            true  },
+    { "FP_I2CCLK",       DEV_FP, 5, FP5_I2CCLK,            true  },
     { "", 0, 0, 0, false }
 };
 
@@ -322,6 +334,7 @@ int cmd_pin (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const
         devs[DEV_TT] = z8p->findev ("TT", NULL, NULL, false);
         devs[DEV_XM] = z8p->findev ("XM", NULL, NULL, false);
         devs[DEV_SH] = z8p->findev ("SH", NULL, NULL, false);
+        devs[DEV_FP] = z8p->findev ("FP", NULL, NULL, false);
 
         // get pointer to the 32K-word ram
         // maps each 12-bit word into low 12 bits of 32-bit word
