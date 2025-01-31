@@ -139,10 +139,10 @@ module Zynq (
     input[21:00] viddatab,
 
     // i2c interface to front panel
-    inout      bFPI2CDATA,      // bi-dir data bus
-    output reg i_FPI2CDENA,     // low to turn on bi-dir driver; high to shut off
-    output     iFPI2CCLK,       // clock
-    output reg iFPI2CDDIR,      // high when sending; low when receiving
+    inout  bFPI2CDATA,      // bi-dir data bus
+    output i_FPI2CDENA,     // low to turn on bi-dir driver; high to shut off
+    output iFPI2CCLK,       // clock
+    output iFPI2CDDIR,      // high when sending; low when receiving
 
     // arm processor memory bus interface (AXI)
     // we are a slave for accessing the control registers (read and write)
@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C408B;
+    localparam VERSION = 32'h384C408C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -1779,39 +1779,12 @@ module Zynq (
 
     // real PDP-8/L front panel i2c interface
     // connects to pipan8l/pcb board i2c interface
-    reg fpi2cinhiz;
+
+    assign i_FPI2CDENA = 1;                         // not used anymore, disable driver
+    assign iFPI2CDDIR  = 0;
+
     wire fpi2cdao;
-
-    assign bFPI2CDATA = fpi2cinhiz ? 1'bZ : 1'b0;   // FPGA data pin is always either in hi-Z or sending a zero
-
-    always @(posedge CLOCK) begin
-        if (pwronreset) begin
-            fpi2cinhiz  <= 1;                       // hi-Z FPGA pin during reset
-            i_FPI2CDENA <= 1;                       // hi-Z 74AXP4T245 during reset
-            iFPI2CDDIR  <= 1;                       // direct away from FPGA and toward open-collector bus
-        end else begin
-
-            // send out a zero whenever dataout is zero
-            if (~ fpi2cdao) begin
-                if (~ iFPI2CDDIR) begin
-                    iFPI2CDDIR  <= 1;               // 74AXP4T245 was receiving, change to sending first
-                end else begin
-                    fpi2cinhiz  <= 0;               // now it is safe to turn on FPGA pin and drive a zero
-                    i_FPI2CDENA <= 0;               // make sure 74AXP4T245 is turned on
-                end
-            end
-
-            // receive whenever dataout is one
-            else begin
-                if (~ fpi2cinhiz) begin
-                    fpi2cinhiz  <= 1;               // FPGA was sending, change to receiving first
-                end else begin
-                    iFPI2CDDIR  <= 0;               // make sure 74AXP4T245 is receiving
-                    i_FPI2CDENA <= 0;               // make sure 74AXP4T245 is turned on
-                end
-            end
-        end
-    end
+    assign bFPI2CDATA = fpi2cdao ? 1'bZ : 1'b0;     // FPGA data pin is always either in hi-Z or sending a zero
 
     wire[14:00] i2ccount;
     wire[63:00] i2cstatus;
