@@ -139,9 +139,9 @@ module Zynq (
     input[21:00] viddatab,
 
     // i2c interface to front panel
+    inout  bFPI2CLOCK,      // bi-dir clock bus
     inout  bFPI2CDATA,      // bi-dir data bus
     output i_FPI2CDENA,     // low to turn on bi-dir driver; high to shut off
-    output iFPI2CCLK,       // clock
     output iFPI2CDDIR,      // high when sending; low when receiving
 
     // arm processor memory bus interface (AXI)
@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C408C;
+    localparam VERSION = 32'h384C408D;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -433,7 +433,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[1:0] ilaarray[4095:0], ilardata;
+    reg[21:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -465,7 +465,7 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 30'b0, ilardata[1:0] } :
+        (readaddr        == 10'b0000010010) ? { 10'b0, ilardata[21:00] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
@@ -1783,9 +1783,11 @@ module Zynq (
     assign i_FPI2CDENA = 1;                         // not used anymore, disable driver
     assign iFPI2CDDIR  = 0;
 
-    wire fpi2cdao;
+    wire fpi2cclo, fpi2cdao;
+    assign bFPI2CLOCK = fpi2cclo ? 1'bZ : 1'b0;     // FPGA clock pin is always either in hi-Z or sending a zero
     assign bFPI2CDATA = fpi2cdao ? 1'bZ : 1'b0;     // FPGA data pin is always either in hi-Z or sending a zero
 
+    wire[2:0] i2cstate;
     wire[14:00] i2ccount;
     wire[63:00] i2cstatus;
     pdp8lfpi2c fpi2cinst (
@@ -1798,9 +1800,11 @@ module Zynq (
         .armwdata (saxi_WDATA),
         .armrdata (fpi2crdata),
 
-        .i2cclk (iFPI2CCLK),
+        .i2cclo (fpi2cclo),
+        .i2ccli (bFPI2CLOCK),
         .i2cdao (fpi2cdao),
         .i2cdai (bFPI2CDATA),
+        .i2cstate (i2cstate),
         .i2ccount (i2ccount),
         .status (i2cstatus)
     );
@@ -1876,8 +1880,12 @@ module Zynq (
 
                     // capture signals
                     ilaarray[ilaindex] <= {
-                        oC36B2,     // SDA
-                        oD35B2      // SCL
+                        i2cstate,
+                        i2ccount,
+                        fpi2cclo,
+                        bFPI2CLOCK,
+                        fpi2cdao,
+                        bFPI2CDATA
                     };
 
                     ilaindex <= ilaindex + 1;
@@ -1885,7 +1893,7 @@ module Zynq (
                 end
 
                 // check trigger condition
-                else if (~ oC36B2) begin
+                else if (i2cstatus[62] | i2cstatus[61] | i2cstatus[60]) begin
                     ilaarmed <= 0;
                 end
 

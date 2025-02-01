@@ -314,6 +314,9 @@
           "bFPI2CDATA": {
             "direction": "IO"
           },
+          "bFPI2CLOCK": {
+            "direction": "IO"
+          },
           "bMEMBUSA": {
             "direction": "IO"
           },
@@ -402,9 +405,6 @@
             "direction": "O"
           },
           "iEXTDMAADD_12": {
-            "direction": "O"
-          },
-          "iFPI2CCLK": {
             "direction": "O"
           },
           "iFPI2CDDIR": {
@@ -2338,7 +2338,7 @@
       }
     },
     "design_info": {
-      "boundary_crc": "0x2DB6EEC23F30A54B",
+      "boundary_crc": "0xB2481AF5B907B369",
       "device": "xc7z020clg400-1",
       "name": "myboard",
       "synth_flow_mode": "None",
@@ -2700,6 +2700,12 @@
           "LEDoutR_0"
         ]
       },
+      "Zynq_0_bFPI2CLOCK": {
+        "ports": [
+          "bFPI2CLOCK_0",
+          "Zynq_0/bFPI2CLOCK"
+        ]
+      },
       "Zynq_0_i3CYCLE": {
         "ports": [
           "Zynq_0/i3CYCLE",
@@ -2734,12 +2740,6 @@
         "ports": [
           "Zynq_0/iEXTDMAADD_12",
           "iEXTDMAADD_12_0"
-        ]
-      },
-      "Zynq_0_iFPI2CCLK": {
-        "ports": [
-          "Zynq_0/iFPI2CCLK",
-          "iFPI2CCLK_0"
         ]
       },
       "Zynq_0_iFPI2CDDIR": {
@@ -3237,6 +3237,9 @@
       "bFPI2CDATA_0": {
         "direction": "IO"
       },
+      "bFPI2CLOCK_0": {
+        "direction": "IO"
+      },
       "bMEMBUSA_0": {
         "direction": "IO"
       },
@@ -3325,9 +3328,6 @@
         "direction": "O"
       },
       "iEXTDMAADD_12_0": {
-        "direction": "O"
-      },
-      "iFPI2CCLK_0": {
         "direction": "O"
       },
       "iFPI2CDDIR_0": {

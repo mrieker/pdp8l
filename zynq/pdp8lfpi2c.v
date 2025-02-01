@@ -28,27 +28,29 @@ module pdp8lfpi2c (
     input[31:00] armwdata,
     output[31:00] armrdata,
 
-    output i2cclk,
+    output i2cclo,
+    input  i2ccli,
     output i2cdao,
     input  i2cdai,
 
+    output[2:0] i2cstate,
     output[14:00] i2ccount,
     output[63:00] comand, status
 );
 
-    reg clear, manclk, mandao, manual, stepon;
+    reg clear, manclo, mandao, manual, stepon;
     reg[31:00] commandlo;
-    wire autclk, autdao;
+    wire autclo, autdao;
 
-    assign armrdata = (armraddr == 0) ? 32'h4650200B : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h4650200C : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { comand[31:00] } :
                       (armraddr == 2) ? { comand[63:32] } :
                       (armraddr == 3) ? { status[31:00] } :
                       (armraddr == 4) ? { status[63:32] } :
-                      (armraddr == 5) ? { i2cclk, i2cdao, i2cdai, 10'b0, i2ccount, manual, clear, stepon, 1'b0 } :
+                      (armraddr == 5) ? { i2cclo, i2cdao, i2cdai, i2ccli, 6'b0, i2cstate, i2ccount, manual, clear, stepon, 1'b0 } :
                        32'hDEADBEEF;
 
-    assign i2cclk = manual ? manclk : autclk;
+    assign i2cclo = manual ? manclo : autclo;
     assign i2cdao = manual ? mandao : autdao;
 
     i2cmaster fpi2cintf (
@@ -59,9 +61,11 @@ module pdp8lfpi2c (
         .command ({ armwdata, commandlo }),
         .comand (comand),
         .status (status),
-        .sclo (autclk),
+        .sclo (autclo),
+        .scli (i2ccli),
         .sdao (autdao),
         .sdai (i2cdai),
+        .state (i2cstate),
         .count (i2ccount));
 
     always @(posedge CLOCK) begin
@@ -76,7 +80,7 @@ module pdp8lfpi2c (
                     stepon <= armwdata[01];     // 0=clock i2cmaster normally; 1=clock i2cmaster with armwdata[00]
                     clear  <= armwdata[02];     // reset i2cmaster module
                     manual <= armwdata[03];     // 0=use i2cmaster module for cli2ck,i2cdao; 1=use manclk,mandao bits
-                    manclk <= armwdata[31];     // if manual mode, use this for i2cclk
+                    manclo <= armwdata[31];     // if manual mode, use this for i2cclk
                     mandao <= armwdata[30];     // if manual mode, use this for i2cdao
                 end
             endcase

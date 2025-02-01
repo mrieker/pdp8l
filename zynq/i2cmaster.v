@@ -27,25 +27,27 @@
 //   command[63:62] = 00: done; 01: restart; 10: read; 11: write [61:54]
 //     10: shifts 8 bits from i2c bus into bottom of status register
 //     11: followed by 8 bits to send to i2c bus
+//   scli = i2c bus clock input
 //   sdai = i2c bus data input
 // outputs:
 //   status[63] = busy
 //   status[62] = error, ack not received for a WRITE
 //   status[61] = error, data line grounded when trying to START
 //                  or data line still grounded after STOP sent
+//   status[60] = command written while busy
 //   status[55:00] = shifted in read bytes
 //   sclo = i2c bus clock output
 //   sdao = i2c bus data output
 
-module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sdao, sdai, count);
-    input CLOCK, RESET, CSTEP, wrcmd, sdai;
+module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, scli, sdao, sdai, state, count);
+    input CLOCK, RESET, CSTEP, wrcmd, scli, sdai;
     output reg sclo, sdao;
     input[63:00] command;
     output reg[63:00] comand;
     output reg[63:00] status;
 
     output reg[14:00] count;
-    reg[2:0] state;
+    output reg[2:0] state;
 
     wire[9:0] countlo = count[09:00];
     wire[4:0] counthi = count[14:10];
@@ -71,13 +73,21 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
             status <= 0;
         end else if (wrcmd) begin
             // command register being written
-            comand <= command;
-            count  <= 0;
-            sclo   <= 1;
-            sdao   <= 1;
-            state  <= START;
-            status[63:61] <= 3'b100;    // busy, no error so far
-        end else if (CSTEP) begin
+            if (status[63]) begin
+                status[60] <= 1;
+            end else begin
+                comand <= command;
+                count  <= 0;
+                sclo   <= 1;
+                sdao   <= 1;
+                state  <= START;
+                status[63:60] <= 4'b1000;   // busy, no error so far
+            end
+        end
+
+        // count time if enabled by CSTEP (clock stepper)
+        // but block if outputting clock high (sclo=1) while device is stretching clock (scli=0)
+        else if (CSTEP & (~ sclo | scli)) begin
             case (state)
 
                 // send out start bit, starts with clock and data both high
@@ -179,9 +189,12 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                 //  wait 5uS, clock up
                 //  wait 5uS, clock down, shift in data bits 7..1
                 // wait 5uS, clock up
-                // wait 5uS, clock down, shift in data bit 0, data down
-                // wait 5uS, clock up
-                // wait 5uS, clock down
+                // wait 5uS, clock down, shift in data bit 0
+                // if another read next {
+                //  wait 5uS, data down
+                //  wait 5uS, clock up
+                //  wait 5uS, clock down
+                // }
                 // wait 5uS, done
             READ:
                 begin
@@ -204,20 +217,26 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, sda
                             begin
                                 count <= counthiinc;
                                 sclo  <= 0;
-                                sdao  <= 0;
                                 status[55:00] <= { status[54:00], sdai };
                             end
                         16:
-                            begin
+                            if (comand[63:62] == 2'b10) begin
                                 count <= counthiinc;
-                                sclo  <= 1;
+                                sdao  <= 0;
+                            end else begin
+                                state <= BEGIN;
                             end
                         17:
                             begin
                                 count <= counthiinc;
-                                sclo  <= 0;
+                                sclo  <= 1;
                             end
                         18:
+                            begin
+                                count <= counthiinc;
+                                sclo  <= 0;
+                            end
+                        19:
                             begin
                                 state <= BEGIN;
                             end

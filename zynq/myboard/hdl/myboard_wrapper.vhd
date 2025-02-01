@@ -49,6 +49,7 @@ entity myboard_wrapper is
     bDMABUSM_0 : inout STD_LOGIC;
     bDMABUSN_0 : inout STD_LOGIC;
     bFPI2CDATA_0 : inout STD_LOGIC;
+    bFPI2CLOCK_0 : inout STD_LOGIC;
     bMEMBUSA_0 : inout STD_LOGIC;
     bMEMBUSB_0 : inout STD_LOGIC;
     bMEMBUSC_0 : inout STD_LOGIC;
@@ -79,7 +80,6 @@ entity myboard_wrapper is
     iBRK_RQST_0 : out STD_LOGIC;
     iEMA_0 : out STD_LOGIC;
     iEXTDMAADD_12_0 : out STD_LOGIC;
-    iFPI2CCLK_0 : out STD_LOGIC;
     iFPI2CDDIR_0 : out STD_LOGIC;
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
@@ -170,6 +170,7 @@ architecture STRUCTURE of myboard_wrapper is
     bDMABUSM_0 : inout STD_LOGIC;
     bDMABUSN_0 : inout STD_LOGIC;
     bFPI2CDATA_0 : inout STD_LOGIC;
+    bFPI2CLOCK_0 : inout STD_LOGIC;
     bMEMBUSA_0 : inout STD_LOGIC;
     bMEMBUSB_0 : inout STD_LOGIC;
     bMEMBUSC_0 : inout STD_LOGIC;
@@ -200,7 +201,6 @@ architecture STRUCTURE of myboard_wrapper is
     iBRK_RQST_0 : out STD_LOGIC;
     iEMA_0 : out STD_LOGIC;
     iEXTDMAADD_12_0 : out STD_LOGIC;
-    iFPI2CCLK_0 : out STD_LOGIC;
     iFPI2CDDIR_0 : out STD_LOGIC;
     iINT_INHIBIT_0 : out STD_LOGIC;
     iINT_RQST_0 : out STD_LOGIC;
@@ -290,6 +290,7 @@ myboard_i: component myboard
     bDMABUSM_0 => bDMABUSM_0,
     bDMABUSN_0 => bDMABUSN_0,
     bFPI2CDATA_0 => bFPI2CDATA_0,
+    bFPI2CLOCK_0 => bFPI2CLOCK_0,
     bMEMBUSA_0 => bMEMBUSA_0,
     bMEMBUSB_0 => bMEMBUSB_0,
     bMEMBUSC_0 => bMEMBUSC_0,
@@ -320,7 +321,6 @@ myboard_i: component myboard
     iBRK_RQST_0 => iBRK_RQST_0,
     iEMA_0 => iEMA_0,
     iEXTDMAADD_12_0 => iEXTDMAADD_12_0,
-    iFPI2CCLK_0 => iFPI2CCLK_0,
     iFPI2CDDIR_0 => iFPI2CDDIR_0,
     iINT_INHIBIT_0 => iINT_INHIBIT_0,
     iINT_RQST_0 => iINT_RQST_0,
