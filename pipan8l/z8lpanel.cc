@@ -21,12 +21,8 @@
 // access pdp-8/l front panel via backplane piggy-back board connected to the Zynq
 // see ./z8lpanel -? for options
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <net/if.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -34,7 +30,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/time.h>
 #include <tcl.h>
 #include <unistd.h>
@@ -98,7 +93,6 @@ static I2CZLib *padlib;
 static pthread_mutex_t padmutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int showstatus (int argc, char **argv);
-static void udpserver ();
 
 
 
@@ -548,191 +542,56 @@ static char outbuf[4000];
 
 static int showstatus (int argc, char **argv)
 {
-    char const *ipaddr = NULL;
-    for (int i = 0; ++ i < argc;) {
-        if (argv[i][0] == '-') {
-            fprintf (stderr, "unknown option %s\n", argv[i]);
-            return 1;
-        }
-        if (ipaddr != NULL) {
-            fprintf (stderr, "unknown argument %s\n", argv[i]);
-            return 1;
-        }
-        ipaddr = argv[i];
-    }
-
-    // running on some system to read panel state form z8lpanel.cc via udp
-    if (ipaddr == NULL) ipaddr = "127.0.0.1";
-
-    // if server, act as the server end of the udp
-    if (strcasecmp (ipaddr, "server") == 0) {
-        udpserver ();
-        return 0;
-    }
-
-    struct sockaddr_in server;
-    memset (&server, 0, sizeof server);
-    server.sin_family = AF_INET;
-    server.sin_port   = htons (UDPPORT);
-    if (! inet_aton (ipaddr, &server.sin_addr)) {
-        struct hostent *he = gethostbyname (ipaddr);
-        if (he == NULL) {
-            fprintf (stderr, "bad server ip address %s\n", ipaddr);
-            return 1;
-        }
-        if ((he->h_addrtype != AF_INET) || (he->h_length != 4)) {
-            fprintf (stderr, "bad server ip address %s type\n", ipaddr);
-            return 1;
-        }
-        server.sin_addr = *(struct in_addr *)he->h_addr;
-    }
-
-    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
-    if (udpfd < 0) ABORT ();
-
-    struct sockaddr_in client;
-    memset (&client, 0, sizeof client);
-    client.sin_family = AF_INET;
-    if (bind (udpfd, (sockaddr *) &client, sizeof client) < 0) {
-        fprintf (stderr, "error binding: %m\n");
-        return 1;
-    }
-
-    struct timeval timeout;
-    memset (&timeout, 0, sizeof timeout);
-    timeout.tv_usec = 100000;
-    if (setsockopt (udpfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) ABORT ();
-
-    UDPPkt udppkt;
-    memset (&udppkt, 0, sizeof udppkt);
-
     uint32_t fps = 0;
+    uint32_t nframes = 0;
     time_t lasttime = 0;
-    uint64_t lastseq = 0;
-    uint64_t seq = 0;
+
+    padlib = new I2CZLib ();
+    padlib->openpads (false, false, false, false);
 
     setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
+
+    int twirly = 0;
 
     while (true) {
         struct timeval tvnow;
         if (gettimeofday (&tvnow, NULL) < 0) ABORT ();
         usleep (50000 - tvnow.tv_usec % 50000);
 
-        // ping the server so it sends something out
-    ping:;
-        udppkt.seq = ++ seq;
-        int rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &server, sizeof server);
-        if (rc != sizeof udppkt) {
-            if (rc < 0) {
-                fprintf (stderr, "error sending udp packet: %m\n");
-            } else {
-                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
-            }
-            return 1;
-        }
-
-        // read state from server
-        do {
-            rc = read (udpfd, &udppkt, sizeof udppkt);
-            if (rc != sizeof udppkt) {
-                if (rc < 0) {
-                    if (errno == EAGAIN) goto ping;
-                    fprintf (stderr, "error receiving udp packet: %m\n");
-                } else {
-                    fprintf (stderr, "only received %d of %d bytes\n", rc, (int) sizeof udppkt);
-                }
-                return 1;
-            }
-        } while (udppkt.seq < seq);
-        if (udppkt.seq > seq) {
-            fprintf (stderr, "bad seq rcvd %llu, sent %llu\n", (long long unsigned) udppkt.seq, (long long unsigned) seq);
-            return 1;
-        }
-
         // measure updates per second
         time_t thistime = time (NULL);
         if (lasttime < thistime) {
             if (lasttime > 0) {
-                fps = (seq - lastseq) / (thistime - lasttime);
+                fps = nframes / (thistime - lasttime);
             }
-            lastseq = seq;
             lasttime = thistime;
+            nframes  = 0;
         }
+        ++ nframes;
+
+        // read bulbs and switches
+        padlib->readpads (&pads);
 
         // display it
         printf (TOP EOL);
         printf ("  PDP-8/L       %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  MA   IR [ %s %s %s  " ESC_ON "%s" ESC_NORMV " ]     %10u fps" EOL,
-            BOOL (udppkt.pan.light.ema), REG12L (udppkt.pan.light.ma), udppkt.pan.light.ema, udppkt.pan.light.ma,
-            RBITL (udppkt.pan.light.ir,  9), RBITL (udppkt.pan.light.ir, 10), RBITL (udppkt.pan.light.ir, 11), mnes[udppkt.pan.light.ir], fps);
+            BOOL (pads.light.ema), REG12L (pads.light.ma), pads.light.ema, pads.light.ma,
+            RBITL (pads.light.ir,  9), RBITL (pads.light.ir, 10), RBITL (pads.light.ir, 11), mnes[pads.light.ir], fps);
         printf (EOL);
         printf ("                    %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  MB   ST [ %s %s %s %s %s %s ]" EOL,
-            REG12L (udppkt.pan.light.mb), udppkt.pan.light.mb, STL (udppkt.pan.light.fet, "F", "f"), STL (udppkt.pan.light.exe, "E", "e"), STL (udppkt.pan.light.def, "D", "d"),
-            STL (udppkt.pan.light.wct, "WC", "wc"), STL (udppkt.pan.light.cad, "CA", "ca"), STL (udppkt.pan.light.brk, "B", "b"));
+            REG12L (pads.light.mb), pads.light.mb, STL (pads.light.fet, "F", "f"), STL (pads.light.exe, "E", "e"), STL (pads.light.def, "D", "d"),
+            STL (pads.light.wct, "WC", "wc"), STL (pads.light.cad, "CA", "ca"), STL (pads.light.brk, "B", "b"));
         printf (EOL);
         printf ("                %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s  " ESC_BOLDV "%o.%04o" ESC_NORMV "  AC   %s %s %s %s" EOL,
-            BOOL (udppkt.pan.light.link), REG12L (udppkt.pan.light.ac), udppkt.pan.light.link, udppkt.pan.light.ac,
-            STL (udppkt.pan.light.ion, "ION", "ion"), STL (udppkt.pan.light.pare, "PER", "per"), STL (udppkt.pan.light.prte, "PRT", "prt"), STL (udppkt.pan.light.run, "RUN", "run"));
+            BOOL (pads.light.link), REG12L (pads.light.ac), pads.light.link, pads.light.ac,
+            STL (pads.light.ion, "ION", "ion"), STL (pads.light.pare, "PER", "per"), STL (pads.light.prte, "PRT", "prt"), STL (pads.light.run, "RUN", "run"));
         printf (EOL);
         printf ("  %s  %s %s   %s %s %s   %s %s %s   %s %s %s   %s %s %s   " ESC_BOLDV " %04o" ESC_NORMV "  SR   %s  %s %s %s %s %s  %s" EOL,
-            STL (udppkt.pan.togval.mprt, "MPRT", "mprt"), STL (udppkt.pan.togval.dfld, "DFLD", "dfld"), STL (udppkt.pan.togval.ifld, "IFLD", "ifld"), REG12L (udppkt.pan.togval.sr),
-            udppkt.pan.togval.sr, STL (udppkt.pan.button.ldad, "LDAD", "ldad"), STL (udppkt.pan.button.start, "START", "start"), STL (udppkt.pan.button.cont, "CONT", "cont"),
-            STL (udppkt.pan.button.stop, "STOP", "stop"), STL (udppkt.pan.togval.step, "STEP", "step"), STL (udppkt.pan.button.exam, "EXAM", "exam"), STL (udppkt.pan.button.dep, "DEP", "dep"));
-        printf (EOL);
-        printf (EOP);
+            STL (pads.togval.mprt, "MPRT", "mprt"), STL (pads.togval.dfld, "DFLD", "dfld"), STL (pads.togval.ifld, "IFLD", "ifld"), REG12L (pads.togval.sr),
+            pads.togval.sr, STL (pads.button.ldad, "LDAD", "ldad"), STL (pads.button.start, "START", "start"), STL (pads.button.cont, "CONT", "cont"),
+            STL (pads.button.stop, "STOP", "stop"), STL (pads.togval.step, "STEP", "step"), STL (pads.button.exam, "EXAM", "exam"), STL (pads.button.dep, "DEP", "dep"));
+        printf (EOL EOP);
+        printf ("  %c\r", "\\|/-"[++twirly&3]);
         fflush (stdout);
-    }
-}
-
-
-
-// pass state of processor to whoever asks via udp
-static void udpserver ()
-{
-    // create a socket to listen on
-    int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
-    if (udpfd < 0) ABORT ();
-
-    // listen for packets coming in for a certain port
-    struct sockaddr_in server;
-    memset (&server, 0, sizeof server);
-    server.sin_family = AF_INET;
-    server.sin_port   = htons (UDPPORT);
-    if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
-        fprintf (stderr, "udpserver: error binding to %d: %m\n", UDPPORT);
-        ABORT ();
-    }
-
-    // access lights and switches
-    padlib = new I2CZLib ();
-    padlib->openpads (false, false, false, false);
-
-    fprintf (stderr, "udpserver: listening on port %d\n", UDPPORT);
-
-    while (true) {
-        struct sockaddr_in client;
-        socklen_t clilen = sizeof client;
-        UDPPkt udppkt;
-        int rc = recvfrom (udpfd, &udppkt, sizeof udppkt, 0, (struct sockaddr *) &client, &clilen);
-        if (rc != sizeof udppkt) {
-            if (rc < 0) {
-                fprintf (stderr, "udpserver: error receiving udp packet: %m\n");
-            } else {
-                fprintf (stderr, "udpserver: only received %d of %d bytes\n", rc, (int) sizeof udppkt);
-            }
-            continue;
-        }
-
-        if (pthread_mutex_lock (&padmutex) != 0) ABORT ();
-        padlib->readpads (&udppkt.pan);
-        if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();
-
-        rc = sendto (udpfd, &udppkt, sizeof udppkt, 0, (sockaddr *) &client, sizeof client);
-        if (rc != sizeof udppkt) {
-            if (rc < 0) {
-                fprintf (stderr, "udpserver: error sending udp packet: %m\n");
-            } else {
-                fprintf (stderr, "udpserver: only sent %d of %d bytes\n", rc, (int) sizeof udppkt);
-            }
-        }
     }
 }

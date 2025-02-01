@@ -290,6 +290,7 @@ static PinDef const pindefs[] = {
     { "FP_I2CDAI",       DEV_FP, 5, FP5_I2CDAI,            false },
     { "FP_I2CDAO",       DEV_FP, 5, FP5_I2CDAO,            true  },
     { "FP_I2CCLO",       DEV_FP, 5, FP5_I2CCLO,            true  },
+    { "FP_LOCK",         DEV_FP, 6, FP6_LOCK,              true  },
     { "", 0, 0, 0, false }
 };
 

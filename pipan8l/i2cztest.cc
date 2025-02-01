@@ -129,6 +129,7 @@ int main (int argc, char **argv)
     printf ("\n");
 
     uint16_t writeval = 0;
+    uint16_t writevals[4];
     while (true) {
 
         uint16_t readval = writeval;
@@ -142,7 +143,7 @@ int main (int argc, char **argv)
             uint8_t addr = I2CBA + n;
 
             // write new value to MCP23017 OLAT registers
-            ++ writeval;
+            writevals[i] = writeval = randbits (16);
             uint64_t cmdwr =
                 (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
                 (ZYNQWR << 52) | ((uint64_t) OLATA << 44) |                     // send register number
@@ -157,8 +158,6 @@ int main (int argc, char **argv)
             else printf ("good");
             fflush (stdout);
         }
-
-        ++ writeval;
 
         // read each MCP23017 OLAT registers
         printf ("  read");
@@ -179,7 +178,7 @@ int main (int argc, char **argv)
             printf ("  [%u]=", n);
             fflush (stdout);
 
-            ++ readval;
+            readval = writevals[i];
 
             uint64_t stsrd = doi2ccycle (cmdrd);
             if (stsrd == (uint64_t) -1LL) printf ("fail");

@@ -393,5 +393,6 @@
 #define FP5_I2CDAI      (1U << 29)
 #define FP5_I2CDAO      (1U << 30)
 #define FP5_I2CCLO      (1U << 31)
+#define FP6_LOCK  0xFFFFFFFFU
 
 #endif

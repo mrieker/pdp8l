@@ -503,17 +503,17 @@ module Zynq (
     //        AXI4 write response dependency
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
-            saxi_ARREADY <= 1;                         // we are ready to accept read address
-            saxi_RVALID  <= 0;                         // we are not sending out read data
+            saxi_ARREADY <= 1;                          // we are ready to accept read address
+            saxi_RVALID  <= 0;                          // we are not sending out read data
 
-            saxi_AWREADY <= 1;                         // we are ready to accept write address
-            saxi_WREADY  <= 0;                         // we are not ready to accept write data
-            saxi_BVALID  <= 0;                         // we are not acknowledging any write
+            saxi_AWREADY <= 1;                          // we are ready to accept write address
+            saxi_WREADY  <= 0;                          // we are not ready to accept write data
+            saxi_BVALID  <= 0;                          // we are not acknowledging any write
 
-            simit       <= 0;
-            fpgareset   <= 0;
-            nanocontin  <= 0;
-            bareit      <= 0;
+            simit       <= 0;                           // assume want to access real PDP-8/L by default
+            fpgareset   <= 0;                           // we are resetting FPGA, don't do infinite reset loop
+            nanocontin  <= 1;                           // turn on 100MHz FPGA clocking
+            bareit      <= 0;                           // normal signals by default (not manual override)
 
         end else begin
 

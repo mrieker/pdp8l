@@ -39,15 +39,17 @@ module pdp8lfpi2c (
 );
 
     reg clear, manclo, mandao, manual, stepon;
+    reg[31:00] armlock;
     reg[31:00] commandlo;
     wire autclo, autdao;
 
-    assign armrdata = (armraddr == 0) ? 32'h4650200C : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h4650200D : // [31:16] = 'FP'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { comand[31:00] } :
                       (armraddr == 2) ? { comand[63:32] } :
                       (armraddr == 3) ? { status[31:00] } :
                       (armraddr == 4) ? { status[63:32] } :
                       (armraddr == 5) ? { i2cclo, i2cdao, i2cdai, i2ccli, 6'b0, i2cstate, i2ccount, manual, clear, stepon, 1'b0 } :
+                      (armraddr == 6) ? armlock :
                        32'hDEADBEEF;
 
     assign i2cclo = manual ? manclo : autclo;
@@ -70,9 +72,10 @@ module pdp8lfpi2c (
 
     always @(posedge CLOCK) begin
         if (RESET) begin
-            clear  <= 0;
-            manual <= 0;
-            stepon <= 0;
+            armlock <= 0;
+            clear   <= 0;
+            manual  <= 0;
+            stepon  <= 0;
         end else if (armwrite) begin
             case (armwaddr)
                 1: commandlo <= armwdata;       // save lo-order command word
@@ -82,6 +85,18 @@ module pdp8lfpi2c (
                     manual <= armwdata[03];     // 0=use i2cmaster module for cli2ck,i2cdao; 1=use manclk,mandao bits
                     manclo <= armwdata[31];     // if manual mode, use this for i2cclk
                     mandao <= armwdata[30];     // if manual mode, use this for i2cdao
+                end
+
+                // test-and-set cell for arm processor use
+                //  anything can be written when it is currently zero
+                //  otherwise writing the same number back clears it to zero
+                //  all other writes are ignored
+                6: begin
+                    if (armlock == 0) begin
+                        armlock <= armwdata;
+                    end else if (armlock == armwdata) begin
+                        armlock <= 0;
+                    end
                 end
             endcase
         end

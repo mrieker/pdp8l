@@ -190,11 +190,9 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, scl
                 //  wait 5uS, clock down, shift in data bits 7..1
                 // wait 5uS, clock up
                 // wait 5uS, clock down, shift in data bit 0
-                // if another read next {
-                //  wait 5uS, data down
-                //  wait 5uS, clock up
-                //  wait 5uS, clock down
-                // }
+                // wait 5uS, another read next ? data down : data up
+                // wait 5uS, clock up
+                // wait 5uS, clock down
                 // wait 5uS, done
             READ:
                 begin
@@ -220,11 +218,9 @@ module i2cmaster (CLOCK, RESET, CSTEP, wrcmd, command, comand, status, sclo, scl
                                 status[55:00] <= { status[54:00], sdai };
                             end
                         16:
-                            if (comand[63:62] == 2'b10) begin
+                            begin
                                 count <= counthiinc;
-                                sdao  <= 0;
-                            end else begin
-                                state <= BEGIN;
+                                sdao  <= (comand[63:62] != 2'b10);
                             end
                         17:
                             begin
