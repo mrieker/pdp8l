@@ -65,10 +65,11 @@
 #define ZYNQST 1ULL     // send restart bit (2 bits)
 #define I2CWR 0ULL      // 8th address bit indicating write
 #define I2CRD 1ULL      // 8th address bit indicating read
-#define SCLK 0x80000000U
+#define SCLO 0x80000000U
 #define SDAO 0x40000000U
 #define SDAI 0x20000000U
-#define MANUAL  8U      // 1=use SCLK,SDAO directly; 0=use i2cmaster.v
+#define SCLI 0x10000000U
+#define MANUAL  8U      // 1=use SCLO,SDAO directly; 0=use i2cmaster.v
 #define ZCLEAR  4U      // reset i2cmaster.v
 #define ZSTEPON 2U      // 1=use ZSTEPIT to clock i2cmaster.v; 0=use 100MHz FPAG clock
 #define ZSTEPIT 1U
@@ -76,9 +77,10 @@
 static uint32_t volatile *pdpat;
 static uint32_t volatile *fpat;
 
+void reseti2c ();
 uint64_t doi2ccycle (uint64_t cmd);
 
-int main ()
+int main (int argc, char **argv)
 {
     setlinebuf (stdout);
 
@@ -90,30 +92,46 @@ int main ()
     printf ("FP VERSION %08X\n", fpat[0]);
 
     // reset the I2C code (ZCLEAR)
-    pdpat[Z_RE] = e_simit | e_nanocontin;
+    bool simit = (argc < 2) || (argv[1][0] & 1);
+    pdpat[Z_RE] = (simit ? e_simit : 0) | e_nanocontin;
     fpat[5] = ZCLEAR;
     usleep (1000);
     fpat[5] = 0;
 
-    // clock and data lines shoule be high (open)
-    for (int i = 0; i < 100; i ++) {
-        fpat[5] = SDAO | SCLK | MANUAL;
-        usleep (1000);
-        if (fpat[5] & SDAI) goto datok;
-        fprintf (stderr, "data line stuck low\n");
-        fpat[5] = SDAO | MANUAL;
-        usleep (1000);
-    }
-    fprintf (stderr, "failed to clear data line\n");
-    return 1;
-datok:;
-    fpat[5] = 0;
+    reseti2c ();
 
     // order of addressing MCP23017s
-    uint16_t ns[4] = { 0, 1, 2, 3 };
+    uint16_t ns[4] = { 2, 0, 3, 1 };
+
+    // write each MCP23017 IODIR registers = FFFF
+    printf ("    write");
+    for (int i = 0; i < 4; i ++) {
+
+        // select an MCP23017
+        uint8_t n = ns[i];
+        uint8_t addr = I2CBA + n;
+
+        // write new value to MCP23017 IODIR registers
+        uint64_t cmdwr =
+            (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
+            (ZYNQWR << 52) | ((uint64_t) IODIRA << 44) |                    // send register number
+            (ZYNQWR << 42) | ((uint64_t) (0xFFU) << 34) |                   // send reg+0 data
+            (ZYNQWR << 32) | ((uint64_t) (0xFFU) << 24);                    // send reg+1 data
+
+        printf ("  [%u]=%04X=", n, 0xFFFFU);
+        fflush (stdout);
+
+        uint64_t stswr = doi2ccycle (cmdwr);
+        if (stswr == (uint64_t) -1LL) printf ("fail");
+        else printf ("good");
+        fflush (stdout);
+    }
+    printf ("\n");
 
     uint16_t writeval = 0;
     while (true) {
+
+        uint16_t readval = writeval;
 
         // write each MCP23017 OLAT registers
         printf ("    write");
@@ -128,14 +146,16 @@ datok:;
             uint64_t cmdwr =
                 (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |      // send address, write bit
                 (ZYNQWR << 52) | ((uint64_t) OLATA << 44) |                     // send register number
-                (ZYNQWR << 42) | ((uint64_t) (writeval >> 8) << 34) |           // send high order data
-                (ZYNQWR << 32) | ((uint64_t) (writeval & 255) << 24);           // send low order data
+                (ZYNQWR << 42) | ((uint64_t) (writeval & 255) << 34) |          // send reg+0 data
+                (ZYNQWR << 32) | ((uint64_t) (writeval >>  8) << 24);           // send reg+1 data
 
             printf ("  [%u]=%04X=", n, writeval);
+            fflush (stdout);
 
             uint64_t stswr = doi2ccycle (cmdwr);
             if (stswr == (uint64_t) -1LL) printf ("fail");
             else printf ("good");
+            fflush (stdout);
         }
 
         ++ writeval;
@@ -157,10 +177,18 @@ datok:;
                 (ZYNQRD << 30) | (ZYNQRD << 28);                                // receive 2 bytes
 
             printf ("  [%u]=", n);
+            fflush (stdout);
+
+            ++ readval;
 
             uint64_t stsrd = doi2ccycle (cmdrd);
             if (stsrd == (uint64_t) -1LL) printf ("fail");
-            else printf ("%04X", (unsigned) stsrd & 0xFFFFU);
+            else {
+                uint16_t rd = ((stsrd & 0xFFU) << 8) | ((stsrd >> 8) & 0xFFU);
+                if (rd == readval) printf ("%04X", rd);
+                else printf ("%04X != %04X", rd, readval);
+            }
+            fflush (stdout);
         }
 
         printf ("\n");
@@ -171,6 +199,7 @@ datok:;
 uint64_t doi2ccycle (uint64_t cmd)
 {
     // writing high-order word triggers i/o, so write low-order first
+
     fpat[ZPI2CCMD+0] = cmd;
     fpat[ZPI2CCMD+1] = cmd >> 32;
 
@@ -178,12 +207,15 @@ uint64_t doi2ccycle (uint64_t cmd)
     for (int i = 1000000; -- i >= 0;) {
         uint32_t sts1 = fpat[ZPI2CSTS+1];
         if (! (sts1 & (1U << 31))) {
+            if (! (fpat[5] & SDAI)) putchar ('z');
 
             // check for errors
             //  [30] = ack was not received
             //  [29] = data line stuck low during stop
-            if (sts1 & (3U << 29)) {
-                return (uint64_t) -1LL;
+            //  [28] = command written while busy
+            if (sts1 & (7U << 28)) {
+                fprintf (stderr, "doi2ccycle: error sts1=%08X\n", sts1);
+                ABORT ();
             }
 
             uint32_t sts0 = fpat[ZPI2CSTS+0];
@@ -192,4 +224,27 @@ uint64_t doi2ccycle (uint64_t cmd)
     }
     fprintf (stderr, "doi2ccycle: i2c I/O timeout\n");
     ABORT ();
+}
+
+// clock and data lines shoule be high (open)
+void reseti2c ()
+{
+    // pulse clock low-then-high until data line is high
+    for (int i = 0; i < 100; i ++) {
+        fpat[5] = SDAO | SCLO | MANUAL;
+        usleep (10);
+        if (fpat[5] & SDAI) goto datok;
+        ////fprintf (stderr, "data line stuck low (%d)\n", i);
+        fpat[5] = SDAO | MANUAL;
+        usleep (10);
+    }
+    fprintf (stderr, "failed to clear data line\n");
+    exit (1);
+datok:;
+    // pulse data low-then-high
+    fpat[5] = SCLO | MANUAL;
+    usleep (10);
+    fpat[5] = SDAO | SCLO | MANUAL;
+    usleep (10);
+    fpat[5] = SDAO | SCLO;
 }

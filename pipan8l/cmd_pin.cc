@@ -285,9 +285,11 @@ static PinDef const pindefs[] = {
     { "FP_CLEAR",        DEV_FP, 5, FP5_CLEAR,             true  },
     { "FP_MANUAL",       DEV_FP, 5, FP5_MANUAL,            true  },
     { "FP_I2CCOUNT",     DEV_FP, 5, FP5_I2CCOUNT,          false },
+    { "FP_I2CSTATE",     DEV_FP, 5, FP5_I2CSTATE,          false },
+    { "FP_I2CCLI",       DEV_FP, 5, FP5_I2CCLI,            false },
     { "FP_I2CDAI",       DEV_FP, 5, FP5_I2CDAI,            false },
     { "FP_I2CDAO",       DEV_FP, 5, FP5_I2CDAO,            true  },
-    { "FP_I2CCLK",       DEV_FP, 5, FP5_I2CCLK,            true  },
+    { "FP_I2CCLO",       DEV_FP, 5, FP5_I2CCLO,            true  },
     { "", 0, 0, 0, false }
 };
 

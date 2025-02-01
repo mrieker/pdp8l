@@ -92,6 +92,7 @@ int main (int argc, char **argv)
     uint32_t thisentr2 = pdpat[ILADAT+2];
 
     // loop through all entries in the array
+    bool nodots = true;
     bool indotdotdot = false;
     uint64_t preventry = 0;
     uint32_t preventr2 = 0;
@@ -103,41 +104,21 @@ int main (int argc, char **argv)
         uint32_t nextentr2 = pdpat[ILADAT+2];
 
         // print thisentry - but use ... if same as prev and next
-        if ((i == 0) || (i == DEPTH - 1) ||
+        if (nodots || (i == 0) || (i == DEPTH - 1) ||
                 (thisentry != preventry) || (thisentry != nextentry) ||
                 (thisentr2 != preventr2) || (thisentr2 != nextentr2)) {
 
-            printf ("%6.2f  %04o %o %o  %2u+%2u  %o %o %o %o  %04o %04o %04o %04o  %o %o %o  %2u  %o %o %o %o %o\n",
+            printf ("%6.2f  %u %2u.%03u  %o %o  %o %o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentr2 >> 12) & 07777,   // dev_iINPUTBUS
-                (unsigned) (thisentr2 >> 11) & 1,       // dev_x_INPUTBUS
-                (unsigned) (thisentr2 >>  8) & 7,       // xmdfld
+                (unsigned) (thisentry >> 19) & 7,       // state
+                (unsigned) (thisentry >> 14) & 31,      // counthi
+                (unsigned) (thisentry >>  4) & 1023,    // countlo
 
-                (unsigned) (thisentr2 >>  4) & 017,     // shad_tstate
-                (unsigned) (thisentr2 >>  0) & 017,     // shad_tdelay
-
-                (unsigned) (thisentry >> 63) & 1,       // oBIOP4
-                (unsigned) (thisentry >> 62) & 1,       // oBTP2
-                (unsigned) (thisentry >> 61) & 1,       // oC36B2=oIR02
-                (unsigned) (thisentry >> 60) & 1,       // oD35B2=oREGBUS02
-
-                (unsigned) (thisentry >> 48) & 07777,   // oMA
-                (unsigned) (thisentry >> 36) & 07777,   // oBMB
-                (unsigned) (thisentry >> 24) & 07777,   // oBAC
-                (unsigned) (thisentry >> 12) & 07777,   // i_MEM
-
-                (unsigned) (thisentry >> 11) & 1,       // oBTS_1
-                (unsigned) (thisentry >> 10) & 1,       // oBTS_3
-                (unsigned) (thisentry >>  9) & 1,       // oMEMSTART
-
-                (unsigned) (thisentry >>  5) & 15,      // xmstate[3:0]
-
-                (unsigned) (thisentry >>  4) & 1,       // hizmembus
-                (unsigned) (thisentry >>  3) & 1,       // r_MA
-                (unsigned) (thisentry >>  2) & 1,       // x_MEM
-                (unsigned) (thisentry >>  1) & 1,       // r_BAC
-                (unsigned) (thisentry >>  0) & 1        // r_BMB
+                (unsigned) (thisentry >>  3) & 1,       // SCL0
+                (unsigned) (thisentry >>  2) & 1,       // SCLI
+                (unsigned) (thisentry >>  1) & 1,       // SDAO
+                (unsigned) (thisentry >>  0) & 1        // SDAI
             );
             indotdotdot = false;
         } else if (! indotdotdot) {
