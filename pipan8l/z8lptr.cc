@@ -121,6 +121,9 @@ int main (int argc, char **argv)
 
     uint32_t nbytes = 0;
     while (true) {
+        printf ("\r%u/%u byte%s so far ", nbytes, fsize, ((nbytes == 1) ? "" : "s"));
+        fflush (stdout);
+
         do usleep (1000000 / cps);
         while (! (ptrat[1] & PTR_STEP));
         ptrat[1] = PTR_ENAB;
@@ -144,7 +147,5 @@ int main (int argc, char **argv)
 
         ptrat[1] = PTR_FLAG | PTR_ENAB | rdbyte | mask;
         ++ nbytes;
-        printf ("\r%u/%u byte%s so far ", nbytes, fsize, ((nbytes == 1) ? "" : "s"));
-        fflush (stdout);
     }
 }
