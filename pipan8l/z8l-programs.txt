@@ -25,8 +25,6 @@ automated test programs:
 
 other programs:
 
-    z8lpin:                     individual pin access via tcl scripting
-
     z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus,
         pulse e_fpgareset       set/clear xmem enlo4k, set/clear tty03 enable, set all other dev enables
         clear e_simit           and always sets e_nanocontin (so devices are continuously clocked)

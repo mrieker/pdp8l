@@ -9,6 +9,8 @@ then
     set +x
 fi
 
+./loadmod.sh
+
 dbg=
 if [ "$1" == "-gdb" ]
 then
