@@ -123,7 +123,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D202A :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D202B :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
@@ -414,7 +414,7 @@ module pdp8lxmem (
                     // check for PDP/sim starting a memory cycle
                     if (memstart) begin
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
-                        memdelay  <= 0;                     // reset memory delay line
+                        memdelay  <= addrlatchwid;          // reset memory delay line
 
                         // starting an internal memory cycle (internal to PDP, ie, its 4KW core stack)
                         if (_ea) xmstate <= 10;             // wait for internal memory cycle to complete
@@ -437,12 +437,12 @@ module pdp8lxmem (
                 //   give us 80nS to latch MA contents from FPGA's MEMBUS (though it really comes in around 30-40nS)
                 //   this is analogous to waiting for the start of the core memory READ pulse in the real PDP
                 1: begin
-                    if (memdelay != addrlatchwid) begin
-                        memdelay <= memdelay + 1;
-                        r_MA     <= 0;
+                    if (memdelay != 0) begin
+                        memdelay <= memdelay - 1;
+                        r_MA     <= 0;                      // start gating from PDP's MA bus onto FPGA MEMBUS
                         xbraddr  <= { field, memaddr };
                     end else begin
-                        memdelay <= 0;
+                        memdelay <= readstrobedel;
                         r_MA     <= 1;
                         xbrenab  <= 1;
                         xmstate  <= 2;
@@ -455,10 +455,10 @@ module pdp8lxmem (
                                             // save latest value read from extmem ram
                     x_MEM     <= 0;         // gate memrdat out to PDP via FPGAs MEMBUS
                     hizmembus <= 0;
-                    if (memdelay != readstrobedel) begin
-                        memdelay <= memdelay + 1;
+                    if (memdelay != 0) begin
+                        memdelay <= memdelay - 1;
                     end else begin
-                        memdelay <= 0;
+                        memdelay <= readstrobewid;
                         mrstep   <= 0;      // tell stepper we are about to stop
                         xmstate  <= 3;      // ...then start sending strobe pulse
 
@@ -510,11 +510,11 @@ module pdp8lxmem (
                 // then we're 600nS into the cycle
                 3: begin
                     if (~ mrhold | mrstep) begin
-                        if (memdelay != readstrobewid) begin
-                            memdelay <= memdelay + 1;
+                        if (memdelay != 0) begin
+                            memdelay <= memdelay - 1;
                             _mrdone  <= 0;
                         end else begin
-                            memdelay <= 0;
+                            memdelay <= writeenabdel;
                             _mrdone  <= 1;
                             xmstate  <= 4;
                         end
@@ -525,10 +525,10 @@ module pdp8lxmem (
                 // then we're 1450nS into the cycle
                 // supposedly the PDP has come up with data by then
                 4: begin
-                    if (memdelay != writeenabdel) begin
-                        memdelay <= memdelay + 1;
+                    if (memdelay != 0) begin
+                        memdelay <= memdelay - 1;
                     end else begin
-                        memdelay <= 0;
+                        memdelay <= writeenabwid;
                         xbrwena  <= 1;
                         xmstate  <= 5;
 
@@ -540,10 +540,10 @@ module pdp8lxmem (
                 // write the FPGA memory for 50nS
                 // then we're 1500nS into the cycle
                 5: begin
-                    if (memdelay != writeenabwid) begin
-                        memdelay <= memdelay + 1;
+                    if (memdelay != 0) begin
+                        memdelay <= memdelay - 1;
                     end else if (~ armwrite) begin
-                        memdelay <= 0;
+                        memdelay <= writedonewid;
                         mwstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
                         xbrenab  <= 0;              // stop writing to FPGA 32KW memory
                         xbrwena  <= 0;
@@ -557,9 +557,9 @@ module pdp8lxmem (
                 // and wait if frozen by shadow error
                 6: begin
                     if (~ freeze & (~ mwhold | mwstep)) begin
-                        if (memdelay != writedonewid) begin
+                        if (memdelay != 0) begin
                             _mwdone  <= 0;
-                            memdelay <= memdelay + 1;
+                            memdelay <= memdelay - 1;
                         end else begin
                             _mwdone  <= 1;
                             xmstate  <= 0;
@@ -571,12 +571,12 @@ module pdp8lxmem (
                 // grab a copy of the MA so it shows up on console
                 // FPGA MEMBUS pins are already in hi-Z
                 10: begin
-                    if (memdelay != 5) begin
-                        r_MA <= 0;      // gate from PDP's MA bus onto FPGA MEMBUS for 50nS
-                        memdelay <= memdelay + 1;
+                    if (memdelay != 0) begin
+                        memdelay <= memdelay - 1;
+                        r_MA     <= 0;  // start gating from PDP's MA bus onto FPGA MEMBUS for 80nS
                     end else begin
-                        r_MA <= 1;      // 50nS is up, stop gating MA onto FGPA MEMBUS
-                        xmstate <= 11;
+                        r_MA     <= 1;  // 80nS is up, stop gating MA onto FGPA MEMBUS
+                        xmstate  <= 11;
                     end
                 end
 

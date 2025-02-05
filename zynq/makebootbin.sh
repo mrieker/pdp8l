@@ -19,8 +19,11 @@ cd ../zplin
 source petadevel/settings.sh
 source /tools/Xilinx/Vivado/2018.3/settings64.sh
 cd petakernl/zturn
-rm -f images/linux/BOOT.BIN
-petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit --u-boot
+if [ images/linux/BOOT.BIN -ot $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit ]
+then
+    rm -f images/linux/BOOT.BIN
+    petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit --u-boot
+fi
 ls -l `pwd`/images/linux/BOOT.BIN
 scp images/linux/BOOT.BIN root@zturn$hostnum:/boot/BOOT.BIN
 set +e

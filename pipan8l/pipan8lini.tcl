@@ -12,6 +12,7 @@ proc helpini {} {
     puts "  dumpit                  - dump registers and switches"
     puts "  dumpmem <start> <stop>  - dump memory in octal"
     puts "  escapechr               - convert character to escape"
+    puts "  fastxmem                - set fastest extended memory timing"
     puts "  flicksw <switch>        - flick momentary switch on then off"
     puts "  getenv                  - get environment variable"
     puts "  getrestofttyline        - read rest of line from tty"
@@ -290,6 +291,15 @@ if {[libname] == "i2cz"} {
     proc flushit {} { }
 }
 
+# set parameters for fast extended memory cycles
+proc fastxmem {} {
+    if {[pin get simit]} {
+        pin set addrlatchwid 1 readstrobedel 2 readstrobewid 7 writeenabdel 20 writeenabwid 2 writedonewid 1
+    } else {
+        pin set addrlatchwid 8 readstrobedel 7 readstrobewid 10 writeenabdel 45 writeenabwid 5 writedonewid 10
+    }
+}
+
 # get environment variable, return default value if not defined
 proc getenv {varname {defvalu ""}} {
     return [expr {[info exists ::env($varname)] ? $::env($varname) : $defvalu}]
@@ -302,9 +312,7 @@ proc getrestofttyline {{tmsec 30000}} {
     while true {
         set ch [readttychartimed $tmsec]
         if {$ch == ""} {
-            puts ""
-            puts "getrestofttyline: timed out reading to end of line"
-            exit 1
+            error "getrestofttyline: timed out reading to end of line"
         }
         puts -nonewline $ch
         flush stdout
@@ -332,7 +340,6 @@ proc isziactest {} {
 
 # load bin format tape file, return start address
 #  returns
-#   string: error message
 #       -1: successful, no start address
 #     else: successful, start address
 proc loadbin {fname} {
@@ -359,7 +366,8 @@ proc loadbin {fname} {
 
     while {true} {
         if {[ctrlcflag]} {
-            return "control-C"
+            close $fp
+            error "control-C"
         }
 
         # read byte from tape
@@ -367,8 +375,7 @@ proc loadbin {fname} {
         set ch [read $fp 1]
         if {[eof $fp]} {
             close $fp
-            puts ""
-            return "eof reading loadfile at $offset"
+            error "eof reading loadfile at $offset"
         }
         set ch [chartoint $ch]
 
@@ -396,8 +403,7 @@ proc loadbin {fname} {
         # no other frame should have <7> set
         if {$ch & 0200} {
             close $fp
-            puts ""
-            return [format "bad char %03o at %d" $ch $offset]
+            error [format "bad char %03o at %d" $ch $offset]
         }
 
         # add to checksum before stripping <6>
@@ -428,8 +434,7 @@ proc loadbin {fname} {
             set actmb [getreg mb]
             if {($actma != ($addr & 007777)) || ($actmb != $data)} {
                 close $fp
-                puts ""
-                return [format "%04o %04o showed %04o %04o" $addr $data $actma $actmb]
+                error [format "%04o %04o showed %04o %04o" $addr $data $actma $actmb]
             }
 
             # set up for next byte
@@ -449,8 +454,7 @@ proc loadbin {fname} {
         switch $state {
             -1 {
                 close $fp
-                puts ""
-                return [format "bad leader char %03o at %d" $ch $offset]
+                error [format "bad leader char %03o at %d" $ch $offset]
             }
 
             0 {
@@ -493,17 +497,16 @@ proc loadbin {fname} {
     set chksum [expr {$chksum - ($data >> 6)}]
     set chksum [expr {$chksum & 07777}]
     if {$chksum != $data} {
-        return [format "checksum calculated %04o, given on tape %04o" $chksum $data]
+        error [format "checksum calculated %04o, given on tape %04o" $chksum $data]
     }
 
     # verify what was loaded
-    return [loadverify $verify $start]
+    loadverify $verify
+
+    return $start
 }
 
 # load rim format tape file
-#  returns
-#   string: error message
-#       "": successful
 proc loadrim {fname} {
     set fp [open $fname rb]
 
@@ -522,7 +525,8 @@ proc loadrim {fname} {
 
     while {true} {
         if {[ctrlcflag]} {
-            return "control-C"
+            close $fp
+            error "control-C"
         }
 
         # read byte from tape
@@ -543,8 +547,7 @@ proc loadrim {fname} {
         set ch [read $fp 1]
         if {[eof $fp]} {
             close $fp
-            puts ""
-            return "eof reading loadfile at $offset"
+            error "eof reading loadfile at $offset"
         }
         set ch [chartoint $ch]
         set addr [expr {$addr | ($ch & 077)}]
@@ -553,8 +556,7 @@ proc loadrim {fname} {
         set ch [read $fp 1]
         if {[eof $fp]} {
             close $fp
-            puts ""
-            return "eof reading loadfile at $offset"
+            error "eof reading loadfile at $offset"
         }
         set ch [chartoint $ch]
         set data [expr {($ch & 077) << 6}]
@@ -563,8 +565,7 @@ proc loadrim {fname} {
         set ch [read $fp 1]
         if {[eof $fp]} {
             close $fp
-            puts ""
-            return "eof reading loadfile at $offset"
+            error "eof reading loadfile at $offset"
         }
         set ch [chartoint $ch]
         set data [expr {$data | ($ch & 077)}]
@@ -588,8 +589,7 @@ proc loadrim {fname} {
         set actmb [getreg mb]
         if {($actma != $addr) || ($actmb != $data)} {
             close $fp
-            puts ""
-            return [format %04o %04o showed %04o %04o" $addr $data $actma $actmb]
+            error [format %04o %04o showed %04o %04o" $addr $data $actma $actmb]
         }
 
         set nextaddr [expr {($addr + 1) & 07777}]
@@ -599,33 +599,28 @@ proc loadrim {fname} {
     puts ""
 
     # verify what was loaded
-    return [loadverify $verify ""]
+    loadverify $verify
 }
 
 # verify memory loaded by bin/rim
 #  input:
 #   verify = dictionary of addr => data as written to memory
-#   retifok = value to return if verification successful
-#  output:
-#   returns error: error message string
-#            else: $retifok
-proc loadverify {verify retifok} {
+proc loadverify {verify} {
     puts "loadverify: verifying..."
     dict for {xaddr expect} $verify {
         if {[ctrlcflag]} {
-            return "control-C"
+            error "control-C"
         }
         set actual [rdmem $xaddr]
         puts -nonewline [format "  %05o / %04o\r" $xaddr $actual]
         flush stdout
         if {$actual != $expect} {
             puts ""
-            return [format "%05o was %04o expected %04o" $xaddr $actual $expect]
+            error [format "%05o was %04o expected %04o" $xaddr $actual $expect]
         }
     }
     puts ""
     puts "loadverify: verify ok"
-    return $retifok
 }
 
 # set up 5252: jmp 5252 and start it
@@ -742,7 +737,7 @@ proc rimloader {speed} {
             wrmem 07776 00000
         }
         default {
-            return "bad speed $speed"
+            error "bad speed $speed"
         }
     }
     disas 07756 07775
