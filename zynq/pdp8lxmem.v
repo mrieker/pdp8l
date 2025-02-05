@@ -104,6 +104,8 @@ module pdp8lxmem (
     reg[9:0] exefetsr;
     reg mwhold, mwstep, mrhold, mrstep, os8zap, thisexefet;
 
+    reg[63:00] memcycctr;
+
     reg[14:00] os8iszxaddr;                     // address of ISZ instruction
     reg[11:00] os8iszwdata;                     // ISZ operand value, incremented
     reg[6:0] os8iszopcad;                       // address of ISZ operand
@@ -123,12 +125,14 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D202B :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D202C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
                       (armraddr == 4) ? { writeenabdel, readstrobewid, readstrobedel, addrlatchwid } :
                       (armraddr == 5) ? { 16'b0, writedonewid, writeenabwid } :
+                      (armraddr == 6) ? { memcycctr[31:00] } :
+                      (armraddr == 7) ? { memcycctr[63:32] } :
                       32'hDEADBEEF;
 
     assign _ea = ~ (ctllo4k | (field != 0));
@@ -180,6 +184,7 @@ module pdp8lxmem (
             numcycles  <= 0;
             saveddfld  <= 0;
             savedifld  <= 0;
+            memcycctr  <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -207,6 +212,13 @@ module pdp8lxmem (
                 5: begin
                     writeenabwid  <= armwdata[07:00];   // width of write pulse
                     writedonewid  <= armwdata[15:08];   // width of memdone pulse
+                end
+
+                6: begin
+                    memcycctr[31:00] <= armwdata;
+                end
+                7: begin
+                    memcycctr[63:32] <= armwdata;
                 end
             endcase
         end else if (CSTEP) begin
@@ -404,6 +416,28 @@ module pdp8lxmem (
             // so sample it 100nS before the end of TS4 = 100nS before start of TS1
             if (ts1) thisexefet <= exefetsr[9];
             else exefetsr <= { exefetsr[8:0], exefet };
+
+            // increment memory cycle counter, used for measuring memory cycle time, from one memstart to the next
+            //  <62:60> = number of counters filled, 0..6 (counter freezes when >= 6)
+            //  <59:48> = counter[4]
+            //  <47:36> = counter[3]
+            //  <35:24> = counter[2]
+            //  <23:12> = counter[1]
+            //  <11:00> = counter[0]
+            // each counter:
+            //  <11> = _EA bit
+            //  <10> = didio bit
+            //  <09:00> = fpga cycles - 1
+            if (memcycctr[62:60] < 6) begin
+                if ((xmstate == 0) & memstart) begin
+                    if (memcycctr[62:60] != 5) begin
+                        memcycctr[59:00] <= { memcycctr[47:00], _ea, 11'b0 };
+                    end
+                    memcycctr[62:60] <= memcycctr[62:60] + 1;
+                end else if (memcycctr[09:00] != 1023) begin
+                    memcycctr[09:00] <= memcycctr[09:00] + 1;
+                end
+            end
 
             case (xmstate)
 

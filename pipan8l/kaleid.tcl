@@ -11,5 +11,5 @@ exec -ignorestderr make kaleid-$vt.bin
 set startaddr [loadbin kaleid-$vt.bin]
 setsw sr 0
 startat $startaddr
-exec -ignorestderr ./z8lvc8 -pms 120 -size 512 $vt
+exec -ignorestderr ./z8lvc8 -pms 120 -size [getenv vcsize 512] $vt
 exit

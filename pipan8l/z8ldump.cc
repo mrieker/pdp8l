@@ -224,8 +224,9 @@ int main (int argc, char **argv)
                         eol,
                         idver, FIELD (i+1,XM_ENLO4K), FIELD (i+1,XM_ENABLE), FIELD (i+2,XM2_IFLD), FIELD (i+2,XM2_DFLD), FIELD (i+2,XM2_FIELD),
                         FIELD (i+2,XM2__MWDONE), FIELD (i+2,XM2__MRDONE), FIELD (i+1,XM_OS8ZAP), FIELD (i+3,XM3_OS8STEP), eol);
-                    printf ("        mrhold,step=%o,%o  mwhold,step=%o,%o  xmstate=%2u  xmmemenab=%o%s",
-                        FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MRSTEP), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MWSTEP), FIELD(i+2,XM2_XMSTATE), FIELD(i+2,XM2_XMMEMENAB), eol);
+                    printf ("        mrhold,step=%o,%o  mwhold,step=%o,%o  xmstate=%2u  xmmemenab=%o  memcycctr=%08X.%08X%s",
+                        FIELD(i+1,XM_MRHOLD), FIELD(i+1,XM_MRSTEP), FIELD(i+1,XM_MWHOLD), FIELD(i+1,XM_MWSTEP), FIELD(i+2,XM2_XMSTATE),
+                        FIELD(i+2,XM2_XMMEMENAB), FIELD(i+7,0xFFFFFFFFU), FIELD(i+6,0xFFFFFFFFU), eol);
                     printf ("        addrlatchwid=%u  readstrobedel=%u  readstrobewid=%u  writeenabdel=%u  writeenabwid=%u  writedonewid=%u%s",
                         FIELD(i+4,XM4_ADDRLATCHWID), FIELD(i+4,XM4_READSTROBEDEL), FIELD(i+4,XM4_READSTROBEWID), FIELD(i+4,XM4_WRITEENABDEL),
                         FIELD(i+5,XM5_WRITEENABWID), FIELD(i+5,XM5_WRITEDONEWID), eol);

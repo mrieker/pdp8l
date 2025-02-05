@@ -257,6 +257,8 @@ static PinDef const pindefs[] = {
     { "WRITEENABDEL",    DEV_XM, 4, XM4_WRITEENABDEL,      true  },
     { "WRITEENABWID",    DEV_XM, 5, XM5_WRITEENABWID,      true  },
     { "WRITEDONEWID",    DEV_XM, 5, XM5_WRITEDONEWID,      true  },
+    { "XM_MEMCYCCTRLO",  DEV_XM, 6, XM6_MEMCYCCTRLO,       true  },
+    { "XM_MEMCYCCTRHI",  DEV_XM, 7, XM7_MEMCYCCTRHI,       true  },
     { "SH_ACKNOWN",      DEV_SH, 1, SH_ACKNOWN,            false },
     { "SH_EAKNOWN",      DEV_SH, 1, SH_EAKNOWN,            false },
     { "SH_IRKNOWN",      DEV_SH, 1, SH_IRKNOWN,            false },

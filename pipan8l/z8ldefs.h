@@ -355,6 +355,9 @@
 #define XM5_WRITEENABWID  (0377U <<  0)
 #define XM5_WRITEDONEWID  (0377U <<  8)
 
+#define XM6_MEMCYCCTRLO 0xFFFFFFFFU
+#define XM7_MEMCYCCTRHI 0xFFFFFFFFU
+
 // pdp8lvc8.v registers
 #define VC1_REMOVE   (077777U << 17)
 #define VC1_INSERT   (077777U <<  0)
