@@ -148,7 +148,7 @@ int main (int argc, char **argv)
 
         // maybe override default ephemeral persistence
         if (strcasecmp (argv[i], "-pms") == 0) {
-            if (++ i >= argc) {
+            if ((++ i >= argc) || (argv[i][0] == '-')) {
                 fprintf (stderr, "-pms missing time argument\n");
                 return 1;
             }
@@ -161,7 +161,7 @@ int main (int argc, char **argv)
 
         // maybe override default window size
         if (strcasecmp (argv[i], "-size") == 0) {
-            if (++ i >= argc) {
+            if ((++ i >= argc) || (argv[i][0] == '-')) {
                 fprintf (stderr, "-size missing size argument\n");
                 return 1;
             }
@@ -297,7 +297,7 @@ static void thread ()
     PersisButton persisbutton;
     persisbutton.setpms ();
 
-    // repeat until ioreset() is called
+    // repeat until display closed
     char wsizbuf[12] = { 0 };
     uint16_t wsiztim = 0;
     uint32_t lastsec = 0;
@@ -312,7 +312,7 @@ static void thread ()
         // max of time for next persistance expiration
         usleep (50000);
 
-        // copy points from processor while still locked
+        // copy points from processor
         struct timeval nowtv;
         if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
         uint16_t timems = ((nowtv.tv_sec * 1000000ULL) + nowtv.tv_usec) / 1000;
@@ -402,15 +402,15 @@ static void thread ()
                 VC8Pt *p = &allpoints[allrem];
 
                 // see if it has timed out or has been superceded
-                // draw in black and remove if so
                 int xy = p->y * XYSIZE + p->x;
                 int mxy = mappedxy (p);
                 uint16_t dtms = timems - timemss[xy];
                 if ((indices[mxy] == allrem) && (dtms < pms)) break;
 
+                // draw in black and remove if so
                 drawpt (allrem, true);
 
-                // in either case, remove timed-out entry from ring
+                // remove timed-out entry from ring
                 allrem = (allrem + 1) % (XYSIZE * XYSIZE);
             }
         }
@@ -486,12 +486,6 @@ static void thread ()
 
         oldeflags = neweflags;
     }
-
-    // ioreset(), unlock, close display and exit thread
-    XCloseDisplay (xdis);
-    xdis = NULL;
-    xwin = 0;
-    xgc  = NULL;
 }
 
 static void drawpt (int i, bool erase)

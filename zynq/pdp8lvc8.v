@@ -54,7 +54,6 @@ module pdp8lvc8 (
     localparam EF_V_IE =  0;
 
     reg[21:00] vidramreaddata;
-    reg[14:00] vidramreadaddr;
     reg[1:0] vidramreadbusy, vidramwritebsy;
     reg vidramempty;
 
@@ -64,10 +63,10 @@ module pdp8lvc8 (
     reg[1:0] intens;
     reg typee;
 
-    assign armrdata = (armraddr == 0) ? 32'h56432004 : // [31:16] = 'VC'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h56432005 : // [31:16] = 'VC'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { 1'b0, remove, 1'b0, insert } :
                       (armraddr == 2) ? { typee, 1'b0, intens, eflags, 16'b0 } :
-                      (armraddr == 3) ? { 17'b0, vidramreadaddr } :
+                      (armraddr == 3) ? { 17'b0, vidaddrb } :   // address being read from
                       (armraddr == 4) ? { vidramreadbusy, vidramempty, 7'b0, vidramreaddata } :
                        32'hDEADBEEF;
 
@@ -108,28 +107,24 @@ module pdp8lvc8 (
                 end
                 3: if (vidramreadbusy == 0) begin           // make sure not already busy doing a read
                     if (armwdata[31]) begin                 // see if 'remove from ring' style
-                        vidramreadaddr <= remove;           // if so, get address in ram to remove
+                        vidaddrb <= remove;                 // if so, get address in ram to remove
                         if (remove == insert) begin         //  check for ring empty
                             vidramempty <= 1;               //   empty, set empty flag
                         end else begin
                             vidramempty    <= 0;            //   not empty, clear empty flag
                             vidramreadbusy <= 1;            //    start reading video ram
-                            vidaddrb       <= remove;       //    at the remove location
                             videnabb       <= 1;
                             remove <= incdremove;           //    increment pointer for next time
                         end
                     end else begin
-                        vidramreadbusy <= 1;                // ramdom read, start reading video ram
+                        vidramreadbusy <= 1;                // random read, start reading video ram
                         vidaddrb       <= armwdata[14:00];  //  at the given location
                         videnabb       <= 1;
-                        vidramreadaddr <= armwdata[14:00];
                     end
                 end
             endcase
         end
 
-        // process the IOP only on the leading edge
-        // ...but leave output signals to PDP-8/L in place until given the all clear
         else if (CSTEP) begin
             if (iopstart) begin
                 if (typee) begin
