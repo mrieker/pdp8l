@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C408E;
+    localparam VERSION = 32'h384C408F;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -420,6 +420,10 @@ module Zynq (
     wire[11:00] pribus;
     wire pracclr, printrq, prioskp;
 
+    // paper tape punch interface wires
+    wire[31:00] ppardata;
+    wire ppintrq, ppioskp;
+
     // video interface wires
     wire[31:00] vcardata;
     wire[11:00] vcibus;
@@ -480,6 +484,7 @@ module Zynq (
         (readaddr[11:03] ==  9'b000110000)  ? tcardata   :  // 000110000x00
         (readaddr[11:03] ==  9'b000110001)  ? prardata   :  // 000110001x00
         (readaddr[11:03] ==  9'b000110010)  ? pbardata   :  // 000110010x00
+        (readaddr[11:03] ==  9'b000110011)  ? ppardata   :  // 000110011x00
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
@@ -497,6 +502,7 @@ module Zynq (
     wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000110000;  // 000110000x00
     wire prawrite   = armwrite & writeaddr[11:03] == 9'b000110001;  // 000110001x00
     wire pbawrite   = armwrite & writeaddr[11:03] == 9'b000110010;  // 000110010x00
+    wire ppawrite   = armwrite & writeaddr[11:03] == 9'b000110011;  // 000110011x00
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -1217,8 +1223,8 @@ module Zynq (
     assign dev_i_EA          = ~ (~ arm_i_EA          | ~ bareit & ~ xm_ea);
     assign dev_iEMA          =   (  arm_iEMA          | ~ bareit & (xmfield != 0));
     assign dev_iINT_INHIBIT  =   (  arm_iINT_INHIBIT  | ~ bareit & ~ xm_intinh);
-    assign dev_iINT_RQST     =   (  arm_iINT_RQST     | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq | printrq));
-    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp));
+    assign dev_iINT_RQST     =   (  arm_iINT_RQST     | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq | printrq | ppintrq));
+    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp | ppioskp));
     assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
     assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
     assign dev_i_D36B2       = ~ (~ arm_i_D36B2       | ~ bareit & ~ pulsebit);
@@ -1849,6 +1855,28 @@ module Zynq (
         .ioopcode (dev_oBMB),
 
         .pulse (pulsebit)
+    );
+
+    // paper tape punch interface
+    pdp8lptp ppinst (
+        .CLOCK (CLOCK),
+        .CSTEP (nanocstep),
+        .RESET (pwronreset),
+        .BINIT (iobusreset),
+
+        .armwrite (ppawrite),
+        .armraddr (readaddr[2]),
+        .armwaddr (writeaddr[2]),
+        .armwdata (saxi_WDATA),
+        .armrdata (ppardata),
+
+        .iopstart (iopstart),
+        .iopstop  (iopstop),
+        .ioopcode (dev_oBMB),
+        .cputodev (dev_oBAC),
+
+        .IO_SKIP  (ppioskp),
+        .INT_RQST (ppintrq)
     );
 
     // integrated logic analyzer
