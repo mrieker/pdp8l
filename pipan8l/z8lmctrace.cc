@@ -214,7 +214,8 @@ int main (int argc, char **argv)
         printf ("%08X:  %05o / ", pdpat[Z_RN], xaddr);
         if (readflag) printf ("%04o => ", readdata);
         printf ("%04o %c %04o", writedata, ((writedata == wdata) ? '=' : '?'), wdata);
-        printf ("  DF=%o IF=%o IFAJ=%o ION=%o%s%s\n",
+        printf ("  AC=%04o DF=%o IF=%o IFAJ=%o ION=%o%s%s\n",
+            (pdpat[Z_RH] & h_oBAC) / h_oBAC0,
             (xmemat[2] & XM2_DFLD) / XM2_DFLD0,
             (xmemat[2] & XM2_IFLD) / XM2_IFLD0,
             (xmemat[2] & XM2_IFLDAFJMP) / XM2_IFLDAFJMP0,
