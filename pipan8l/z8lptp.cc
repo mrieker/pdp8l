@@ -47,6 +47,7 @@ int main (int argc, char **argv)
     bool killit  = false;
     bool leader  = false;
     bool remcr   = false;
+    bool remdel  = false;
     bool remnul  = false;
     bool trailer = false;
     char const *filename = NULL;
@@ -57,13 +58,14 @@ int main (int argc, char **argv)
             puts ("");
             puts ("     Access paper tape punch");
             puts ("");
-            puts ("  ./z8lptp [-7bit] [-clear] [-cps <charspersec>] [-killit] [-leader] [-remcr] [-remnul] [-trailer] <filename>");
+            puts ("  ./z8lptp [-7bit] [-clear] [-cps <charspersec>] [-killit] [-leader] [-remcr] [-remdel] [-remnul] [-trailer] <filename>");
             puts ("     -7bit    : force top bit of byte = 0");
             puts ("     -clear   : clear status bits at beginning");
             puts ("     -cps     : set chars per second, default 50");
             puts ("     -killit  : kill other process that is processing paper tape punch");
             puts ("     -leader  : output 16-byte null leader");
             puts ("     -remcr   : remove <CR>s");
+            puts ("     -remdel  : remove <DEL>s");
             puts ("     -remnul  : remove <NUL>s");
             puts ("     -trailer : output 16-byte null trailer");
             puts ("");
@@ -100,6 +102,10 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-remcr") == 0) {
             remcr = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-remdel") == 0) {
+            remdel = true;
             continue;
         }
         if (strcasecmp (argv[i], "-remnul") == 0) {
@@ -164,7 +170,7 @@ int main (int argc, char **argv)
         } while (! ((ptpreg = ptpat[1]) & PTP_BUSY));
 
         uint8_t wrbyte = ptpreg & ~ mask;
-        if ((! remcr || (wrbyte != '\r')) && (! remnul || (wrbyte != 0))) {
+        if ((! remcr || (wrbyte != '\r')) && (! remdel || (wrbyte != 127)) && (! remnul || (wrbyte != 0))) {
             int rc = write (filedes, &wrbyte, 1);
             if (rc <= 0) {
                 if (rc == 0) errno = EPIPE;
@@ -194,6 +200,7 @@ done:;
         fprintf (stderr, "error closing file: %m\n");
         ABORT ();
     }
+    printf ("file successfully closed\n");
     return 0;
 }
 
