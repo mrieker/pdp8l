@@ -6,6 +6,6 @@
 #
 source "os8lib.tcl"
 os8dpackloadandboot
-exec -ignorestderr ./z8ltty -cps 960 -killit < /dev/tty > /dev/tty
+exec -ignorestderr ./z8ltty -cps 960 -killit -upcase < /dev/tty > /dev/tty
 flicksw stop
 exit
