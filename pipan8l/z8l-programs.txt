@@ -25,38 +25,26 @@ automated test programs:
 
 other programs:
 
-    z8lreal:                    turns off sim mode and holds sim in power-on state, connect xmem controller to iobus,
-        pulse e_fpgareset       set/clear xmem enlo4k, set/clear tty03 enable, set all other dev enables
-        clear e_simit           and always sets e_nanocontin (so devices are continuously clocked)
+    z8lpanel                    access real PDP or simulated front panel lights & switches
+                                real mode requires front panel I2C bus connection to Z8LPANEL board
 
-    z8lrk8je:                   process RK8JE io instructions
+    z8lreal                     turns off sim mode and holds sim in power-on state
+
+    z8lrk8je                    process RK8JE io instructions
                                 sets RK8s enable to connect to iobus if not already
 
-    z8ltc08:                    process TC08 io instructions
+    z8lmctrace                  prints memory cycles of real PDP or simulator
+
+    z8lsim                      access simulated PDP-8/L front panel lights & switches
+
+    z8ltc08                     process TC08 io instructions
                                 sets TC08s enable to connect to iobus if not already
 
-    z8ltrace:                   sets e_simit, pulses e_nanotrigger, clears e_nanocontin
+    z8ltrace                    sets e_simit, pulses e_nanotrigger, clears e_nanocontin
 
-    z8ltty:                     process TTY io instructions
-                                sets TTYs enable to connect to iobus if nit already
+    z8ltty                      process TTY io instructions
+                                sets TTYs enable to connect to iobus if not already
 
-    ./z8lsim bootos8dpack.tcl   boot OS/8 from decpack with interactive session
-    ./z8lsim bootos8dtape.tcl   boot OS/8 from dectape with interactive session
-
-fpgareset - halts simulator, connects io devices to iobus, puts all in power-on reset state:
-    regctle[01]
-    pwronreset
-        pdp8lsim RESET
-        pdp8ltty RESET
-        pdp8lrk8je RESET
-        pdp8lxmem RESET
-        pdp8lcmem RESET
-        pdp8lextar RESET
-        iobusreset
-            pdp8ltty BINIT
-            pdp8lrk8je BINIT
-            pdp8lxmem BINIT
-            pdp8lcmem BINIT
-            pxp8lextar BINIT
-
+    ./z8lpanel bootos8dpack.tcl   boot OS/8 from decpack with interactive session
+    ./z8lpanel bootos8dtape.tcl   boot OS/8 from dectape with interactive session
 
