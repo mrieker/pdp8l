@@ -88,22 +88,9 @@ int main (int argc, char **argv)
     // select real PDP-8/L and reset io devices
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger | e_fpgareset;   // no e_simit
     usleep (10);
-    pdpat[Z_RA] = ZZ_RA;
-    pdpat[Z_RB] = 0;
-    pdpat[Z_RC] = ZZ_RC;
-    pdpat[Z_RD] = ZZ_RD;
-    pdpat[Z_RF] = 0;
-    pdpat[Z_RG] = 0;
-    pdpat[Z_RH] = 0;
-    pdpat[Z_RI] = 0;
-    pdpat[Z_RJ] = 0;
-    pdpat[Z_RK] = 0;
-    uint32_t xm = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0) | (os8zap ? XM_OS8ZAP : 0);
-    xmemat[1]   = xm;
-    usleep (10);
     pdpat[Z_RE] = e_nanocontin | e_nanotrigger;                 // release reset
                             // omitting e_simit holds sim in power-on reset state
-    xmemat[1]   = xm;
+    xmemat[1]   = XM_ENABLE | (enlo4k ? XM_ENLO4K : 0) | (os8zap ? XM_OS8ZAP : 0);
 
     // all devices are enabled at this point
     // turn off tty 03 if not wanted
