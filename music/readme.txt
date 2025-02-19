@@ -56,3 +56,10 @@ to hear music:
     for sim, connect wire from zturn J11-26 to amplified speakers
         3.3V totem pole, do not put a pullup
 
+to see it counting through the music:
+
+    ../pipan8l/z8ldump
+
+    look for xbraddr (extended block ram address) register
+    should be able to see it count up as music plays
+

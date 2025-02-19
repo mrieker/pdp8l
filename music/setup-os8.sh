@@ -22,7 +22,7 @@ then
     mv -f $disk.temp $disk
     echo ""
     echo "  The MUSIC.SV program on the disk does not work."
-    echo "  You must follow the instructions in compiling.txt"
+    echo "  You must follow the instructions in readme.txt"
     echo "    to create a working version."
     echo ""
 else
