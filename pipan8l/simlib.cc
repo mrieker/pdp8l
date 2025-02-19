@@ -24,8 +24,8 @@
 
 // it simulates a PDP-8/L with 8K memory and a teletype
 // to access the teletype:
-//  write keyboard characters to pipe pipan8l_ttykb
-//  read printer characters from pipe pipan8l_ttypr
+//  write keyboard characters to pipe /tmp/pipan8l_ttykb
+//  read printer characters from pipe /tmp/pipan8l_ttypr
 
 // envars:
 //  pipan8l_memfields = memory fields 1..8, default 2
@@ -128,22 +128,22 @@ void SimLib::openpads ()
     // create named pipes for tty's keyboard and printer
     // tcl script can read printer output from pipan8l_ttypr
     // and can send keyboard input to pipan8l_ttykb to debug test scripts
-    unlink ("pipan8l_ttykb");
-    unlink ("pipan8l_ttypr");
-    if (mkfifo ("pipan8l_ttykb", 0666) < 0) {
-        fprintf (stderr, "SimLib::openpads: error creating pipan8l_ttykb fifo: %m\n");
+    unlink ("/tmp/pipan8l_ttykb");
+    unlink ("/tmp/pipan8l_ttypr");
+    if (mkfifo ("/tmp/pipan8l_ttykb", 0666) < 0) {
+        fprintf (stderr, "SimLib::openpads: error creating /tmp/pipan8l_ttykb fifo: %m\n");
         ABORT ();
     }
-    if (mkfifo ("pipan8l_ttypr", 0666) < 0) {
-        fprintf (stderr, "SimLib::openpads: error creating pipan8l_ttypr fifo: %m\n");
+    if (mkfifo ("/tmp/pipan8l_ttypr", 0666) < 0) {
+        fprintf (stderr, "SimLib::openpads: error creating /tmp/pipan8l_ttypr fifo: %m\n");
         ABORT ();
     }
 
     // open them in non-blocking mode on this end
     // use non-blocking mode so we don't get stuck in the open() call
-    kbreadfd = open ("pipan8l_ttykb", O_RDONLY | O_NONBLOCK);
+    kbreadfd = open ("/tmp/pipan8l_ttykb", O_RDONLY | O_NONBLOCK);
     if (kbreadfd < 0) {
-        fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttykb fifo: %m\n");
+        fprintf (stderr, "SimLib::openpads: error opening /tmp/pipan8l_ttykb fifo: %m\n");
         ABORT ();
     }
     pthread_t tid;
@@ -168,9 +168,9 @@ void *SimLib::openttyprpipe (void *zhis)
 
     // O_NONBLOCK gets non-existing device error
     // so wait here until reader connects
-    int fd = open ("pipan8l_ttypr", O_WRONLY);
+    int fd = open ("/tmp/pipan8l_ttypr", O_WRONLY);
     if (fd < 0) {
-        fprintf (stderr, "SimLib::openpads: error opening pipan8l_ttypr fifo: %m\n");
+        fprintf (stderr, "SimLib::openpads: error opening /tmp/pipan8l_ttypr fifo: %m\n");
         ABORT ();
     }
 

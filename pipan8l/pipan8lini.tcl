@@ -639,8 +639,8 @@ proc octal {val} {
 }
 
 ;# function to open tty port available as pipes
-;# - using pipan8l with real PDP-8/L: softlink pipan8l_ttykb and _ttypr to real tty port eg /dev/ttyACM0
-;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes pipan8l_ttykb and _ttypr
+;# - using pipan8l with real PDP-8/L: softlink /tmp/pipan8l_ttykb and _ttypr to real tty port eg /dev/ttyACM0
+;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes /tmp/pipan8l_ttykb and _ttypr
 ;# - using pipan8l on zynq with pdp8ltty.v (started via z8lsim): overridden by z8lsimini.tcl
 proc openttypipes {} {
     global wrkbpipe rdprpipe
@@ -660,10 +660,10 @@ proc openttypipes {} {
     } else {
 
         # running as pipan8l on raspi chip either plugged into PDP-8/L front panel or simulating PDP-8/L
-        # if real PDP-8/L, pipan8l_ttypr and pipan8l_ttykb must be softlinked to the serial port connected to the PDPs TTY boards
+        # if real PDP-8/L, /tmp/pipan8l_ttypr and /tmp/pipan8l_ttykb must be softlinked to the serial port connected to the PDPs TTY boards
         # if simulating (pipan8l -sim), simlib.cc creates named pipes and we just access them
-        set rdprpipe [open "pipan8l_ttypr" "r"]
-        set wrkbpipe [open "pipan8l_ttykb" "w"]
+        set rdprpipe [open "/tmp/pipan8l_ttypr" "r"]
+        set wrkbpipe [open "/tmp/pipan8l_ttykb" "w"]
         chan configure $rdprpipe -translation binary
         chan configure $wrkbpipe -translation binary
         chan configure $rdprpipe -blocking 0
