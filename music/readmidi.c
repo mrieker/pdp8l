@@ -89,11 +89,11 @@ static char const *const muskeystr[] = {
 #define NMUSTRK 4           // max number of notes at a time music.pa will play
 
 typedef struct Note {
-    uint32_t len;
-    uint8_t key;
+    uint32_t len;           // 32nd notes remaining
+    uint8_t key;            // zero: rest; else: index into midkeystr[] and muskeystr[]
 } Note;
 
-typedef struct Tick {
+typedef struct Tick {       // 32nd note
     Note notes[NMUSTRK];
 } Tick;
 
@@ -341,7 +341,7 @@ int main (int argc, char **argv)
         Tick *tick = &ticks[t];
 
         if (t % 32 == 0) {
-            printf ("Y %d\n", t / 32 + 1);
+            printf ("Y=%d\n", t / 32 + 1);
         }
 
         // see if any notes at this tick
@@ -456,13 +456,10 @@ static uint32_t readvaruint ()
 //   note written to ticks[] array if there is room
 static void addnote (uint32_t noteonat, uint32_t noteoffat, uint8_t key)
 {
-    // 0 is used to indicate unoccupied so ignore these very lownotes
-    if (key == 0) return;
-
     // if note too low, move it up an octave
-    if (key < MINNOTE) key += 12;
+    while (key < MINNOTE) key += 12;
 
-    // convert abstimes to ticks
+    // convert abstimes to 32nd note ticks
     uint32_t ontick  = (noteonat  + midi32 / 2) / midi32;
     uint32_t offtick = (noteoffat + midi32 / 2) / midi32;
     if (offtick > ontick) {
