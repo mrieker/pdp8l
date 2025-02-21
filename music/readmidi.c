@@ -390,6 +390,12 @@ int main (int argc, char **argv)
         }
         t += len;
     }
+
+    // five seconds of rest at the end
+    for (int i = 0; i < 5; i ++) {
+        printf ("%s R\n", lenstr (qtrpermin * 8 / 60));
+    }
+
     printf ("$\n");
     return 0;
 }
