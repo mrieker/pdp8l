@@ -7,18 +7,19 @@ set -e
 disk=~/music-rkab0.rk05
 if [ ! -f $disk ]
 then
-    tsdisk=os8-rkab0.rk05
-    if [ ! -f $tsdisk ]
+    gzdisk=os8-rkab0.rk05.gz
+    if [ ! -f $gzdisk ]
     then
-        echo "downloading RK05 image to $tsdisk"
-        rm -f $tsdisk.temp
-        wget -nv -O $tsdisk.temp https://www.pdp8online.com/ftp/images/os8/diag-games-kermit.rk05
-        mv -f $tsdisk.temp $tsdisk
+        echo "downloading RK05 image to $gzdisk"
+        rm -f $gzdisk.temp
+        wget -nv -O $gzdisk.temp https://www.pdp8online.com/ftp/images/os8/diag-games-kermit.rk05
+        gzip $gzdisk.temp
+        chmod a-w $gzdisk.temp.gz
+        mv $gzdisk.temp.gz $gzdisk
     fi
-    echo "creating $disk from $tsdisk"
+    echo "creating $disk from $gzdisk"
     rm -f $disk.temp
-    cp $tsdisk $disk.temp
-    chmod u+w $disk.temp
+    gunzip -c $gzdisk > $disk.temp
     mv -f $disk.temp $disk
     echo ""
     echo "  The MUSIC.SV program on the disk does not work."
