@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C408F;
+    localparam VERSION = 32'h384C4090;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -431,6 +431,8 @@ module Zynq (
 
     // pulsebit interface wires
     wire[31:00] pbardata;
+    wire[11:00] pbibus;
+    wire pbacclr, pbioskp;
     wire pulsebit;
 
     // bus values that are constants
@@ -1211,12 +1213,12 @@ module Zynq (
     assign dev_iBEMA         =   (  arm_iBEMA         | ~ bareit & (xmfield != 0));
     assign dev_i_CA_INCRMNT  = ~ (~ arm_i_CA_INCRMNT  | ~ bareit & cmbrkcainc);
     assign dev_i_DATA_IN     = ~ (~ arm_i_DATA_IN     | ~ bareit & cmbrkwrite);
-    assign dev_iINPUTBUS     =   (  arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | tcibus | tt42ibus | tt44ibus | tt46ibus | pribus));
+    assign dev_iINPUTBUS     =   (  arm_iINPUTBUS     | ~ bare12 & (ttibus  | tt40ibus  | rkibus | vcibus | xmibus | tcibus | tt42ibus | tt44ibus | tt46ibus | pribus | pbibus));
     assign dev_iMEMINCR      =      arm_iMEMINCR;
     assign dev_i_MEM         = ~ (~ arm_i_MEM          | ~ bare12 & xmmem);
     assign dev_i_MEM_P       =      arm_i_MEM_P;
     assign dev_i3CYCLE       =   (  arm_i3CYCLE       | ~ bareit & cmbrk3cycl);
-    assign dev_iAC_CLEAR     =   (  arm_iAC_CLEAR     | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr | pracclr));
+    assign dev_iAC_CLEAR     =   (  arm_iAC_CLEAR     | ~ bareit & (ttacclr | tt40acclr | rkacclr | vcacclr | tcacclr | tt42acclr | tt44acclr | tt46acclr | pracclr | pbacclr));
     assign dev_iBRK_RQST     =   (  arm_iBRK_RQST     | ~ bareit & cmbrkrqst);
     assign dev_iDMAADDR      =   (  arm_iDMAADDR      | ~ bare12 & cmbrkaddr);
     assign dev_iDMADATA      =   (  arm_iDMADATA      | ~ bare12 & cmbrkwdat);
@@ -1224,7 +1226,7 @@ module Zynq (
     assign dev_iEMA          =   (  arm_iEMA          | ~ bareit & (xmfield != 0));
     assign dev_iINT_INHIBIT  =   (  arm_iINT_INHIBIT  | ~ bareit & ~ xm_intinh);
     assign dev_iINT_RQST     =   (  arm_iINT_RQST     | ~ bareit & (ttintrq | tt40intrq | rkintrq | vcintrq | tcintrq | tt42intrq | tt44intrq | tt46intrq | printrq | ppintrq));
-    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp | ppioskp));
+    assign dev_iIO_SKIP      =   (  arm_iIO_SKIP      | ~ bareit & (ttioskp | tt40ioskp | rkioskp | vcioskp | tcioskp | tt42ioskp | tt44ioskp | tt46ioskp | prioskp | ppioskp | pbioskp));
     assign dev_i_MEMDONE     = ~ (~ arm_i_MEMDONE     | ~ bareit & ~ xm_mwdone);
     assign dev_i_STROBE      = ~ (~ arm_i_STROBE      | ~ bareit & ~ xm_mrdone);
     assign dev_i_D36B2       = ~ (~ arm_i_D36B2       | ~ bareit & ~ pulsebit);
@@ -1852,7 +1854,13 @@ module Zynq (
         .armrdata (pbardata),
 
         .iopstart (iopstart),
+        .iopstop  (iopstop),
         .ioopcode (dev_oBMB),
+        .cputodev (dev_oBAC),
+
+        .devtocpu (pbibus),
+        .AC_CLEAR (pbacclr),
+        .IO_SKIP  (pbioskp),
 
         .pulse (pulsebit)
     );

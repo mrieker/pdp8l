@@ -6,6 +6,7 @@ set -e
 ../pipan8l/z8lrk8je -killit -loadrw 0 ~/music-rkab0.rk05 &
 sleep 2
 ../pipan8l/z8lpanel bootos8.tcl
+../pipan8l/z8lpbit.armv7l
 echo ""
 echo "  at . prompt type DIR RKB0:*.MU"
 echo ""

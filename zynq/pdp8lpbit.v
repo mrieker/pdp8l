@@ -22,7 +22,7 @@
 
 // arm registers:
 //  [0] = ident='PB',sizecode=0,version
-//  [1] = <width> <mask> <code>
+//  [1] = iszac 00000 width count
 
 module pdp8lpbit (
     input CLOCK, CSTEP, RESET,
@@ -33,22 +33,27 @@ module pdp8lpbit (
     output[31:00] armrdata,
 
     input iopstart,
+    input iopstop,
     input[11:00] ioopcode,
+    input[11:00] cputodev,
+
+    output reg[11:00] devtocpu,
+    output reg AC_CLEAR,
+    output reg IO_SKIP,
 
     output reg pulse
 );
 
-    reg [8:0] mask, code;
-    reg [14:00] count, width;
+    reg iszac;
+    reg [12:00] count, width;
 
-    assign armrdata = ~ armraddr ? 32'h50420001 : // [31:16] = 'PB'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      { width, mask, code };
+    assign armrdata = ~ armraddr ? 32'h50420003 : // [31:16] = 'PB'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      { iszac, 5'b0, width, count };
 
     always @(posedge CLOCK) begin
         if (RESET) begin
+            iszac <= 0;         // don't do ISZ AC
             width <= 599;       // 6.00uS pulse width
-            mask  <= 9'o777;    // opcode 6002
-            code  <= 9'o002;
             count <= 0;
             pulse <= 0;
         end
@@ -56,20 +61,34 @@ module pdp8lpbit (
         // arm processor is writing the register
         else if (armwrite) begin
             if (armwaddr) begin
-                width <= armwdata[31:18];
-                mask  <= armwdata[17:09];
-                code  <= armwdata[08:00];
+                iszac <= armwdata[31];
+                width <= armwdata[25:13];
                 count <= 0;
                 pulse <= 0;
             end
         end else if (CSTEP) begin
-            if (iopstart & (ioopcode[11:09] == 3'o6) & ((ioopcode[08:00] & mask) == code)) begin
+            if (iopstart) begin
+
+                // any I/O instruction, start pulse going
                 count <= width;
                 pulse <= 1;
-            end else if (count != 0) begin
-                count <= count - 1;
+
+                // maybe do increment accumulator and skip if zero
+                if (iszac & (ioopcode == 12'o6004)) begin
+                    AC_CLEAR <= 1;
+                    { IO_SKIP, devtocpu } <= { 1'b0, cputodev } + 13'o00001;
+                end
             end else begin
-                pulse <= 0;
+                if (iopstop) begin
+                    devtocpu <= 0;
+                    AC_CLEAR <= 0;
+                    IO_SKIP  <= 0;
+                end
+                if (count != 0) begin
+                    count <= count - 1;
+                end else begin
+                    pulse <= 0;
+                end
             end
         end
     end
