@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4090;
+    localparam VERSION = 32'h384C4091;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -746,7 +746,7 @@ module Zynq (
     assign     iBRK_RQST      = simit ? 0       : dev_iBRK_RQST;
     assign     iDMAADDR       = simit ? 12'h000 : dev_iDMAADDR;
     assign     iDMADATA       = simit ? 12'h000 : dev_iDMADATA;
-    assign     i_EA           = ~ (simit ? 1       : dev_i_EA);     // butchered in 2N3904 in place of non-inverting 3.3-to-5V 74AXP4T245
+    assign     i_EA           = simit ? 1       : dev_i_EA;
     assign     iEMA           = simit ? 0       : dev_iEMA;
     assign     iINT_INHIBIT   = simit ? 0       : dev_iINT_INHIBIT;
     assign     iINT_RQST      = simit ? 0       : dev_iINT_RQST;
