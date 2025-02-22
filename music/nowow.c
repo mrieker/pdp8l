@@ -1,18 +1,22 @@
 
 // strip IFDEF WOW <...> from music.pal
+// strips the ... part out
 
 // cc -Wall -o nowow nowow.c
 
 #include <stdio.h>
 #include <string.h>
 
-int main ()
+int main (int argc, char **argv)
 {
     char c, line[256], *p, *q;
     int brackets, comment;
 
+    char const *ifstuff = "IFDEF WOW";
+    if (argc > 1) ifstuff = argv[1];
+
     while (fgets (line, sizeof line, stdin) != NULL) {
-        p = strstr (line, "IFDEF WOW");
+        p = strstr (line, ifstuff);
         if (p != NULL) {
             *(p ++) = 0;
             fputs (line, stdout);
