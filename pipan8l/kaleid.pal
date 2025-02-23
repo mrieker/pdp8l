@@ -1,10 +1,9 @@
 
-/ ../asm/assemble -pal kaleid.pal kaleid.obj > kaleid.lis
-/ ../asm/link -o kaleid.oct kaleid.obj > kaleid.map
+/  vcsize=1024 ./z8lpanel kaleid.tcl {e|i}  to run on real PDP-8/L
+/  vcsize=1024 ./z8lsim   kaleid.tcl {e|i}  to run on simulator
 
-/       tubes: vc8pms=2000 vc8type=e ../driver/raspictl kaleid.oct
-/        zynq: vc8pms=2000 vc8type=e ../driver/raspictl -zynqlib kaleid.oct
-/  pidp panel: vc8pms=500 vc8type=e ../driver/raspictl -pidp -nohwlib kaleid.oct
+/   choose e for red/green, i for gray/white
+/   vcsize can be anything 64 to 1024 (default is 512)
 
 / https://homepage.cs.uiowa.edu/~jones/pdp8/man/vc8e.html
 
@@ -34,29 +33,75 @@
 
 *0020
 
-X,	3777		/ any initial value works, but
-Y,	6		/ 0,0 is least interesting.
+		/ note: kaleid.tcl patches initial X and Y
+X,	3776		/ any initial value works, but
+Y,	4001		/ 0,0 is least interesting
+
 EXTRA,	0
 	7775
 BIAS,	0
 MUNGES,	0
+NEWX,	0
 
 SCOUNT, .-.
 FOUR,	4
-_2631,	2631
-_0012,	0012
 _NOPOP,	7000
+
+LOOP19,	7755
+LOOP13,	7765
+LOOP15,	7763
 
 WEIRDZ,	0
 WEIRD0,	TAD	SCOUNT
 WEIRD1,	NOP2
-WEIRDC,	7771		/ FLIP EVERY 7 CYCLES
-_7771,	7771
-_7775,	7775
+WEIRDC,	7773		/ FLIP WEIRD/NORMAL EVERY 5 CYCLES
 EXTRAX,	0
 
-*0200
+TADNEX,	TAD	NEWX	/ NORMAL, MAKES NICE PATTERNS MOSTLY
+TADOLX,	TAD	X	/ ONE OUT OF 19, MILITARY SOUNDING
 
+_0012,	0012
+_2631,	2631
+_7755,	7755
+_7763,	7763
+_7765,	7765
+_7773,	7773
+_7775,	7775
+
+_DSB0,	DSB0
+
+*140
+
+/ Divide AC (signed) by 2**(1 or 2 or 3)
+SCALE,	.-.
+	SMA
+SCPOS,	JMP	SCPOS2	/ normally alternated between 2 and 3
+SCNEG,	JMP	SCNEG2	/ ...but set to 1 if weird mode
+
+SCPOS3,
+	CLL RAR		/ shift right positive
+SCPOS2,
+	CLL RAR		/ shift right positive
+SCPOS1,
+	CLL RAR		/ shift right positive
+	JMP I	SCALE
+
+SCNEG3,
+	CLL CML	RAR	/ shift right negative
+SCNEG2,
+	CLL CML RAR	/ shift right negative
+SCNEG1,
+	CLL CML	RAR	/ shift right negative
+	JMP I	SCALE
+
+_SCPOS1, JMP	SCPOS1
+_SCNEG1, JMP	SCNEG1
+
+////////////////////////
+//  start of program  //
+////////////////////////
+
+*200
 	.global	__boot
 __boot,
 
@@ -106,11 +151,18 @@ STEPPT,
 	JMS	SCALE
 	CMA
 	TAD	X
-	DCA	X	/ X = X - SCALE(Y)
-	TAD	X
+	SZL		/ END-AROUND-CARRY
+ENDACX,	IAC		/ (NOPPED/UNNOPPED EVERY 13 CYCLES)
+	DCA	NEWX	/ X = X - SCALE(Y)
+OLDNEW,	TAD	NEWX	/ (use old X once every 19 cycles)
 	JMS	SCALE
 	TAD	Y
+	SZL		/ END-AROUND-CARRY
+ENDACY,	IAC		/ (NOPPED/UNNOPPED EVERY 11 CYCLES)
 	DCA	Y	/ Y = Y + SCALE(X)
+
+	TAD	NEWX	/ make sure X is updated
+	DCA	X
 
 	/ PLOT THE POINT
 .if typee
@@ -177,6 +229,37 @@ WEIRDY,	TAD	SCOUNT
 	TAD	_SCNEG1
 	DCA	SCNEG
 
+	ISZ	LOOP15	/ ENABLE/DISABLE END-AROUND-CARRY FOR X
+	JMP	IACXOK	/ ...EVERY 13 TIMES THROUGH HERE
+	TAD	ENDACX
+	IAC
+	AND	_7775
+	DCA	ENDACX
+	TAD	_7763
+	DCA	LOOP15
+IACXOK,
+
+	ISZ	LOOP13	/ ENABLE/DISABLE END-ARROUND-CARRY FOR Y
+	JMP	IACYOK	/ ...EVERY 11 TIMES THROUGH HERE
+	TAD	ENDACY
+	IAC
+	AND	_7775
+	DCA	ENDACY
+	TAD	_7765
+	DCA	LOOP13
+IACYOK,
+
+	ISZ	LOOP19	/ USE OLDX ONCE EVERY 19 CYCLES
+	JMP	DONEWX
+	TAD	_7755
+	DCA	LOOP19
+	TAD	TADOLX
+	JMP	OLNEOK
+DONEWX,
+	TAD	TADNEX
+OLNEOK,
+	DCA	OLDNEW
+
 	OSR		/ SELECT NORMAL/BIGCIRCLE DISPLAY
 	SPA CLA
 	TAD	_0012	/ SR<MSB> SET, USE RTR FOR BIGCIRCLE DISPLAY
@@ -185,9 +268,9 @@ WEIRDY,	TAD	SCOUNT
 	TAD	RTRX
 	DCA	RTRY
 
-	ISZ	WEIRDC	/ nop/unnop WEIRD instruction every 11 cycles
+	ISZ	WEIRDC	/ nop/unnop WEIRD instruction every 5 cycles
 	JMP	START2
-	TAD	_7771
+	TAD	_7773
 	DCA	WEIRDC
 	ISZ	WEIRDZ
 	NOP2
@@ -208,30 +291,4 @@ FLIPWY,
 	TAD	WEIRD1
 	DCA	WEIRDY
 	JMP	START2
-
-/ Divide AC (signed) by 2**(2 or 3)
-_SCPOS1, JMP	SCPOS1
-_SCNEG1, JMP	SCNEG1
-_DSB0,	DSB0
-
-SCALE,	.-.
-	SMA
-SCPOS,	JMP	SCPOS2
-SCNEG,	JMP	SCNEG2
-
-SCPOS3,
-	CLL RAR		/ shift right positive
-SCPOS2,
-	CLL RAR		/ shift right positive
-SCPOS1,
-	CLL RAR		/ shift right positive
-	JMP I	SCALE
-
-SCNEG3,
-	CLL CML	RAR	/ shift right negative
-SCNEG2,
-	CLL CML RAR	/ shift right negative
-SCNEG1,
-	CLL CML	RAR	/ shift right negative
-	JMP I	SCALE
 

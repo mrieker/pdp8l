@@ -47,6 +47,7 @@ static Tcl_ObjCmdProc cmd_assemop;
 static Tcl_ObjCmdProc cmd_disasop;
 static Tcl_ObjCmdProc cmd_getreg;
 static Tcl_ObjCmdProc cmd_getsw;
+static Tcl_ObjCmdProc cmd_gettod;
 static Tcl_ObjCmdProc cmd_libname;
 static Tcl_ObjCmdProc cmd_readchar;
 static Tcl_ObjCmdProc cmd_relsw;
@@ -57,6 +58,7 @@ static TclFunDef const fundefs[] = {
     { cmd_disasop,    "disasop",    "disassemble instruction" },
     { cmd_getreg,     "getreg",     "get register value" },
     { cmd_getsw,      "getsw",      "get switch value" },
+    { cmd_gettod,     "gettod",     "get current time in us precision" },
     { cmd_libname,    "libname",    "get library name i2c,sim,z8l" },
     { CMD_PIN },
     { cmd_readchar,   "readchar",   "read character with timeout" },
@@ -365,6 +367,15 @@ static int cmd_getsw (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_O
     }
     Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
     return TCL_ERROR;
+}
+
+// get time of day
+static int cmd_gettod (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    struct timeval nowtv;
+    if (gettimeofday (&nowtv, NULL) < 0) ABORT ();
+    Tcl_SetResultF (interp, "%u.%06u", (uint32_t) nowtv.tv_sec, (uint32_t) nowtv.tv_usec);
+    return TCL_OK;
 }
 
 // get library name
