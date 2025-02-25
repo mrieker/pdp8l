@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4091;
+    localparam VERSION = 32'h384C4092;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -472,39 +472,39 @@ module Zynq (
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
         (readaddr        == 10'b0000010010) ? { 10'b0, ilardata[21:00] } :
-        (readaddr[11:05] ==  7'b0000100)    ? rkardata   :  // 0000100xxx00
-        (readaddr[11:05] ==  7'b0000101)    ? vcardata   :  // 0000101xxx00
-        (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :  // 0000110xxx00
-        (readaddr[11:05] ==  8'b0000111)    ? xmardata   :  // 0000111xxx00
-        (readaddr[11:05] ==  8'b0001000)    ? shardata   :  // 0001000xxx00
-        (readaddr[11:04] ==  8'b00010010)   ? cmardata   :  // 00010010xx00
-        (readaddr[11:04] ==  8'b00010011)   ? ttardata   :  // 00010011xx00
-        (readaddr[11:04] ==  8'b00010100)   ? tt40ardata :  // 00010100xx00
-        (readaddr[11:04] ==  8'b00010101)   ? tt42ardata :  // 00010101xx00
-        (readaddr[11:04] ==  8'b00010110)   ? tt44ardata :  // 00010110xx00
-        (readaddr[11:04] ==  8'b00010111)   ? tt46ardata :  // 00010111xx00
-        (readaddr[11:03] ==  9'b000110000)  ? tcardata   :  // 000110000x00
-        (readaddr[11:03] ==  9'b000110001)  ? prardata   :  // 000110001x00
-        (readaddr[11:03] ==  9'b000110010)  ? pbardata   :  // 000110010x00
-        (readaddr[11:03] ==  9'b000110011)  ? ppardata   :  // 000110011x00
+        (readaddr[11:05] ==  7'b0000100)    ? rkardata   :
+        (readaddr[11:05] ==  7'b0000101)    ? vcardata   :
+        (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :
+        (readaddr[11:05] ==  8'b0000111)    ? xmardata   :
+        (readaddr[11:05] ==  8'b0001000)    ? shardata   :
+        (readaddr[11:04] ==  8'b00010010)   ? cmardata   :
+        (readaddr[11:04] ==  8'b00010011)   ? ttardata   :
+        (readaddr[11:04] ==  8'b00010100)   ? tt40ardata :
+        (readaddr[11:04] ==  8'b00010101)   ? tt42ardata :
+        (readaddr[11:04] ==  8'b00010110)   ? tt44ardata :
+        (readaddr[11:04] ==  8'b00010111)   ? tt46ardata :
+        (readaddr[11:04] ==  8'b00011000)   ? pbardata   :
+        (readaddr[11:03] ==  9'b000110010)  ? prardata   :
+        (readaddr[11:03] ==  9'b000110011)  ? ppardata   :
+        (readaddr[11:03] ==  9'b000110100)  ? tcardata   :
         32'hDEADBEEF;
 
     wire armwrite   = saxi_WREADY & saxi_WVALID;    // arm is writing a register (single fpga clock cycle)
-    wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;    // 0000100xxx00
-    wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;    // 0000101xxx00
-    wire fpi2cwrite = armwrite & writeaddr[11:05] == 7'b0000110;    // 0000110xxx00
-    wire xmawrite   = armwrite & writeaddr[11:05] == 7'b0000111;    // 0000111xxx00
-    wire shawrite   = armwrite & writeaddr[11:05] == 7'b0001000;    // 0001000xxx00
-    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010010;   // 00010010xx00
-    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00010011;   // 00010011xx00
-    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00010100;   // 00010100xx00
-    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010101;   // 00010101xx00
-    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010110;   // 00010110xx00
-    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010111;   // 00010111xx00
-    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000110000;  // 000110000x00
-    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000110001;  // 000110001x00
-    wire pbawrite   = armwrite & writeaddr[11:03] == 9'b000110010;  // 000110010x00
-    wire ppawrite   = armwrite & writeaddr[11:03] == 9'b000110011;  // 000110011x00
+    wire rkawrite   = armwrite & writeaddr[11:05] == 7'b0000100;
+    wire vcawrite   = armwrite & writeaddr[11:05] == 7'b0000101;
+    wire fpi2cwrite = armwrite & writeaddr[11:05] == 7'b0000110;
+    wire xmawrite   = armwrite & writeaddr[11:05] == 7'b0000111;
+    wire shawrite   = armwrite & writeaddr[11:05] == 7'b0001000;
+    wire cmawrite   = armwrite & writeaddr[11:04] == 8'b00010010;
+    wire ttawrite   = armwrite & writeaddr[11:04] == 8'b00010011;
+    wire tt40awrite = armwrite & writeaddr[11:04] == 8'b00010100;
+    wire tt42awrite = armwrite & writeaddr[11:04] == 8'b00010101;
+    wire tt44awrite = armwrite & writeaddr[11:04] == 8'b00010110;
+    wire tt46awrite = armwrite & writeaddr[11:04] == 8'b00010111;
+    wire pbawrite   = armwrite & writeaddr[11:04] == 9'b00011000;
+    wire prawrite   = armwrite & writeaddr[11:03] == 9'b000110010;
+    wire ppawrite   = armwrite & writeaddr[11:03] == 9'b000110011;
+    wire tcawrite   = armwrite & writeaddr[11:03] == 9'b000110100;
 
     // A3.3.1 Read transaction dependencies
     // A3.3.1 Write transaction dependencies
@@ -1848,8 +1848,8 @@ module Zynq (
         .RESET (pwronreset),
 
         .armwrite (pbawrite),
-        .armraddr (readaddr[2]),
-        .armwaddr (writeaddr[2]),
+        .armraddr (readaddr[3:2]),
+        .armwaddr (writeaddr[3:2]),
         .armwdata (saxi_WDATA),
         .armrdata (pbardata),
 

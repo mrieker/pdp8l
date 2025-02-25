@@ -28,7 +28,7 @@ module pdp8lpbit (
     input CLOCK, CSTEP, RESET,
 
     input armwrite,
-    input armraddr, armwaddr,
+    input[1:0] armraddr, armwaddr,
     input[31:00] armwdata,
     output[31:00] armrdata,
 
@@ -46,9 +46,13 @@ module pdp8lpbit (
 
     reg iszac;
     reg [12:00] count, width;
+    reg [15:00] samprate, sampincr, sampcount, sampinteg;
+    reg [31:00] sampbytes;
 
-    assign armrdata = ~ armraddr ? 32'h50420003 : // [31:16] = 'PB'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      { iszac, 5'b0, width, count };
+    assign armrdata = (armraddr == 0) ? 32'h50421004 : // [31:16] = 'PB'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { iszac, 5'b0, width, count } :
+                      (armraddr == 2) ? { samprate, sampincr } :
+                                        sampbytes;
 
     always @(posedge CLOCK) begin
         if (RESET) begin
@@ -60,12 +64,21 @@ module pdp8lpbit (
 
         // arm processor is writing the register
         else if (armwrite) begin
-            if (armwaddr) begin
-                iszac <= armwdata[31];
-                width <= armwdata[25:13];
-                count <= 0;
-                pulse <= 0;
-            end
+            case (armwaddr)
+                1: begin
+                    iszac <= armwdata[31];
+                    width <= armwdata[25:13];
+                    count <= 0;
+                    pulse <= 0;
+                end
+                2: begin
+                    samprate  <= armwdata[31:16];
+                    sampincr  <= armwdata[15:00];
+                    sampcount <= 0;
+                    sampinteg <= 0;
+                    sampbytes <= 0;
+                end
+            endcase
         end else if (CSTEP) begin
             if (iopstart) begin
 
@@ -89,6 +102,18 @@ module pdp8lpbit (
                 end else begin
                     pulse <= 0;
                 end
+            end
+
+            // at 8000 samples/second:
+            //  samprate = 100000000 / 8000 - 1 = 12499
+            //  sampincr = 65535 / (samprate + 1) = 5
+            if (sampcount == samprate) begin
+                sampbytes <= { sampbytes[23:00], sampinteg[15:08] };
+                sampcount <= 0;
+                sampinteg <= pulse ? sampincr : 0;
+            end else begin
+                sampcount <= sampcount + 1;
+                if (pulse) sampinteg <= sampinteg + sampincr;
             end
         end
     end

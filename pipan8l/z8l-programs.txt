@@ -28,6 +28,8 @@ other programs:
     z8lpanel                    access real PDP or simulated front panel lights & switches
                                 real mode requires front panel I2C bus connection to Z8LPANEL board
 
+    z8lpbit                     pulse bit (audio) control
+
     z8lreal                     turns off sim mode and holds sim in power-on state
 
     z8lrk8je                    process RK8JE io instructions

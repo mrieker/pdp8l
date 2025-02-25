@@ -14,6 +14,14 @@ ifeq ($(MACH),armv7l)
 	LNKFLG := $(LNKFLG) -latomic
 endif
 
+ifneq (,$(wildcard /usr/include/pulse/simple.h))
+	HASPA := 1
+	PALIB := -lpulse-simple
+else
+	HASPA := 0
+	PALIB :=
+endif
+
 LIBS = lib.$(MACH).a
 
 default: mcp23017.$(MACH) pipan8l.$(MACH) z8lcmemtest.$(MACH) z8lcore.$(MACH) z8ldmaloop.$(MACH) z8ldump.$(MACH) \
@@ -70,7 +78,7 @@ z8lpanel.$(MACH): z8lpanel.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
 
 z8lpbit.$(MACH): z8lpbit.$(MACH).o $(LIBS)
-	$(GPP) -o $@ $^ $(LNKFLG)
+	$(GPP) -o $@ $^ $(LNKFLG) $(PALIB)
 
 z8lpiotest.$(MACH): z8lpiotest.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ $(LNKFLG)
@@ -106,7 +114,7 @@ z8lxmemtest.$(MACH): z8lxmemtest.$(MACH).o $(LIBS)
 	$(GPP) -o $@ $^ -lpthread
 
 %.$(MACH).o: %.cc *.h
-	$(GPP) -DUNIPROC=$(UNIPROC) -c -o $@ $<
+	$(GPP) -DHASPA=$(HASPA) -DUNIPROC=$(UNIPROC) -c -o $@ $<
 
 kaleid-e.bin: kaleid-e.pal kaleid.pal
 	pdp8v/asm/assemble -pal kaleid-e.pal kaleid-e.obj > kaleid-e.lis
