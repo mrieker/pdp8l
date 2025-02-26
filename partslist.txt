@@ -1,0 +1,83 @@
+
+    ZTURN36
+
+        3) 2x18 pin 0.1" male horizontal
+            https://www.digikey.com/en/products/detail/adam-tech/PH2RA-36-UA/9830520
+
+        2) 2x40 pin 0.05" male
+            https://www.digikey.com/en/products/detail/chip-quik-inc/HDR127MET80M-G-V-TH/9835079
+
+        1) ZTurn 7020 (7010 has fewer I/O pins so won't work)
+            https://www.myirtech.com/list.asp?id=502
+                MYS-7Z020-C-S (no accessories) or MYS-7Z020-C (with accessories)
+            accessories not strictly needed for the project but nice to have to run zturn by itself
+            you will need a mini USB cable (for the console) and an ethernet cable
+
+        2) 1x3 pin 0.1" male horizontal
+            J5V1 - power jumper, 3 options:
+                a) if ZTurn powered from its own USB or barrel connector, leave this empty
+                   - this is useful to leave ZTurn running when PDP is turned off
+                b) to power the ZTurn from the PDP8, jumper ZYNQ+5 to PDP8+5
+                   - this eliminates need for ZTurn power supply
+                c) power the ZTurn from some external supply using the GROUND and ZYNQ+5 pins
+            JI2C1 - I2C connector going to PIPAN8L/PCB3 board
+            https://www.digikey.com/en/products/detail/sullins-connector-solutions/QPC02SXGN-RC/2618262
+            https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/61300611021/4846832
+
+        R1 - omit (pullup for B36-V1 spare zynq-to-pdp)
+        R2 - omit (pullup for D36-B2 spare zynq-to-pdp - currently sound output)
+        R4 - omit (pullup for I2C clock but can go on front panel board)
+        R5 - omit (pullup for I2C data but can go on front panel board)
+
+    ZTURN35
+
+        3) 2x18 pin 0.1" male horizontal
+            https://www.digikey.com/en/products/detail/adam-tech/PH2RA-36-UA/9830520
+
+        R1 - required 1K 1/8W pullup for _EMA zynq-to-pdp
+
+    ZTURN34D
+
+        1) 2x18 pin 0.1" male horizontal
+            https://www.digikey.com/en/products/detail/adam-tech/PH2RA-36-UA/9830520
+
+        R3 - required 1K 1/8W pullup for B_RUN pdp-to-zynq
+        C1 - 0.1uF 10V
+
+    ZTURN34B
+
+        1) 2x18 pin 0.1" male horizontal
+            https://www.digikey.com/en/products/detail/adam-tech/PH2RA-36-UA/9830520
+
+    ZTURNIC (3 needed, 2 with 3 connectors, 1 with 2 connectors)
+
+        8) 2x18 pin 0.1" female
+            https://www.digikey.com/en/products/detail/te-connectivity-amp-connectors/1-534998-8/291352
+
+    PIPAN8L/PCB3
+
+        J6 - 1x2 pin 0.1" male horizontal
+             jumper for +5 to power MCP23017s from PDP
+            https://www.digikey.com/en/products/detail/sullins-connector-solutions/QPC02SXGN-RC/2618262
+
+        J7 pins 13,14,15 - 1x3 pin 0.1" male horizontal
+                           I2C connector to go to ZTURN36 board
+            https://www.digikey.com/en/products/detail/w%C3%BCrth-elektronik/61300611021/4846832
+
+        43) backplane connector pins
+            https://www.digikey.com/en/products/detail/te-connectivity-amp-connectors/1-104480-3/1125620
+
+        Q1-Q16 - 2N3906 TO-92
+            https://www.digikey.com/en/products/detail/onsemi/2N3906BU/1414
+
+        U1-U4 - MCP23017 DIP package
+            https://www.digikey.com/en/products/detail/microchip-technology/MCP23017-E-SP/894272
+
+        C2,C3,C4,C5 - 0.1uF 10V
+        C6 - 10uF 10V
+        R22, R23, R24 - 2.2K 1/8W
+        R1-R16 - 4.7K 1/8W
+
+    Also needed is a 3-wire cable with 0.1" female header ends for the I2C going between
+    the ZTURN36 board and the front panel piggy back board.  30" long is plenty.
+
