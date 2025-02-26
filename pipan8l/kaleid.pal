@@ -5,6 +5,8 @@
 /   choose e for red/green, i for gray/white
 /   vcsize can be anything 64 to 1024 (default is 512)
 
+/  turn on am radio to enjoy hours of high voltage circumcision
+
 / https://homepage.cs.uiowa.edu/~jones/pdp8/man/vc8e.html
 
 / Kaleidoscope program for the VC8E/VR14 scope.
@@ -118,8 +120,7 @@ __boot,
 START,
 	CLA2
 START2,
-	TAD	X	/ SEE IF BOTH X,Y ARE NEGATIVE
-	AND	Y
+	TAD	X	/ SEE IF X IS NEGATIVE
 	SMA CLA
 	JMP	STEPPT
 
@@ -127,7 +128,9 @@ START2,
 	TAD	_2631
 	SPA CLA
 	JMP	STEPPT	/ - X IS .LT. -1433, KEEP POINT AS IS
-	TAD	Y	/ SEE IF X .LT. -0.7*2048=-1433=-02631
+	TAD	Y	/ SEE IF Y .LT. -0.7*2048=-1433=-02631
+	SMA
+	CIA		/ - take neg abs Y
 	TAD	_2631
 	SPA CLA
 	JMP	STEPPT	/ - Y IS .LT. -1433, KEEP POINT AS IS
@@ -183,12 +186,13 @@ RTRY,	NOP		/ maybe see the BIG CIRCLE
 .else
 	DYS
 .endif
+	CLA2
 
 	/ CHANGE SCALE FACTOR EVERY 12K..16K CYCLES
 	ISZ	EXTRA+0	/ COUNT 4096 CYCLES
-	JMP	START
+	JMP	START2
 	ISZ	EXTRA+1
-	JMP	START
+	JMP	START2
 	ISZ	EXTRAX
 	NOP2
 	TAD	EXTRAX
