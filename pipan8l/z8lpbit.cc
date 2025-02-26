@@ -172,6 +172,7 @@ static int soundclient (char const *hostname)
     int rc = clock_gettime (CLOCK_MONOTONIC, &waitfor);
     if (rc < 0) ABORT ();
 
+    uint32_t nzeroes = 0;
     while (true) {
         uint8_t soundbytes[NSOUNDBYTES];
         for (int i = 0; i < NSOUNDBYTES / 4; i ++) {
@@ -188,16 +189,21 @@ static int soundclient (char const *hostname)
             soundbytes[i*4+1] = (uint8_t) (sample >> 16);
             soundbytes[i*4+2] = (uint8_t) (sample >>  8);
             soundbytes[i*4+3] = (uint8_t) (sample >>  0);
+
+            if (sample == 0) nzeroes ++;
+                       else nzeroes = 0;
         }
 
-        rc = sendto (udpfd, soundbytes, sizeof soundbytes, 0, (sockaddr *) &server, sizeof server);
-        if (rc != (int) sizeof soundbytes) {
-            if (rc < 0) {
-                fprintf (stderr, "error sending udp packet: %m\n");
-            } else {
-                fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof soundbytes);
+        if (nzeroes < SOUNDRATE * 5) {
+            rc = sendto (udpfd, soundbytes, sizeof soundbytes, 0, (sockaddr *) &server, sizeof server);
+            if (rc != (int) sizeof soundbytes) {
+                if (rc < 0) {
+                    fprintf (stderr, "error sending udp packet: %m\n");
+                } else {
+                    fprintf (stderr, "only sent %d of %d bytes\n", rc, (int) sizeof soundbytes);
+                }
+                ABORT ();
             }
-            ABORT ();
         }
     }
 }
@@ -231,6 +237,12 @@ static void soundserver ()
     server.sin_port   = htons (UDPPORT);
     if (bind (udpfd, (sockaddr *) &server, sizeof server) < 0) {
         fprintf (stderr, "soundserver: error binding to %d: %m\n", UDPPORT);
+        ABORT ();
+    }
+
+    int rcvsize = SOUNDRINGSIZE;
+    if (setsockopt (udpfd, SOL_SOCKET, SO_RCVBUF, &rcvsize, sizeof rcvsize) < 0) {
+        fprintf (stderr, "soundserver: error setting receive buffer size: %m\n");
         ABORT ();
     }
 
