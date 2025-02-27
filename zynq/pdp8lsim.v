@@ -392,7 +392,7 @@ module pdp8lsim (
                         memen     <= i_EA;
                         timedelay <= 1;
                     end else if (memen) begin
-                        if (timedelay != 62) timedelay <= timedelay + 1;
+                        if (timedelay != 50) timedelay <= timedelay + 1;
                         else begin
                             mbuf      <= localcore[madr];
                             timedelay <= 0;
@@ -522,9 +522,9 @@ module pdp8lsim (
                         endcase
                     end
 
-                    // wait 280nS, clock into memory then start TP3
+                    // wait 230nS, clock into memory then start TP3
                     // if external memory, pdp8lxmem.v clocked data in somewhere in middle of TS3
-                    if (timedelay != 28) timedelay <= timedelay + 1;
+                    if (timedelay != 23) timedelay <= timedelay + 1;
                     else begin
                         if (memen) begin
                             localcore[madr] <= mbuf;
@@ -554,7 +554,7 @@ module pdp8lsim (
 
                 // delay between end of memory cycle and start of first io pulse
                 TS_BEGIOP1: begin
-                    if (timedelay != 33) timedelay <= timedelay + 1;
+                    if (timedelay != 28) timedelay <= timedelay + 1;
                     else begin timedelay <= 0; timestate <= TS_DOIOP1; end
                 end
 

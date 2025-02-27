@@ -171,9 +171,9 @@ module pdp8lxmem (
                 _mwdone       <= 1;
 
                 addrlatchwid  <=  8;                    // default extmem timing
-                readstrobedel <= 42;
+                readstrobedel <= 35;
                 readstrobewid <= 10;
-                writeenabdel  <= 85;
+                writeenabdel  <= 75;
                 writeenabwid  <=  5;
                 writedonewid  <= 10;
             end
