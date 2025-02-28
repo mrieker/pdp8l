@@ -100,7 +100,7 @@ int main (int argc, char **argv)
     printf ("CM VERSION=%08X\n", cmemat[0]);
     printf ("XM VERSION=%08X\n", xmemat[0]);
 
-    cmemat[2] = 0;
+    cmemat[2] = cmemat[2] & CM2_NOBRK;
 
     // see if we are simulating
     bool simulate = (pdpat[Z_RE] & e_simit) != 0;
@@ -295,7 +295,7 @@ static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
         shadow[idca] = newcurraddrs;
         shadow[xaddr] = wdata;                              // ...as well as writing the data word
         waitcmemidle ();
-        cmemat[2] = CM2_3CYCL | (cainc ? CM2_CAINC : 0);    // select 3-cycle DMA, possibly with CA increment
+        cmemat[2] = (cmemat[2] & CM2_NOBRK) | CM2_3CYCL | (cainc ? CM2_CAINC : 0);  // select 3-cycle DMA, possibly with CA increment
         cmemat[1] = CM_ENAB | (wdata * CM_DATA0) | CM_WRITE | ((xaddr & 070000) + idwc) * CM_ADDR0;
 
         // get wordcount overflow status
@@ -322,7 +322,7 @@ static void writemem (uint16_t xaddr, uint16_t wdata, bool do3cyc, bool cainc)
     else {
         shadow[xaddr] = wdata;
         waitcmemidle ();
-        cmemat[2] = 0;
+        cmemat[2] = cmemat[2] & CM2_NOBRK;
         cmemat[1] = CM_ENAB | wdata * CM_DATA0 | CM_WRITE | xaddr * CM_ADDR0;
         getcmemwcovf ();
     }
@@ -361,7 +361,7 @@ static uint16_t readmem (uint16_t xaddr, bool do3cyc, bool cainc)
         shadow[idwc] = newwordcount;                        // 3-cycle DMA writes these values to memory
         shadow[idca] = newcurraddrs;
         waitcmemidle ();
-        cmemat[2] = CM2_3CYCL | (cainc ? CM2_CAINC : 0);    // select 3-cycle DMA, possibly with CA increment
+        cmemat[2] = (cmemat[2] & CM2_NOBRK) | CM2_3CYCL | (cainc ? CM2_CAINC : 0);  // select 3-cycle DMA, possibly with CA increment
         cmemat[1] = CM_ENAB | ((xaddr & 070000) + idwc) * CM_ADDR0;
 
         // get wordcount overflow status
@@ -391,7 +391,7 @@ static uint16_t readmem (uint16_t xaddr, bool do3cyc, bool cainc)
     // then wait for it to arrive and retrieve it
     else {
         waitcmemidle ();
-        cmemat[2] = 0;
+        cmemat[2] = cmemat[2] & CM2_NOBRK;
         cmemat[1] = CM_ENAB | xaddr * CM_ADDR0;
         rdata = waitcmemread ();
     }

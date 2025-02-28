@@ -87,10 +87,13 @@ module pdp8lxmem (
     input[2:0] ldaddfld, ldadifld,  // ifld, dfld for load address switch
 
     output reg[14:00] xbraddr,      // external block ram address bus
-    output[11:00] xbrwdat,          // ... write data bus
+    output reg[11:00] xbrwdat,      // ... write data bus
     input[11:00] xbrrdat,           // ... read data bus
     output reg xbrenab,             // ... chip enable
-    output reg xbrwena              // ... write enable
+    output reg xbrwena,             // ... write enable
+
+    input  xmemblock,
+    output xmemidle
 
     ,output reg[3:0] xmstate
     ,output reg[2:0] dfld
@@ -125,7 +128,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D202C :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D202D :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
@@ -138,7 +141,7 @@ module pdp8lxmem (
     assign _ea = ~ (ctllo4k | (field != 0));
     assign _intinh = ~ intinhibeduntiljump;
 
-    assign xbrwdat = (os8step == 3) ? 12'o0000 : memwdat;   // data being written to external memory (from PDP/sim's MB register)
+    assign xmemidle = xmstate == 0;
 
     // main processing loop
     always @(posedge CLOCK) begin
@@ -164,6 +167,8 @@ module pdp8lxmem (
                 os8zap        <= 0;
                 r_MA          <= 1;
                 x_MEM         <= 1;
+                xbraddr       <= 0;
+                xbrwdat       <= 0;
                 xbrenab       <= 0;
                 xbrwena       <= 0;
                 xmstate       <= 0;
@@ -446,7 +451,7 @@ module pdp8lxmem (
                     x_MEM <= 1;
 
                     // check for PDP/sim starting a memory cycle
-                    if (memstart) begin
+                    if (~ xmemblock & memstart) begin
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
                         memdelay  <= addrlatchwid;          // reset memory delay line
 
@@ -474,10 +479,10 @@ module pdp8lxmem (
                     if (memdelay != 0) begin
                         memdelay <= memdelay - 1;
                         r_MA     <= 0;                      // start gating from PDP's MA bus onto FPGA MEMBUS
-                        xbraddr  <= { field, memaddr };
                     end else begin
                         memdelay <= readstrobedel;
                         r_MA     <= 1;
+                        xbraddr  <= { field, memaddr };
                         xbrenab  <= 1;
                         xmstate  <= 2;
                     end
@@ -563,6 +568,7 @@ module pdp8lxmem (
                         memdelay <= memdelay - 1;
                     end else begin
                         memdelay <= writeenabwid;
+                        xbrwdat  <= (os8step == 3) ? 12'o0000 : memwdat;
                         xbrwena  <= 1;
                         xmstate  <= 5;
 
@@ -581,6 +587,8 @@ module pdp8lxmem (
                         mwstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
                         xbrenab  <= 0;              // stop writing to FPGA 32KW memory
                         xbrwena  <= 0;
+                        xbraddr  <= 0;
+                        xbrwdat  <= 0;
                         xmstate  <= 6;
                     end
                 end

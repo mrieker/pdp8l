@@ -1,5 +1,5 @@
 proc os8dpackloadandboot {{sourcedisk ""}} {
-    stopandreset
+    hardreset
 
     if {$sourcedisk == ""} {
         set sourcedisk "os8-rkab0.rk05"
@@ -44,7 +44,7 @@ proc os8dpack0toggleinboot {} {
 }
 
 proc os8dtapeloadandboot {{sourcetape ""}} {
-    stopandreset
+    hardreset
 
     if {$sourcetape == ""} {
         set sourcetape "os8-dta0.tu56"

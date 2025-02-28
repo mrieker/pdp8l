@@ -40,6 +40,7 @@
 #define Z_RN 14     // memcycctr
 #define Z_RO 15
 #define Z_RP 16
+#define Z_RQ 17
 
 #define Z_N 17      // total number of register
 
@@ -225,6 +226,10 @@
 #define p_bPIOBUSM (1U <<  9)
 #define p_bPIOBUSN (1U <<  8)
 
+#define q_ilaarmed     (1U << 31)
+#define q_ilaafter (07777U << 16)
+#define q_ilaindex (07777U <<  0)
+
 #define MS_HALT   0     // figure out what to do next (also for exam & ldad switches)
 #define MS_FETCH  1     // memory cycle is fetching instruction
 #define MS_DEFER  2     // memory cycle is reading pointer
@@ -276,6 +281,7 @@
 #define CM_ADDR0 (1U <<  0)
 #define CM_DATA0 (1U << 16)
 
+#define CM2_NOBRK (1U << 29)
 #define CM2_CAINC (1U << 30)
 #define CM2_3CYCL (1U << 31)
 

@@ -34,7 +34,7 @@
 #include "z8lutil.h"
 
 #define DEPTH 4096  // total number of elements in ilaarray
-#define AFTER   96  // number of samples to take after sample containing trigger
+#define AFTER 2048  // number of samples to take after sample containing trigger
 
 #define ILACTL 021
 #define ILADAT 022
@@ -89,36 +89,36 @@ int main (int argc, char **argv)
     // read array[index] = next entry to be overwritten = oldest entry
     pdpat[ILACTL] = ctl & CTL_INDEX;
     uint64_t thisentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
-    uint32_t thisentr2 = pdpat[ILADAT+2];
 
     // loop through all entries in the array
     bool nodots = true;
     bool indotdotdot = false;
     uint64_t preventry = 0;
-    uint32_t preventr2 = 0;
     for (int i = 0; i < DEPTH; i ++) {
 
         // read array[index+i+1] = array entry after thisentry
         pdpat[ILACTL] = (ctl + i * CTL_INDEX0 + CTL_INDEX0) & CTL_INDEX;
         uint64_t nextentry = (((uint64_t) pdpat[ILADAT+1]) << 32) | (uint64_t) pdpat[ILADAT+0];
-        uint32_t nextentr2 = pdpat[ILADAT+2];
 
         // print thisentry - but use ... if same as prev and next
         if (nodots || (i == 0) || (i == DEPTH - 1) ||
-                (thisentry != preventry) || (thisentry != nextentry) ||
-                (thisentr2 != preventr2) || (thisentr2 != nextentr2)) {
+                (thisentry != preventry) || (thisentry != nextentry)) {
 
-            printf ("%6.2f  %u %2u.%03u  %o %o  %o %o\n",
+            printf ("%6.2f  %02u  %u %02u  %05o %04o %04o  %o %o  %o %o  %016llX\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 19) & 7,       // state
-                (unsigned) (thisentry >> 14) & 31,      // counthi
-                (unsigned) (thisentry >>  4) & 1023,    // countlo
+                (unsigned) (thisentry >> 49) & 017,     // nobrkopt
+                (unsigned) (thisentry >> 48) & 1,       // nobrkopt
+                (unsigned) (thisentry >> 43) & 037,     // busyonarm
+                (unsigned) (thisentry >> 28) & 077777,  // xbraddr
+                (unsigned) (thisentry >> 16) & 07777,
+                (unsigned) (thisentry >>  4) & 07777,
+                (unsigned) (thisentry >>  3) & 1,
+                (unsigned) (thisentry >>  2) & 1,
+                (unsigned) (thisentry >>  1) & 1,
+                (unsigned) (thisentry >>  0) & 1,
 
-                (unsigned) (thisentry >>  3) & 1,       // SCL0
-                (unsigned) (thisentry >>  2) & 1,       // SCLI
-                (unsigned) (thisentry >>  1) & 1,       // SDAO
-                (unsigned) (thisentry >>  0) & 1        // SDAI
+                (unsigned long long) thisentry
             );
             indotdotdot = false;
         } else if (! indotdotdot) {
@@ -129,8 +129,6 @@ int main (int argc, char **argv)
         // shuffle entries for next time through
         preventry = thisentry;
         thisentry = nextentry;
-        preventr2 = thisentr2;
-        thisentr2 = nextentr2;
     }
     return 0;
 }

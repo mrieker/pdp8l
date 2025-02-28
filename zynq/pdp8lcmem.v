@@ -63,10 +63,18 @@ module pdp8lcmem (
     input brkcycle,
     input brkts1,
     input brkts3,
-    input brkwcovf
+    input brkwcovf,
 
-    ,output triggre
-    ,output reg[3:0] busyonarm
+    output reg xmemblock,
+    input  xmemidle,
+
+    output reg[14:00] xbraddr,
+    output reg[11:00] xbrwdat,
+    output reg xbrenab, xbrwena,
+    input[11:00] xbrrdat
+
+    ,output reg nobrkopt
+    ,output reg[4:0] busyonarm
 );
 
     reg ctlwrite, ctldone;
@@ -74,13 +82,16 @@ module pdp8lcmem (
     reg[11:00] ctldata;
     reg[3:0] ts3count;
     reg[31:00] armlock;
-    reg ctlenab, ctlwcovf, last1wcovf, last2wcovf;
+    reg ctlwcovf, last1wcovf, last2wcovf;
     wire ctlbusy = busyonarm != 0;
 
-    assign armrdata = (armraddr == 0) ? 32'h434D1011 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
-                      (armraddr == 1) ? { ctlenab, ctlwcovf, ctldone, ctlbusy, ctldata, ctlwrite, ctladdr } :
-                      (armraddr == 2) ? { brk3cycl, brkcainc, 22'b0, brkcycle, brkts1, brkts3, 1'b0, busyonarm } :
+    assign armrdata = (armraddr == 0) ? 32'h434D1018 :  // [31:16] = 'CM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+                      (armraddr == 1) ? { 1'b0, ctlwcovf, ctldone, ctlbusy, ctldata, ctlwrite, ctladdr } :
+                      (armraddr == 2) ? { brk3cycl, brkcainc, nobrkopt, 21'b0, brkcycle, xmemblock, xmemidle, busyonarm } :
                       armlock;
+
+    wire[11:00] xbrrdatplus1 = xbrrdat + 1;
+    wire[4:0] busyoninc = busyonarm + 1;
 
     assign brkema   = ctladdr[14:12];
     assign brkwrite = ctlwrite;
@@ -90,14 +101,17 @@ module pdp8lcmem (
     assign brkwdat  = ctldata;          // sent to processor during TS2 and 3
                                         // processor captures it at end of TS2
 
-    assign triggre  = (ctldata == 12'o5252);
-
     always @(posedge CLOCK) begin
         if (RESET) begin
             armlock   <= 0;
             brkrqst   <= 0;
             busyonarm <= 0;
-            ctlenab   <= 0;
+            nobrkopt  <= 0;
+            xbraddr   <= 0;
+            xbrwdat   <= 0;
+            xbrenab   <= 0;
+            xbrwena   <= 0;
+            xmemblock <= 0;
         end
 
         // arm processor is writing one of the registers
@@ -110,8 +124,8 @@ module pdp8lcmem (
                         ctldata   <= armwdata[27:16];
                         ctldone   <= 0;
                         ctlwcovf  <= 0;
-                        ctlenab   <= armwdata[31];
                         busyonarm <= { 3'b000, armwdata[31] };
+                        xmemblock <= armwdata[31] & nobrkopt;
                     end
                 end
 
@@ -119,6 +133,7 @@ module pdp8lcmem (
                     if (~ ctlbusy) begin
                         brk3cycl <= armwdata[31];
                         brkcainc <= armwdata[30];
+                        nobrkopt <= armwdata[29];
                     end
                 end
 
@@ -139,67 +154,159 @@ module pdp8lcmem (
         // maybe we have dma cycle to process
         else if (CSTEP) begin
 
-            case (busyonarm)
-                0: begin end
+            if (nobrkopt) begin
 
-                // wait for TS3 to send brkrqst
-                // (we might already be in middle of a TS3)
-                // sending it during TS1 gets us glitchy B_BREAK
-                // this way we know it will be a while before TS1 starts
-                1: begin
-                    if (brkts3) begin
-                        brkrqst   <= 1;
-                        busyonarm <= 2;
+                // the PDP does not have the BREAK option installed
+                // so do the access directly in the extended memory
+                // xmem enlo4k is assumed to be set so low 4K accesses will work
+
+                case (busyonarm)
+                     0: begin end
+
+                    // wait for xmem to go idle
+                     1: begin
+                        if (xmemidle) busyonarm <= brk3cycl ? 2 : 18;
                     end
-                end
 
-                // wait for TS1 with B_BREAK indicating this cycle is for us
-                // B_BREAK is the output of the BREAK state flipflop, so is this actual cycle
-                // if this is a write request, flag it done because ctlwcovf is valid now
-                // last2wcovf has wc overflow from 2 cycles ago, ie, WC
-                2: begin
-                    if (brkcycle & brkts1) begin
-                        brkrqst   <= 0;
-                        busyonarm <= 3;
-                        ctldone   <= ctlwrite;
-                        ctlwcovf  <= last2wcovf;
+                    // read the wordcount value
+                     2: begin
+                        busyonarm <= busyoninc;
+                        xbraddr   <= { 3'b0, ctladdr[11:00] };
+                        xbrenab   <= 1;
+                        xbrwena   <= 0;
                     end
-                end
 
-                // wait for TS3 to start (whilst in BREAK state)
-                3: begin
-                    if (brkts3) begin
-                        busyonarm <= 4;
+                    // writeback an incremented value and detect overflow
+                     6: begin
+                        busyonarm <= busyoninc;
+                        xbrwdat   <= xbrrdatplus1;
+                        xbrwena   <= 1;
+                        ctlwcovf  <= xbrrdat == 12'o7777;
                     end
-                end
 
-                // wait for TS3 negated
-                // read data becomes available somewhere in middle of TS3
-                // ...and remains until beginning of next TS3
-                // so clock read data at end of TS3
-                4: begin
-                    if (~ brkts3) begin
-                        if (~ brkwrite) begin
-                            ctldata <= brkrdat;
-                            ctldone <= 1;
+                     9: begin
+                        busyonarm <= busyoninc;
+                        xbrwena   <= 0;
+                    end
+
+                    // read current address
+                    10: begin
+                        busyonarm <= busyoninc;
+                        xbraddr[11:00] <= ctladdr[11:00] + 1;
+                        xbrwdat   <= 0;
+                    end
+
+                    // update address
+                    // maybe writeback incremented address
+                    14: begin
+                        if (brkcainc) begin
+                            busyonarm <= busyoninc;
+                            ctladdr[11:00] <= xbrrdatplus1;
+                            xbrwdat   <= xbrrdatplus1;
+                            xbrwena   <= 1;
+                        end else begin
+                            busyonarm <= 18;
+                            ctladdr[11:00] <= xbrrdat;
                         end
-                        busyonarm <= 0;
                     end
-                end
-            endcase
 
-            // BWC_OVERFLOW is triggered by TP2, ie, near beginning of TS3
-            // it is cleared by MEM_DONE, ie, near end of TS3 (see vol 2, p9 D-5)
-            // it is set only during WC TP2 if count increments to zero
-            // also during BRK TP2 if MEMINCR and increments to zero
-            // we sample it 150nS into TS3 (TS3 is over 200nS wide)
-            // set up a shift register chain:
-            //   last2wcovf <= last1wcovf <= brkwcovf
-            if (~ brkts3) ts3count <= 0;
-            else if (ts3count != 15) ts3count <= ts3count + 1;
-            if (ts3count == 14) begin
-                last2wcovf <= last1wcovf;
-                last1wcovf <= brkwcovf;
+                    17: begin
+                        busyonarm <= busyoninc;
+                        xbrwena   <= 0;
+                    end
+
+                    // perform dma transfer (read or write)
+                    18: begin
+                        busyonarm <= busyoninc;
+                        xbraddr   <= ctladdr;
+                        xbrenab   <= 1;
+                        xbrwdat   <= ctldata;
+                        xbrwena   <= ctlwrite;
+                    end
+
+                    21: begin
+                        busyonarm <= busyoninc;
+                        xbrwena   <= 0;
+                    end
+
+                    // all done
+                    22: begin
+                        busyonarm <= 0;
+                        ctldone   <= 1;
+                        ctldata   <= xbrrdat;
+                        xbraddr   <= 0;
+                        xbrenab   <= 0;
+                        xbrwdat   <= 0;
+                        xbrwena   <= 0;
+                        xmemblock <= 0;
+                    end
+
+                    default: busyonarm <= busyoninc;
+                endcase
+            end else begin
+
+                case (busyonarm)
+                    0: begin end
+
+                    // wait for TS3 to send brkrqst
+                    // (we might already be in middle of a TS3)
+                    // sending it during TS1 gets us glitchy B_BREAK
+                    // this way we know it will be a while before TS1 starts
+                    1: begin
+                        if (brkts3) begin
+                            brkrqst   <= 1;
+                            busyonarm <= 2;
+                        end
+                    end
+
+                    // wait for TS1 with B_BREAK indicating this cycle is for us
+                    // B_BREAK is the output of the BREAK state flipflop, so is this actual cycle
+                    // if this is a write request, flag it done because ctlwcovf is valid now
+                    // last2wcovf has wc overflow from 2 cycles ago, ie, WC
+                    2: begin
+                        if (brkcycle & brkts1) begin
+                            brkrqst   <= 0;
+                            busyonarm <= 3;
+                            ctldone   <= ctlwrite;
+                            ctlwcovf  <= last2wcovf;
+                        end
+                    end
+
+                    // wait for TS3 to start (whilst in BREAK state)
+                    3: begin
+                        if (brkts3) begin
+                            busyonarm <= 4;
+                        end
+                    end
+
+                    // wait for TS3 negated
+                    // read data becomes available somewhere in middle of TS3
+                    // ...and remains until beginning of next TS3
+                    // so clock read data at end of TS3
+                    4: begin
+                        if (~ brkts3) begin
+                            if (~ brkwrite) begin
+                                ctldata <= brkrdat;
+                                ctldone <= 1;
+                            end
+                            busyonarm <= 0;
+                        end
+                    end
+                endcase
+
+                // BWC_OVERFLOW is triggered by TP2, ie, near beginning of TS3
+                // it is cleared by MEM_DONE, ie, near end of TS3 (see vol 2, p9 D-5)
+                // it is set only during WC TP2 if count increments to zero
+                // also during BRK TP2 if MEMINCR and increments to zero
+                // we sample it 150nS into TS3 (TS3 is over 200nS wide)
+                // set up a shift register chain:
+                //   last2wcovf <= last1wcovf <= brkwcovf
+                if (~ brkts3) ts3count <= 0;
+                else if (ts3count != 15) ts3count <= ts3count + 1;
+                if (ts3count == 14) begin
+                    last2wcovf <= last1wcovf;
+                    last1wcovf <= brkwcovf;
+                end
             end
         end
     end

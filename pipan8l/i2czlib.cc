@@ -85,17 +85,22 @@ I2CZLib::~I2CZLib ()
     fpat  = NULL;
 }
 
-void I2CZLib::openpads (bool dislo4k, bool enlo4k, bool real, bool sim)
+void I2CZLib::openpads (bool brk, bool dislo4k, bool enlo4k, bool nobrk, bool real, bool sim)
 {
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);
 
+    uint32_t volatile *cmat = z8p->findev ("CM", NULL, NULL, false);
     uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
-    if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
-    if (enlo4k)  xmat[1] |=   XM_ENLO4K;
 
     if (real) pdpat[Z_RE] &= ~ e_simit;
     if (sim)  pdpat[Z_RE] |=   e_simit;
+
+    if (dislo4k) xmat[1] &= ~ XM_ENLO4K;
+    if (enlo4k)  xmat[1] |=   XM_ENLO4K;
+
+    if (brk)   cmat[2] &= ~ CM2_NOBRK;
+    if (nobrk) cmat[2] |=   CM2_NOBRK;
 }
 
 void I2CZLib::relall ()

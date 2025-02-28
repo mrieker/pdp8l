@@ -177,7 +177,7 @@ uint32_t Z8LPage::dmacycle (uint32_t cm, uint32_t cm2)
 
     cmlock ();
     CMWAIT (! (cmemat[1] & CM_BUSY));
-    cmemat[2] = cm2;
+    cmemat[2] = (cmemat[2] & CM2_NOBRK) | cm2;
     cmemat[1] = cm;
     CMWAIT ((cm = cmemat[1]) & CM_DONE);
     cmunlk ();

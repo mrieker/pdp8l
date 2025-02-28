@@ -18,7 +18,7 @@ while {[getreg run]} {
     if {[ctrlcflag]} return
     after 100
 }
-if {([getreg state] != "") || ([getreg ma] != 00207)} {
+if {[getreg ma] != 00207} {
     puts "didn't halt at 0207"
     puts [dumpit]
     return

@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C4093;
+    localparam VERSION = 32'h384C4097;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -439,7 +439,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[21:00] ilaarray[4095:0], ilardata;
+    reg[52:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -471,7 +471,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? { 10'b0, ilardata[21:00] } :
+        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
+        (readaddr        == 10'b0000010011) ? { 11'b0, ilardata[52:32] } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :
@@ -1626,6 +1627,17 @@ module Zynq (
     // pdp always has access to the upper 28K
     // pdp can be given access to the lower 4K (disabling its access to its 4K core)
 
+    wire[14:00] cmxbraddr, xmxbraddr;
+    wire[11:00] cmxbrwdat, xmxbrwdat;
+    wire cmxbrenab, cmxbrwena, xmxbrenab, xmxbrwena;
+
+    assign xbraddr = cmxbraddr | xmxbraddr;
+    assign xbrwdat = cmxbrwdat | xmxbrwdat;
+    assign xbrenab = cmxbrenab | xmxbrenab;
+    assign xbrwena = cmxbrwena | xmxbrwena;
+
+    wire xmemblock, xmemidle;
+
     wire[3:0] xmstate;
     wire[2:0] xmdfld;
 
@@ -1680,11 +1692,14 @@ module Zynq (
         .ldaddfld ({ 2'b00, ~ dev_o_KEY_DF }),
         .ldadifld ({ 2'b00, ~ dev_o_KEY_IF }),
 
-        .xbraddr (xbraddr),
-        .xbrwdat (xbrwdat),
+        .xmemblock (xmemblock),         //< block xmem from starting a cycle
+        .xmemidle  (xmemidle),          //> xmem is not doing a cycle
+
+        .xbraddr (xmxbraddr),
+        .xbrwdat (xmxbrwdat),
         .xbrrdat (xbrrdat),
-        .xbrenab (xbrenab),
-        .xbrwena (xbrwena)
+        .xbrenab (xmxbrenab),
+        .xbrwena (xmxbrwena)
 
         ,.xmstate (xmstate)
         ,.dfld (xmdfld)
@@ -1696,8 +1711,8 @@ module Zynq (
     // pdp must be running for this to work
     // does not process any pdp io instructions
 
-    wire cmtriggre;
-    wire[3:0] cmbusy;
+    wire cmnobrkopt;
+    wire[4:0] cmbusyonarm;
 
     pdp8lcmem cminst (
         .CLOCK (CLOCK),
@@ -1721,10 +1736,19 @@ module Zynq (
         .brkcycle (~ dev_o_B_BREAK),            //< this is the BREAK cycle
         .brkts1   (dev_oBTS_1),                 //< TS1 of memory cycle (memory read occurring)
         .brkts3   (dev_oBTS_3),                 //< TS3 of memory cycle (memory writeback occurring)
-        .brkwcovf (~ dev_o_BWC_OVERFLOW)        //< wordcount overflow for 3-cycle
+        .brkwcovf (~ dev_o_BWC_OVERFLOW),       //< wordcount overflow for 3-cycle
 
-        ,.triggre (cmtriggre)
-        ,.busyonarm (cmbusy)
+        .xmemblock (xmemblock),                 //> block xmem from starting a cycle
+        .xmemidle  (xmemidle),                  //< xmem is not doing a cycle
+
+        .xbraddr (cmxbraddr),
+        .xbrwdat (cmxbrwdat),
+        .xbrenab (cmxbrenab),
+        .xbrwena (cmxbrwena),
+        .xbrrdat (xbrrdat)
+
+        ,.nobrkopt (cmnobrkopt)
+        ,.busyonarm (cmbusyonarm)
     );
 
     // tape interface
@@ -1922,13 +1946,11 @@ module Zynq (
     //  ilaindex = next entry in ilaarray to write
 
     assign i_B36V1 = ilaarmed;
-    reg[6:0] microsec;
 
     always @(posedge CLOCK) begin
         if (~ RESET_N) begin
             ilaarmed <= 0;
             ilaafter <= 0;
-            microsec <= 0;
         end else begin
 
             if (armwrite & (writeaddr == 10'b0000010001)) begin
@@ -1940,16 +1962,19 @@ module Zynq (
                 ilardata <= ilaarray[saxi_WDATA[11:00]];
             end else begin
 
-                if ((microsec == 0) & (ilaarmed | (ilaafter != 0))) begin
-
-                    // capture signals
+                // capture signals while before trigger and for ilaafter cycles thereafter
+                if (ilaarmed | (ilaafter != 0)) begin
                     ilaarray[ilaindex] <= {
-                        i2cstate,
-                        i2ccount,
-                        fpi2cclo,
-                        bFPI2CLOCK,
-                        fpi2cdao,
-                        bFPI2CDATA
+                        xmstate,
+                        cmnobrkopt,
+                        cmbusyonarm,
+                        xbraddr,
+                        xbrrdat,
+                        xbrwdat,
+                        cmxbrenab,
+                        cmxbrwena,
+                        xmxbrenab,
+                        xmxbrwena
                     };
 
                     ilaindex <= ilaindex + 1;
@@ -1957,11 +1982,10 @@ module Zynq (
                 end
 
                 // check trigger condition
-                else if (i2cstatus[62] | i2cstatus[61] | i2cstatus[60]) begin
+                // - disk controller requesting dma cycle
+                if (cmawrite & (writeaddr[3:2] == 1) & saxi_WDATA[31]) begin
                     ilaarmed <= 0;
                 end
-
-                microsec <= (microsec == 99) ? 0 : microsec + 1;
             end
         end
     end

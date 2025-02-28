@@ -106,8 +106,10 @@ int main (int argc, char **argv)
 
     setlinebuf (stdout);
 
+    bool brk     = false;
     bool dislo4k = false;
     bool enlo4k  = false;
+    bool nobrk   = false;
     bool real    = false;
     bool sim     = false;
     char const *logname = NULL;
@@ -115,13 +117,15 @@ int main (int argc, char **argv)
     for (int i = 0; ++ i < argc;) {
         if (strcmp (argv[i], "-?") == 0) {
             puts ("");
-            puts ("  ./z8lpanel [-dislo4k | -enlo4k] [-log <logfile>] [-real | -sim] [<scriptfile.tcl>]");
+            puts ("  ./z8lpanel [-brk | -nobrk] [-dislo4k | -enlo4k] [-log <logfile>] [-real | -sim] [<scriptfile.tcl>]");
             puts ("     access pdp-8/l front panel");
+            puts ("         -brk : use pdp-8/l break cycle hardware");
+            puts ("       -nobrk : don't use pdp-8/l break cycle hdwe");
             puts ("     -dislo4k : use pdp-8/l core stack for low 4K");
-            puts ("     -enlo4k : use fpga-provided ram for low 4K");
-            puts ("     -log : record output to given log file");
-            puts ("     -real : use real pdp-8/l");
-            puts ("     -sim : simulate the pdp-8/l");
+            puts ("      -enlo4k : use fpga-provided ram for low 4K");
+            puts ("         -log : record output to given log file");
+            puts ("        -real : use real pdp-8/l");
+            puts ("         -sim : simulate the pdp-8/l");
             puts ("     <scriptfile.tcl> : execute script then exit");
             puts ("                 else : read and process commands from stdin");
             puts ("");
@@ -134,6 +138,11 @@ int main (int argc, char **argv)
             puts ("     act as UDP server for the ascii-art front panel");
             puts ("");
             return 0;
+        }
+        if (strcasecmp (argv[i], "-brk") == 0) {
+            brk   = true;
+            nobrk = false;
+            continue;
         }
         if (strcasecmp (argv[i], "-dislo4k") == 0) {
             dislo4k = true;
@@ -151,6 +160,11 @@ int main (int argc, char **argv)
                 return 1;
             }
             logname = argv[i];
+            continue;
+        }
+        if (strcasecmp (argv[i], "-nobrk") == 0) {
+            brk   = false;
+            nobrk = true;
             continue;
         }
         if (strcasecmp (argv[i], "-real") == 0) {
@@ -172,7 +186,7 @@ int main (int argc, char **argv)
     }
 
     padlib = new I2CZLib ();
-    padlib->openpads (dislo4k, enlo4k, real, sim);
+    padlib->openpads (brk, dislo4k, enlo4k, nobrk, real, sim);
 
     // process tcl commands
     return tclmain (fundefs, argv[0], "z8lpanel", logname, getenv ("z8lpanelini"), argc - tclargs, argv + tclargs);
@@ -558,7 +572,7 @@ static int showstatus (int argc, char **argv)
     time_t lasttime = 0;
 
     padlib = new I2CZLib ();
-    padlib->openpads (false, false, false, false);
+    padlib->openpads (false, false, false, false, false, false);
 
     setvbuf (stdout, outbuf, _IOFBF, sizeof outbuf);
 
