@@ -190,7 +190,9 @@ int main (int argc, char **argv)
 
     realmode = (fullreal | halfreal);
 
+    bool cmnobrk = (cmemat[2] & CM2_NOBRK);
     cmemat[1] = 0;  // disable outputs until we request a cycle
+    cmemat[2] = 0;
 
     // get pointer to the 32K-word ram
     // maps each 12-bit word into low 12 bits of 32-bit word
@@ -212,6 +214,10 @@ int main (int argc, char **argv)
     pdpat[Z_RI] = 0;
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
+
+    // maybe using nobrk mode - does dma directly to extmem array
+    // ...otherwise dma done via WC/CA/B processor cycles
+    cmemat[2] = cmnobrk ? CM2_NOBRK : 0;
 
     // clock the synchronous reset through
     for (int i = 0; i < 5; i ++) clockit ();
@@ -715,7 +721,7 @@ int main (int argc, char **argv)
             printf ("  (%u.%02u uS)\n", clocks / 100, clocks % 100);
         }
 
-        printshadow (stdout);
+        ////printshadow (stdout);
     }
 
     fprintf (stderr, "stopping for control-C\n");
@@ -961,7 +967,7 @@ static void requestdmaorint (uint32_t state, uint16_t rdata)
             if (cmemat[1] & CM_BUSY) {
                 fatalerr ("CM_BUSY set when about to request dma cycle");
             }
-            cmemat[2] = (dma3cycle ? CM2_3CYCL : 0) | (dmacainc ? CM2_CAINC : 0);
+            cmemat[2] = (cmemat[2] & CM2_NOBRK) | (dma3cycle ? CM2_3CYCL : 0) | (dmacainc ? CM2_CAINC : 0);
             cmemat[1] = CM_ENAB | dmawdata * CM_DATA0 | (dmadatain ? CM_WRITE : 0) | (dmafield * 4096 + dmaaddr) * CM_ADDR0;
             if (! (cmemat[1] & CM_BUSY)) {
                 fatalerr ("CM_BUSY clear just after requested dma cycle");

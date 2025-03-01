@@ -35,8 +35,6 @@
 
 #define DOTJMPDOT 05252U
 
-static bool manualclock;
-
 static bool volatile exitflag;
 static uint16_t idwc, idca;
 static uint16_t shadow[32768];
@@ -104,6 +102,7 @@ int main (int argc, char **argv)
 
     // see if we are simulating
     bool simulate = (pdpat[Z_RE] & e_simit) != 0;
+    pdpat[Z_RE] = (pdpat[Z_RE] & e_simit) | e_nanocontin;
 
     // range of addresses to test
     uint16_t startat = 000000;
@@ -113,7 +112,6 @@ int main (int argc, char **argv)
     // tell user to put a JMP . at 5252 and start it
 
     if (simulate) {
-        manualclock = 1;
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
         clockit (1000);
         pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
@@ -158,16 +156,6 @@ int main (int argc, char **argv)
     shadow[DOTJMPDOT] = DOTJMPDOT;
     while (true) {
 
-        if (simulate && (pass % 3 == 0)) {
-            printf ("- - - - - - - - - - - - - - - -\n");
-            manualclock = ((pass & 2) != 0);
-            printf (manualclock ? "use software clocking\n" : "use FPGA 100MHz clocking\n");
-            uint32_t re = e_simit;
-            if (! manualclock) re |= e_nanocontin;
-            pdpat[Z_RE] = re;
-            clockit (1000);
-        }
-
         ++ pass;
 
         // pick random location in first 4K for wordcount/currentaddress locations
@@ -211,6 +199,7 @@ int main (int argc, char **argv)
         // if XM_ENLO4K, we are using FPGA-provided externmem for low 4K so we can check it here
         // otherwise, we are using PDP-provided core memory for low 4K which we can't access directly
         for (int i = (xmemat[1] & XM_ENLO4K) ? startat : 010000; i <= stopat; i ++) {
+            if (i == DOTJMPDOT+1) continue;
             uint16_t wdata = shadow[i];
             uint16_t rdata = extmem[i];
             if (rdata != wdata) {
@@ -442,9 +431,5 @@ static uint16_t waitcmemread ()
 // gate through at least n fpga clock cycles
 static void clockit (int n)
 {
-    if (manualclock) {
-        while (-- n >= 0) pdpat[Z_RE] |= e_nanotrigger;
-    } else {
-        usleep (n / 100 + 1);
-    }
+    usleep (n / 100 + 1);
 }
