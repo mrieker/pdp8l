@@ -15,6 +15,7 @@ if [ "$hostnum" != "" ]
 then
     shift
 fi
+
 cd ../zplin
 source petadevel/settings.sh
 source /tools/Xilinx/Vivado/2018.3/settings64.sh
@@ -24,8 +25,18 @@ then
     rm -f images/linux/BOOT.BIN
     petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit --u-boot
 fi
-ls -l `pwd`/images/linux/BOOT.BIN
-scp images/linux/BOOT.BIN root@zturn$hostnum:/boot/BOOT.BIN
+
+if [ $mydir/BOOT.BIN -ot images/linux/BOOT.BIN ]
+then
+    cp -auv images/linux/BOOT.BIN $mydir/BOOT.BIN
+fi
+if [ $mydir/image.ub -ot images/linux/image.ub ]
+then
+    cp -auv images/linux/image.ub $mydir/image.ub
+fi
+
+cd $mydir
+scp BOOT.BIN root@zturn$hostnum:/boot/BOOT.BIN
 set +e
 ssh root@zturn$hostnum reboot
 ping -c 90 zturn$hostnum
