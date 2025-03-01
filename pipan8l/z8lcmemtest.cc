@@ -30,10 +30,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "i2czlib.h"
 #include "z8ldefs.h"
 #include "z8lutil.h"
-
-#define DOTJMPDOT 05252U
 
 static bool volatile exitflag;
 static uint16_t idwc, idca;
@@ -104,48 +103,24 @@ int main (int argc, char **argv)
     bool simulate = (pdpat[Z_RE] & e_simit) != 0;
     pdpat[Z_RE] = (pdpat[Z_RE] & e_simit) | e_nanocontin;
 
+    I2CZLib *i2czlib = new I2CZLib ();
+    bool fpauto = simulate || i2czlib->probei2c ();
+
+    printf ("\n");
+    printf ("    processor: %s\n", simulate ? "simulator" : "real PDP");
+    printf ("  front panel: %s\n", fpauto ? "automatic" : "manual");
+    printf ("   low 4K mem: %s\n", (xmemat[1] & XM_ENLO4K) ? "FPGA 32K RAM" : (simulate ? "FPGA 4K RAM" : "PDP-8/L core"));
+    printf ("    BREAK opt: %s\n", (cmemat[2] & CM2_NOBRK) ? "absent" : "installed");
+    printf ("\n");
+
     // range of addresses to test
     uint16_t startat = 000000;
     uint16_t stopat  = testxmem ? 077777 : 007777;
 
-    // a real PDP needs to be running so we can do DMA
-    // tell user to put a JMP . at 5252 and start it
-
-    if (simulate) {
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swDEP;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swSTART;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-    } else {
-        printf ("\n");
-        printf ("  set sr to %04o\n", DOTJMPDOT);
-        printf ("  set all other switches to 0\n");
-        printf ("  load address\n");
-        printf ("  deposit\n");
-        printf ("  load address\n");
-        printf ("  start\n");
-        printf ("> ");
-        fflush (stdout);
-        char temp[8];
-        if (fgets (temp, sizeof temp, stdin) == NULL) {
-            printf ("\n");
-            return 0;
-        }
-    }
+    // the PDP needs to be running so we can do DMA
+    // put a JMP . at 5252 and start it
+    i2czlib->loop52 ();
+    shadow[DOTJMPDOT] = DOTJMPDOT;
 
     signal (SIGINT, siginthand);
 
@@ -153,7 +128,6 @@ int main (int argc, char **argv)
 
     uint32_t errors = 0;
     uint32_t pass = 0;
-    shadow[DOTJMPDOT] = DOTJMPDOT;
     while (true) {
 
         ++ pass;

@@ -73,6 +73,9 @@ I2CZLib::I2CZLib ()
     z8p   = NULL;
     pdpat = NULL;
     fpat  = NULL;
+
+    z8p   = new Z8LPage ();
+    pdpat = z8p->findev ("8L", NULL, NULL, false);
 }
 
 I2CZLib::~I2CZLib ()
@@ -85,11 +88,36 @@ I2CZLib::~I2CZLib ()
     fpat  = NULL;
 }
 
+// see whether the i2c front panel is connected and powered on
+bool I2CZLib::probei2c ()
+{
+    uint8_t addr = I2CBA;
+    uint8_t reg  = 1;   // odd to leave '1' lingering on data line for ack bit
+
+    // build 64-bit command
+    //  send-8-bits-to-i2cbus 7-bit-address 0=write
+    //  send-8-bits-to-i2cbus 8-bit-register-number
+    //  send restart bit
+    //  send-8-bits-to-i2cbus 7-bit-address 1=read
+    //  read-8-bits-from-i2cbus (reg+0)
+    //  read-8-bits-from-i2cbus (reg+1)
+    //  0...
+    uint64_t cmd =
+        (ZYNQWR << 62) | ((uint64_t) addr << 55) | (I2CWR << 54) |
+        (ZYNQWR << 52) | ((uint64_t) reg << 44) |
+        (ZYNQST << 42) |
+        (ZYNQWR << 40) | ((uint64_t) addr << 33) | (I2CRD << 32) |
+        (ZYNQRD << 30) |
+        (ZYNQRD << 28);
+
+    locki2c ();
+    uint64_t sts = doi2ccyclx (cmd, I2CUS(8+8+1+8+2,1+1+1+16), true);
+    unlki2c ();
+    return (sts >> 60) == 0;
+}
+
 void I2CZLib::openpads (bool brk, bool dislo4k, bool enlo4k, bool nobrk, bool real, bool sim)
 {
-    z8p   = new Z8LPage ();
-    pdpat = z8p->findev ("8L", NULL, NULL, false);
-
     uint32_t volatile *cmat = z8p->findev ("CM", NULL, NULL, false);
     uint32_t volatile *xmat = z8p->findev ("XM", NULL, NULL, false);
 
@@ -101,6 +129,98 @@ void I2CZLib::openpads (bool brk, bool dislo4k, bool enlo4k, bool nobrk, bool re
 
     if (brk)   cmat[2] &= ~ CM2_NOBRK;
     if (nobrk) cmat[2] |=   CM2_NOBRK;
+}
+
+// deposit 05252: jmp 05252 in memory then start it
+void I2CZLib::loop52 ()
+{
+    if ((pdpat[Z_RE] & e_simit) || probei2c ()) {
+
+        // make sure processor halted
+        Z8LPanel pads;
+        for (int i = 0; i < 10; i ++) {
+            this->readmin (&pads);
+            if (! pads.light.run) goto halted;
+            pads.togovr.step = true;
+            pads.togval.step = true;
+            this->writepads (&pads);
+            usleep (200000);
+        }
+        fprintf (stderr, "I2CZLib::loop52: processor would not halt\n");
+        fprintf (stderr, "I2CZLib::loop52: try ./z8lpanel hardreset\n");
+        ABORT ();
+    halted:;
+
+        // set switch register to 5252, all others to 0
+        memset (&pads.togovr, -1, sizeof pads.togovr);
+        pads.togval.sr = DOTJMPDOT;
+        pads.togval.step = false;
+        this->writepads (&pads);
+
+        // load address
+        pads.button.ldad = true;
+        this->writepads (&pads);
+        usleep (200000);
+        pads.button.ldad = false;
+        this->writepads (&pads);
+        usleep (200000);
+
+        // deposit
+        pads.button.dep = true;
+        this->writepads (&pads);
+        usleep (200000);
+        pads.button.dep = false;
+        this->writepads (&pads);
+        usleep (200000);
+
+        // load address
+        pads.button.ldad = true;
+        this->writepads (&pads);
+        usleep (200000);
+        pads.button.ldad = false;
+        this->writepads (&pads);
+        usleep (200000);
+
+        // start
+        pads.button.start = true;
+        this->writepads (&pads);
+        usleep (200000);
+        pads.button.start = false;
+        this->writepads (&pads);
+        usleep (200000);
+
+        // see if that worked
+        this->readmin (&pads);
+        if (! pads.light.run || (pads.light.ma != DOTJMPDOT) || (pads.light.mb != DOTJMPDOT)) {
+            fprintf (stderr, "I2CZLib::loop52: processor did not start (run=%o ma=%04o mb=%04o)\n",
+                pads.light.run, pads.light.ma, pads.light.mb);
+            ABORT ();
+        }
+
+        // release all switches
+        this->relall ();
+    } else {
+        printf ("I2CZLib::loop52:\n");
+        printf ("  stop\n");
+        printf ("  set sr to %04o\n", DOTJMPDOT);
+        printf ("  set all other switches to 0\n");
+        printf ("  load address\n");
+        printf ("  deposit\n");
+        printf ("  load address\n");
+        printf ("  start\n");
+
+        // wait for processor to start
+        Z8LPanel pads;
+        uint32_t i = 0;
+        do {
+            usleep (1000000);
+            this->readmin (&pads);
+            if (++ i % 16 == 0) printf (" run=%o ma=%04o mb=%04o\n", pads.light.run, pads.light.ma, pads.light.mb);
+            else putchar ('.');
+            fflush (stdout);
+        } while (! pads.light.run || (pads.light.ma != DOTJMPDOT) || (pads.light.mb != DOTJMPDOT));
+        if (++ i % 16 != 0) putchar ('\n');
+    }
 }
 
 void I2CZLib::relall ()
@@ -117,20 +237,7 @@ void I2CZLib::relall ()
 // read light bulbs and switches
 void I2CZLib::readpads (Z8LPanel *pads)
 {
-    memset (pads, 0, sizeof *pads);
-
-    // these values are available in the zynq directly, real or sim mode
-    uint32_t zra = pdpat[Z_RA];
-    uint32_t zrf = pdpat[Z_RF];
-    uint32_t zrh = pdpat[Z_RH];
-    uint32_t zri = pdpat[Z_RI];
-
-    pads->light.ma  = (zri & i_oMA)  / i_oMA0;
-    pads->light.mb  = (zrh & h_oBMB) / h_oBMB0;
-    pads->light.ac  = (zrh & h_oBAC) / h_oBAC0;
-    pads->light.ema = (zra & a_iEMA) != 0;
-    pads->light.run = (zrf & f_oB_RUN) != 0;
-    pads->light.brk = (zrf & f_o_B_BREAK) == 0;
+    readmin (pads);
 
     // if using simulator, get everything else from pdp8lsim.v
     if (pdpat[Z_RE] & e_simit) {
@@ -240,6 +347,25 @@ void I2CZLib::readpads (Z8LPanel *pads)
         pads->togovr.ifld = ((dirs[0] >> 006) & (vals[0] >> 013) & 1) ^ 1;
         pads->togovr.step = ((dirs[3] >> 001) & (vals[3] >> 017) & 1) ^ 1;
     }
+}
+
+// read pads that come directly from the zynq without I2C bus
+// works with simulator or real pdp
+void I2CZLib::readmin (Z8LPanel *pads)
+{
+    memset (pads, 0, sizeof *pads);
+
+    uint32_t zra = pdpat[Z_RA];
+    uint32_t zrf = pdpat[Z_RF];
+    uint32_t zrh = pdpat[Z_RH];
+    uint32_t zri = pdpat[Z_RI];
+
+    pads->light.ma  = (zri & i_oMA)  / i_oMA0;
+    pads->light.mb  = (zrh & h_oBMB) / h_oBMB0;
+    pads->light.ac  = (zrh & h_oBAC) / h_oBAC0;
+    pads->light.ema = (zra & a_iEMA) != 0;
+    pads->light.run = (zrf & f_oB_RUN) != 0;
+    pads->light.brk = (zrf & f_o_B_BREAK) == 0;
 }
 
 // write overidden switches
@@ -499,12 +625,25 @@ void I2CZLib::write16 (uint8_t addr, uint8_t reg, uint16_t word)
 }
 
 // send command to MCP23017 via pdp8lfpi2c.v then read response
+// - print and abort on error
 uint64_t I2CZLib::doi2ccycle (uint64_t cmd, int i2cus)
+{
+    uint64_t sts = doi2ccyclx (cmd, i2cus, false);
+    if ((sts >> 60) != 0) {
+        fprintf (stderr, "I2CZLib::doi2ccycle: MCP23017 I/O error %016llX\n", (long long unsigned) sts);
+        ABORT ();
+    }
+    return sts;
+}
+
+// send command to MCP23017 via pdp8lfpi2c.v then read response
+// - return error status, don't print or abort
+uint64_t I2CZLib::doi2ccyclx (uint64_t cmd, int i2cus, bool quiet)
 {
     uint32_t sts1;
     for (int retry = 0; retry < 3; retry ++) {
 
-        if (retry > 0) reseti2c ();
+        if (retry > 0) reseti2c (quiet);
 
         // writing high-order word triggers i/o, so write low-order first
         ASSERT (FP1_CMDLO == 0xFFFFFFFFU);
@@ -523,18 +662,15 @@ uint64_t I2CZLib::doi2ccycle (uint64_t cmd, int i2cus)
         }
 
         // return if success
-        if ((sts1 >> 28) == 0) {
-            ASSERT (FP3_STSLO == 0xFFFFFFFFU);
-            uint32_t sts0 = fpat[3];
-            return (((uint64_t) sts1) << 32) | sts0;
-        }
+        if ((sts1 >> 28) == 0) break;
     }
 
-    fprintf (stderr, "I2CZLib::doi2ccycle: MCP23017 I/O error %08X\n", sts1);
-    ABORT ();
+    ASSERT (FP3_STSLO == 0xFFFFFFFFU);
+    uint32_t sts0 = fpat[3];
+    return (((uint64_t) sts1) << 32) | sts0;
 }
 
-void I2CZLib::reseti2c ()
+void I2CZLib::reseti2c (bool quiet)
 {
     // data line shoule be high (open)
     // if not, try pulsing clock line low then high then re-check
@@ -542,15 +678,18 @@ void I2CZLib::reseti2c ()
         fpat[5] = FP5_I2CDAO | FP5_I2CCLO | FP5_MANUAL;
         usleep (10);
         if (fpat[5] & FP5_I2CDAI) {
-            if (i != 0) fprintf (stderr, "I2CZLib::reseti2c: i2c data line unstuck\n");
+            if ((i != 0) && ! quiet) fprintf (stderr, "I2CZLib::reseti2c: i2c data line unstuck\n");
             goto datok;
         }
-        if (i == 0) fprintf (stderr, "I2CZLib::reseti2c: i2c data line stuck low\n");
+        if ((i == 0) && ! quiet) fprintf (stderr, "I2CZLib::reseti2c: i2c data line stuck low\n");
         fpat[5] = FP5_I2CDAO | FP5_MANUAL;
         usleep (10);
     }
-    fprintf (stderr, "I2CZLib::reseti2c: failed to clear i2c data line\n");
-    ABORT ();
+    if (! quiet) {
+        fprintf (stderr, "I2CZLib::reseti2c: failed to clear i2c data line\n");
+        ABORT ();
+    }
+    return;
 
     // pulse data low then high (stop bit)
     // also reset i2cmaster.v

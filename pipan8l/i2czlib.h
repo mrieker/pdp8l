@@ -23,6 +23,8 @@
 
 #include <stdint.h>
 
+#define DOTJMPDOT 05252U
+
 #include "z8lutil.h"
 
 // toggle switches
@@ -75,10 +77,13 @@ struct Z8LPanel {
 struct I2CZLib {
     I2CZLib ();
     ~I2CZLib ();
+    bool probei2c ();
     void openpads (bool brk, bool dislo4k, bool enlo4k, bool nobrk, bool real, bool sim);
     void relall ();
     void readpads (Z8LPanel *pads);
     void writepads (Z8LPanel const *pads);
+
+    void loop52 ();
 
     void readi2c (uint16_t *dirs, uint16_t *vals, bool latch);
     void writei2c (uint16_t *dirs, uint16_t *vals);
@@ -89,6 +94,7 @@ private:
     uint32_t volatile *fpat;
     Z8LPage *z8p;
 
+    void readmin (Z8LPanel *pads);
     void locki2c ();
     void unlki2c ();
     void writebut (uint16_t *dirs, uint16_t *vals, bool val, int validx, int valbit);
@@ -96,7 +102,8 @@ private:
     uint16_t read16 (uint8_t addr, uint8_t reg);
     void write16 (uint8_t addr, uint8_t reg, uint16_t word);
     uint64_t doi2ccycle (uint64_t cmd, int i2cus);
-    void reseti2c ();
+    uint64_t doi2ccyclx (uint64_t cmd, int i2cus, bool quiet);
+    void reseti2c (bool quiet);
 };
 
 #endif

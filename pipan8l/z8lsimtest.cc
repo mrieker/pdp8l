@@ -215,10 +215,6 @@ int main (int argc, char **argv)
     pdpat[Z_RJ] = 0;
     pdpat[Z_RK] = 0;
 
-    // maybe using nobrk mode - does dma directly to extmem array
-    // ...otherwise dma done via WC/CA/B processor cycles
-    cmemat[2] = cmnobrk ? CM2_NOBRK : 0;
-
     // clock the synchronous reset through
     for (int i = 0; i < 5; i ++) clockit ();
 
@@ -231,6 +227,11 @@ int main (int argc, char **argv)
     // TESTOS8ZAP: also tell it to convert ISZ x / JMP .-1 to ISZ x / NOP ; x <= 0
     // make sure XM_MWHOLD is clear from previous run so we can initialize
     xmemat[1] = XM_ENABLE | XM_ENLO4K | (TESTOS8ZAP ? XM_OS8ZAP : 0);
+
+    // maybe using nobrk mode - does dma directly to extmem array
+    // ...otherwise dma done via WC/CA/B processor cycles
+    cmemat[2] = cmnobrk ? CM2_NOBRK : 0;
+
     for (int i = 0; i < 5; i ++) clockit ();
 
     // if using a real PDP, user must manually halt it (or use pipan8l)

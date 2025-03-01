@@ -31,10 +31,9 @@
 #include <unistd.h>
 
 #include "assemble.h"
+#include "i2czlib.h"
 #include "z8ldefs.h"
 #include "z8lutil.h"
-
-#define DOTJMPDOT 05252U
 
 static bool manclock;
 static bool traceon;
@@ -88,50 +87,10 @@ int main (int argc, char **argv)
     printf ("CM VERSION=%08X\n", cmemat[0]);
     printf ("TT VERSION=%08X\n", tt40at[0]);
 
-    // a real PDP needs to be running so we can do DMA
+    // the PDP needs to be running so we can do DMA
     // tell user to put a JMP . at 5252 and start it
-    if (pdpat[Z_RE] & e_simit) {
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swSTOP;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swDEP;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swLDAD;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0 | b_swSTART;
-        clockit (1000);
-        pdpat[Z_RB] = DOTJMPDOT * b_swSR0;
-        clockit (1000);
-    } else {
-        printf ("\n");
-        printf ("  set sr to %04o\n", DOTJMPDOT);
-        printf ("  set all other switches to 0\n");
-        printf ("  load address\n");
-        printf ("  deposit\n");
-        printf ("  load address\n");
-        printf ("  start\n");
-        printf ("> ");
-        fflush (stdout);
-        char temp[8];
-        if (fgets (temp, sizeof temp, stdin) == NULL) {
-            printf ("\n");
-            return 0;
-        }
-    }
-
-    if (! (pdpat[Z_RF] & f_oB_RUN)) {
-        fprintf (stderr, "processor not running\n");
-        ABORT ();
-    }
+    I2CZLib *i2czlib = new I2CZLib ();
+    i2czlib->loop52 ();
 
     uint16_t verdjd = readmem (DOTJMPDOT);
     if (verdjd != DOTJMPDOT) {
