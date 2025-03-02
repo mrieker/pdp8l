@@ -1,0 +1,95 @@
+
+##############################################
+#  Use binaries from repo to create SD card  #
+##############################################
+
+start with:
+    ZTurn 7020 board
+    raspberry pi os install image (32-bit lite version)
+        2024-10-22-raspios-bullseye-armhf-lite.img.xz
+    - bookworm (debian 12) is slow, bullseye (debian 11) is fast
+    - ref: https://forums.raspberrypi.com/viewtopic.php?t=6019 -- bug mentioned halfway down
+
+# put blank sdcard in pc, comes up as something like /dev/sda
+# replace /dev/sda in the commands below with whatever the sdcard really is
+
+df                  # see if sdcard got automounted
+umount /dev/sda1    # umount if so
+umount /dev/sda2 ...etc
+
+# copy raspi sdcard image to sdcard
+xzcat 2024-10-22-raspios-bullseye-armhf-lite.img.xz | dd of=/dev/sda status=progress
+partprobe /dev/sda
+
+# replace raspi kernel with zturn kernel
+mkdir /x
+mount /dev/sda1 /x
+rm -rf /x/*
+cp ../zynq/BOOT.BIN /x/
+cp ../zynq/image.ub /x/
+umount /x
+
+# expand root partition to whole sdcard
+parted /dev/sda
+  resizepart 2 -1s
+  quit
+resize2fs /dev/sda2
+
+# remove root and pi passwords for now
+mount /dev/sda2 /x
+edit /x/etc/shadow              (use whatever editor you like)
+  remove * or ! from root and pi line password field
+
+# set up hostname
+echo zturn > /x/etc/hostname    (or whatever you want for hostname)
+edit /x/etc/hosts
+  change raspberrypi to whatever was put in /x/etc/hostname
+
+# copy kernel headers so modules will compile
+mkdir -p /x/usr/src
+tar xzfC linux-headers-4.14.0-xilinx-v2018.3.tgz /x/usr/src
+chown root:root -R /x/usr/src
+
+# done filling sdcard
+umount /x       may take a long time to flush to sdcard (30min)
+rmdir /x
+
+############################
+#  Boot ZTurn from SDCARD  #
+############################
+
+connect usb serial cable from pc to zturn (115200 baud) and use terminal program to access
+insert sdcard and boot zturn
+login as root (or as pi then sudo bash to get root)
+
+on zturn:
+  as root:
+    raspi-config -> Interface Options -> SSH -> Yes
+    passwd   to set root and pi passwords so ssh will work
+
+    optionally set up static IP address:
+      edit /etc/dhcpcd.conf
+      uncomment static ip configuration section
+      reboot
+
+    apt install libreadline-dev
+    apt install libx11-dev
+    apt install tcl8.6-dev
+    apt install git
+    apt install bc
+
+    mkdir -p /lib/modules/4.14.0-xilinx-v2018.3
+    ln -s /usr/src/linux-headers-4.14.0-xilinx-v2018.3 /lib/modules/4.14.0-xilinx-v2018.3/build
+
+  as pi:
+    git clone .../pdp8l.git
+    cd pdp8l/pipan8l
+    make
+    ./z8lsim        # start simulator
+      if Bus error - means the BOOT.BIN has default FPGA contents
+      if z8lpanel> prompt - means our PDP-8/L code is loaded in FPGA
+    z8lpanel> source testmem.tcl
+    z8lpanel> looptest testrands
+        ...  control-C to stop test
+    z8lpanel> exit
+

@@ -1,0 +1,290 @@
+
+= = = = = = = = = = = = = = = =
+
+Setting up the software and test software on simulator
+Requires a ZTurn 7020 board but does not need to be plugged into PDP
+
+    1) make SD card using procedure in zplin/howto.txt
+       do not need to plug zturn into pdp-8/l yet
+
+       there are BOOT.BIN and image.ub files in the zynq directory
+       to copy to the SD card /boot directory
+
+    2) plug USB cable from connector right next to the SD card on ZTurn card to a PC
+       ...this is the console
+       use a com port program to access the serial port at 115,200 baud
+
+    3) log into the ZTurn as non-priv user (eg pi)
+       clone the repo either from the PC or from github
+
+    4) download some maindec files
+
+        cd pdp8l
+        wget https://pdp8online.com/ftp/software/paper_tapes/tapes.tgz
+        tar xzvf tapes.tgz
+
+    5) compile the software on the ZTurn
+
+        cd pipan8l
+        make
+
+    6) should be able to run a couple maindecs on simulator:
+
+        ./z8lsim run-d01b.tcl
+        ./z8lsim run-d02b.tcl
+
+    7) compile and run kaleidoscope on simulator:
+
+        git clone https://github.com/mrieker/pdp8v.git
+        cd pdp8v/asm
+        make
+        cd ../..
+        ./z8lsim kaleid.tcl e
+        - press control-C to abort
+
+    8) run music program on simulator
+
+        cd ../music
+        more readme.txt
+        - follow instructions therein
+
+= = = = = = = = = = = = = = = =
+
+Getting it to work on real PDP-8/L:
+
+    1) plug all circuit boards in, including front panel piggy back
+       should put power jumper plug on front panel piggy back board
+       zturn36 board should not have a power jumper because the console usb will supply power
+
+    2) hook up ethernet and console USB cables to the ZTurn
+
+    3) should still be able to log in just as before and simulator should still work
+
+    4) turn PDP-8/L on
+
+    5) from pdp8l/pipan8l directory
+
+        ./z8lreal           turns off simulator mode in FPGA
+
+       if PDP does not have BREAK (DMA) option installed
+
+        ./z8lreal -enlo4k -nobrk
+
+    * Test I2C connection to front panel
+
+        ./i2cztest
+        - press control-C to abort
+
+    * Run basic memory test (analogous to toggling various locations via front panel switches):
+
+        ./z8lpanel
+
+        z8lpanel> hardreset
+
+        z8lpanel> source testmem.tcl
+        z8lpanel> looptest testrands    ;# writes random numbers to memory and verifies them
+                                        ;# uses console deposit/examine so runs s-l-o-w-l-y
+                                        ;# should see lights blink as each deposit/examine is done
+                                        ;# processor should remain halted throughout
+        - press control-C to abort
+
+        z8lpanel> isziactest            ;# puts a simple ISZ/IAC loop in memory and runs it
+                                        ;# should see accumulator incrementing on front panel
+        z8lpanel> exit
+
+      Note:
+        If your core memory has issues, the FPGA can handle the core functionality.
+        Instead of './z8lreal' command, use './z8lreal -enlo4k' (enable low 4K fpga memory)
+
+    * Test ZTurn bus connections (tests abort if they find an error):
+
+        test dma (C) and memory (B) connectors:
+            ./z8lcmemtest
+            - press control-C to abort
+
+        test pio (D) connectors (assumes z8lcmemtest works):
+            ./z8lpiotest
+            - press control-C to abort
+
+    * Run MAINDECs:
+
+        note:
+            the loadbin function runs a lot slower on the real machine vs the simulator
+            it uses deposit/examine to load the program in memory which is slow on real PDP-8/L
+
+        ./z8lpanel run-d01b.tcl
+        ./z8lpanel run-d02b.tcl
+        ./z8lpanel run-d04b.tcl
+        ./z8lpanel run-d05b.tcl
+        ./z8lpanel run-d07b.tcl
+        ./z8lpanel run-d1eb.tcl
+        ./z8lpanel run-d1gb.tcl
+        ./z8lpanel run-d3ra.tcl
+
+    * Run kaleidoscope and music programs as desired for simulator
+
+        use z8lpanel instead of z8lsim
+
+= = = = = = = = = = = = = = = =
+
+    To monitor what is going on with the FPGA at any time, run the ./z8ldump program.
+    It is a continuous dump of all the registers the FPGA makes available to the ARM processor.
+    It can be run at any time without any side effects.
+    It is often useful to leave ./z8ldump running on one window all or most of the time.
+    You can do './z8ldump -once' to just display one frame.
+
+    Sample output:
+
+        VERSION=384C4097 8L
+          oBIOP1=0             oBAC=0000                              iBEMA=1              iDMAADDR=2540     S majstate=HALT
+          oBIOP2=0             oBMB=7572           nanocstep=1        i_CA_INCRMNT=1       iDMADATA=1175     I nextmajst=HALT
+          oBIOP4=0             oMA=2420            nanotrigger=1      i_DATA_IN=1          iINPUTBUS=0000    M timedelay=0
+          oBTP2=0                                  nanocontin=1       iMEMINCR=0           i_MEM=0205        . timestate=TSIDLE
+          oBTP3=0            S lbBRK=0             fpgareset=0        i_MEM_P=1          S swCONT=0          . cyclectr=0000
+          oBTS_1=0           I lbCA=0              simit=0            i3CYCLE=0          I swDEP=0           . simmemen=0
+          oBTS_3=0           M lbDEF=0             bareit=0           iAC_CLEAR=0        M swDFLD=0
+          o_BWC_OVERFLOW=1   . lbEA=0                                 iBRK_RQST=0        . swEXAM=0          S debounced=0
+          o_B_BREAK=1        . lbEXE=0             bDMABUS=5104       i_EA=0             . swIFLD=0          I lastswLDAD=0
+          oE_SET_F_SET=1     . lbFET=0             x_DMAADDR=0        iEMA=1             . swLDAD=0          M lastswSTART=0
+          oJMP_JMS=0         . lbION=0             x_DMADATA=1        iINT_INHIBIT=0     . swMPRT=0
+          oLINE_LOW=0        . lbLINK=0                               iINT_RQST=0        . swSTEP=0            oC36B2=0
+          oMEMSTART=0        . lbRUN=0             bMEMBUS=7777       iIO_SKIP=0         . swSTOP=0            oD35B2=0
+          o_ADDR_ACCEPT=1    . lbWC=0              r_MA=1             i_MEMDONE=1        . swSTART=0
+          o_BF_ENABLE=1      . lbIR=2              x_MEM=1            i_STROBE=1         . swSR=0000
+          o_BUSINIT=0
+          oB_RUN=0           S lbAC=0000           bPIOBUS=7671       memcycctr=91D2492D   xbraddr=00000
+          o_DF_ENABLE=1      I lbMA=0204           r_BAC=1            didio=0              xbrwena=0
+          o_KEY_CLEAR=1      M lbMB=0337           r_BMB=0            hizmembus=1          xbrenab=0
+          o_KEY_DF=1                               x_INPUTBUS=1       meminprog=   0       xbrrdat=7572
+          o_KEY_IF=1           o_LOAD_SF=1                                                 xbrwdat=0000
+          o_KEY_LOAD=1         o_SP_CYC_NEXT=1
+
+        VERSION=524B2005 RK 00000000 00000000 00000000 00000000 00000001 DEADBEEF DEADBEEF
+
+        VERSION=56432005 VC 00000000 30100000 00006996 203EBED8 DEADBEEF DEADBEEF DEADBEEF
+
+        VERSION=4650200D FP 00000000 00000000 6B7FE97F 00F51FF2 F0009F30 00000000 DEADBEEF
+
+        VERSION=584D202D XM  enlo4k=0  enable=1  ifld=6  dfld=6  field=6  _mwdone=1  _mrdone=1  os8zap=0,step=0
+                mrhold,step=0,0  mwhold,step=0,0  xmstate= 0  xmmemenab=0  memcycctr=689F89F8.9D89F89F
+                addrlatchwid=8  readstrobedel=35  readstrobewid=10  writeenabdel=75  writeenabwid=5  writedonewid=10
+
+        VERSION=5348200C SH err=2000 foe=0 ms=F  ts=1+ 1 ir=5252 pc=5252 mb=5252 ma=5252 l.ac=0.0000 ea=5252
+
+        VERSION=434D1018 CM 227D0560 00000020 00000000
+
+        VERSION=54541009 TT 40000091 000000AA 00000103
+
+        VERSION=54541009 TT 40000D5B 00000C80 00000120
+
+        VERSION=54541009 TT 40000000 00000000 00000122
+
+        VERSION=54541009 TT 40000000 00000000 00000124
+
+        VERSION=54541009 TT 40000000 400006A3 00000126
+
+        VERSION=50421004 PB 004AE000 30D30005 00000000
+
+        VERSION=50520002 PR 00000000
+
+        VERSION=50500001 PP 00000000
+
+        VERSION=54430002 TC 80000000
+
+  Top half (above the RK line):
+
+    These signals top center are important:
+
+        nanocontin=1        =1: FPGA is clocking itself at 100MHz (normal)
+                            =0: FPGA must be clocked by setting nanotrigger (debugging)
+        fpgareset=0         =0: FPGA running normally
+                            =1: FPGA being held in power-on reset state
+        simit=0             =0: FPGA is using real PDP-8/L (sim held in reset)
+                            =1: FPGA is using simulator (ignoring PDP)
+        bareit=0            =0: send simulated device signals to PDP (normal)
+                            =1: send ARM debug signals to PDP (debugging)
+
+        They can be read with ./z8lpanel 'pin get' command and written with 'pin set' command.
+        The nanotrigger signal is self-clearing.
+
+            pin set fpgareset 1 fpgareset 0     ;# blip the fpgareset signal
+            pin get simit                       ;# see if simulating (prints/returns 0 or 1)
+            pin set simit 1                     ;# turn on simulator (ignore PDP)
+
+    Signals beginning with 'o' are outputs from the PDP to the FPGA.
+    The names pretty much correspond with the signals in the PDP documentation.
+    The ones that have o_ at the beginning are active low, the others are active high.
+
+        oBIOP1 = I/O pulse 1 from the PDP (active high)
+        o_B_BREAK = break cycle indicator from the PDP (active low)
+
+    Signals beginning with 'i' are inputs to the PDP from the FPGA.
+    The names pretty much correspond with the signals in the PDP documentation.
+    The ones that have i_ at the beginning are active low, the others are active high.
+
+        iBRK_RQST = FPGA is requesting a DMA cycle from the PDP (active high)
+        i_EA = FPGA is telling PDP to use extended memory instead of core for the cycle (active low)
+
+    Signals beginning with 'b' are the bi-directional busses, bPIOBUS (on the 'D' connectors),
+    bMEMBUS (on the 'B' connectors), bDMABUS (on the 'C' connectors).  The bits are generally
+    scrambled around so aren't generally useful.  The bus signals are gated between the FPGA
+    and the PDP by the r_ (received into the FPGA from the PDP) and x_ (transmitted out from
+    the FPGA into the PDP) signals.  Care must be taken to not enable two drivers on the same
+    set of wires at the same time so the transistors don't get overloaded.
+
+    Note:
+        Active high/low of these signals may differ from the PDP-8/L signal as the signal
+        may go through an inverting 3.3V/5V conversion between the FPGA and the PDP-8/L.
+
+    Signals listed with S-I-M pertain to the simulator only.
+    Those beginning with lb are lightbulbs, sw are switches.
+    Others are miscellaneous state information.
+
+  Bottom half (starting with RK line) are the device modules:
+    Most are raw ARM 32-bit registers so are in hexadecimal
+
+    RK - pdp8lrk8je.v module registers (decpack)
+
+    VC - pdp8lvc8.v module registers (video controller)
+
+    FP - pdp8lfpi2c.v module registers (front panel via I2C)
+
+    XM - pdp8lxmem.v module registers (extended memory)
+
+        of particular importance:
+
+            enlo4k=1 : use FPGA 32KW memory for low 4K
+                  =0 : real PDP-8/L : use PDP-8/L core memory for low 4K
+                          simulator : use small FPGA 4KW memory for low 4K
+
+    SH - pdp8lshad.v module registers (processor shadow)
+
+    CM - pdp8lcmem.v module registers (direct memory access)
+
+        of particular importance:
+
+            VERSION=434D1018 CM 227D0560 00000020 00000000
+                                         ^
+                                         |
+                                         bit <29> = 0 : use PDP's BREAK circuitry for DMA
+                                                    1 : do all DMA directly to FPGA's 32KW memory
+
+    TT - pdp8ltty.v module registers (teletypes)
+
+        of particular importance:
+
+            VERSION=54541009 TT 40000091 000000AA 00000103
+                                                        ^^
+                                                        ||
+                                                        kb I/O port (+1 for the pr I/O port)
+
+    PB - pdp8lpbit.v module registers (pulse bit audio)
+
+    PR - pdp8lptr.v module registers (paper tape reader)
+
+    PP - pdp8lptp.v module registers (paper tape punch)
+
+    TC - pdp8ltc08.v module registers (dectape)
+
+= = = = = = = = = = = = = = = =
+

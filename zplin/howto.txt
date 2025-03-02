@@ -4,25 +4,31 @@
 ########################################################################
 
 start with:
-    ubuntu 16.04
-    vivado 2018.3 installed in /tools/Xilinx/Vivado/2018.3/bin/vivado
-    petalinux 2018.3 in /tools/Xilinx/Downloads/petalinux-v2018.3-final-installer.run
-    ./zturn_7z020_hdmi.bsp
-    ./vdmahdmi.patch
-    raspberry pi os install image (32-bit lite version)
-    - bookworm (debian 12) is slow, bullseye (debian 11) is fast
-    - ref: https://forums.raspberrypi.com/viewtopic.php?t=6019 -- bug mentioned halfway down
-    ZTurn 7020 card
+    always needed:
+        ZTurn 7020 board
+        raspberry pi os install image (32-bit lite version)
+        - bookworm (debian 12) is slow, bullseye (debian 11) is fast
+        - ref: https://forums.raspberrypi.com/viewtopic.php?t=6019 -- bug mentioned halfway down
 
-    also make sure board_files/zturn-7z020 is in place in vivado tree
-        /tools/Xilinx/Vivado/2018.3/data/boards/board_files/zturn-7z020
-    untar ./zturn-7z020-board-files.tgz if not there
+    to compile FPGA code:
+        ubuntu 16.04
+        vivado 2018.3 installed in /tools/Xilinx/Vivado/2018.3/bin/vivado
+        petalinux 2018.3 in /tools/Xilinx/Downloads/petalinux-v2018.3-final-installer.run
+        ./zturn_7z020_hdmi.bsp
+        ./vdmahdmi.patch
 
-    must use Vivado 2018.3 cuz of bsp file supplied by MYIR
+        also make sure board_files/zturn-7z020 is in place in vivado tree
+            /tools/Xilinx/Vivado/2018.3/data/boards/board_files/zturn-7z020
+        untar ./zturn-7z020-board-files.tgz if not there
+
+        must use Vivado 2018.3 cuz of bsp file supplied by MYIR
 
 ##############################
 #   build petalinux kernel   #
 ##############################
+
+    This creates a new boot file with default FPGA code (BOOT.BIN) and kernel image (image.ub).
+    You can skip this section and use the provided images in ../zynq/BOOT.BIN and image.ub.
 
 sudo ...
     apt install tofrodos iproute gawk gcc git-core make net-tools ncurses-dev \
@@ -87,6 +93,9 @@ ls -l images/linux/image.ub                         # linux kernel
 #  Set up SDCARD  #
 ###################
 
+    Sets up SDCARD with the BOOT.BIN and image.ub suitable for the Zynq
+    Uses raspi filesystem.
+
 # put blank sdcard in pc, comes up as something like /dev/sda
 # replace /dev/sda in the commands below with whatever the sdcard really is
 
@@ -99,12 +108,12 @@ xzcat 2024-10-22-raspios-bullseye-armhf-lite.img.xz | dd of=/dev/sda status=prog
 partprobe /dev/sda
 
 # replace raspi kernel with zturn kernel
+# - use either the BOOT.BIN,image.ub created above or use those from ../zynq directory
 mkdir /x
 mount /dev/sda1 /x
 rm -rf /x/*
 cp images/linux/BOOT.BIN /x/
 cp images/linux/image.ub /x/
-touch /x/config.txt
 umount /x
 
 # expand root partition to whole sdcard
@@ -187,15 +196,14 @@ on zturn:
     make sure can do ssh root@zturn from pc
 
 then on zturn:
-    ls -l /boot should show BOOT.BIN, config.txt, image.ub files
+    ls -l /boot should show BOOT.BIN, image.ub files
 
     # ls -l /boot
     total 8456
     -rwxr-xr-x 1 root root 4688040 Dec  5 22:43 BOOT.BIN
-    -rwxr-xr-x 1 root root       0 Dec  5 22:43 config.txt
     -rwxr-xr-x 1 root root 3967676 Dec  5 22:43 image.ub
 
-then back on pc:
+then back on pc to compile FPGA code:
     cd .../pdp8l/zynq
     /tools/Xilinx/Vivado/2018.3/bin/vivado pdp8l.xpr
         do 'Generate Bitstream' to compile verilog to .bit file
