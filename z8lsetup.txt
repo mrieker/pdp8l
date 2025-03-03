@@ -33,14 +33,20 @@ Requires a ZTurn 7020 board but does not need to be plugged into PDP
         ./z8lsim run-d01b.tcl
         ./z8lsim run-d02b.tcl
 
-    7) compile and run kaleidoscope on simulator:
+    7) compile and run demo programs on simulator:
 
         git clone https://github.com/mrieker/pdp8v.git
         cd pdp8v/asm
         make
         cd ../..
-        ./z8lsim kaleid.tcl e
+
+        ./z8lsim doubleroll.tcl
+        - MA & AC lights roll in opposite directions
         - press control-C to abort
+
+        ./z8lsim kaleid.tcl e
+        - displays random patterns in simulated VC/8E X window
+        - close X window or press control-C to abort
 
     8) run music program on simulator
 
@@ -121,7 +127,7 @@ Getting it to work on real PDP-8/L:
         ./z8lpanel run-d1gb.tcl
         ./z8lpanel run-d3ra.tcl
 
-    * Run kaleidoscope and music programs as desired for simulator
+    * Run doubleroll, kaleidoscope and music programs as desired for simulator
 
         use z8lpanel instead of z8lsim
 
