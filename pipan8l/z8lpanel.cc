@@ -407,11 +407,14 @@ static int cmd_readchar (ClientData clientdata, Tcl_Interp *interp, int objc, Tc
 {
     if (objc == 3) {
         char const *stri = Tcl_GetString (objv[1]);
-        if (memcmp (stri, "file", 4) != 0) {
-            Tcl_SetResultF (interp, "first argument not a file");
-            return TCL_ERROR;
+        int fd = STDIN_FILENO;
+        if (strcmp (stri, "stdin") != 0) {
+            if (memcmp (stri, "file", 4) != 0) {
+                Tcl_SetResultF (interp, "first argument not a file");
+                return TCL_ERROR;
+            }
+            fd = atoi (stri + 4);
         }
-        int fd = atoi (stri + 4);
         int tmoms;
         int rc = Tcl_GetIntFromObj (interp, objv[2], &tmoms);
         if (rc != TCL_OK) return rc;

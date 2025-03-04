@@ -135,31 +135,27 @@ proc checkttyprompt {prompt reply {tmsec 30000}} {
         puts -nonewline $rb
         flush stdout
         if {$rb > " "} {
-            puts checkttyprompt: extra char [escapechr $rb] after prompt"
+            puts "checkttyprompt: extra char [escapechr $rb] after prompt"
         }
     }
     # send reply string to keyboard incl spaces
     # check for each of each one
-    global wrkbpipe
     set len [string length $reply]
     for {set i 0} {$i < $len} {incr i} {
         after 456
         set ch [string index $reply $i]
-        puts -nonewline $wrkbpipe $ch
-        chan flush $wrkbpipe
+        sendchartottykb $ch
         set rb [readttychartimed 1234]
         puts -nonewline $rb
         flush stdout
         if {$rb != $ch} {
             puts ""
-            puts "checkttyprompt: char [escapechr $ch] echoed as [escapechr $rb]"
-            exit 1
+            error "checkttyprompt: char [escapechr $ch] echoed as [escapechr $rb]"
         }
     }
     # send CR at the end, don't bother checking echo in case it echoes something different
     after 456
-    puts -nonewline $wrkbpipe "\r"
-    chan flush $wrkbpipe
+    sendchartottykb "\r"
 }
 
 # close the tty pipes (see openttypipes)
@@ -641,34 +637,18 @@ proc octal {val} {
 ;# function to open tty port available as pipes
 ;# - using pipan8l with real PDP-8/L: softlink /tmp/pipan8l_ttykb and _ttypr to real tty port eg /dev/ttyACM0
 ;# - using pipan8l with built-in simulator (-sim option): simlib.cc creates named pipes /tmp/pipan8l_ttykb and _ttypr
-;# - using pipan8l on zynq with pdp8ltty.v (started via z8lsim): overridden by z8lsimini.tcl
 proc openttypipes {} {
     global wrkbpipe rdprpipe
-    if {[libname] == "i2cz"} {
 
-        # running as z8lpanel on zynq chip plugged into PDP-8/L
-        # access the TTY port by spawning ./z8ltty and connect it to pipes
-        lassign [chan pipe] rdkbpipe wrkbpipe
-        lassign [chan pipe] rdprpipe wrprpipe
-        chan configure $rdkbpipe -translation binary
-        chan configure $wrkbpipe -translation binary
-        chan configure $rdprpipe -translation binary
-        chan configure $wrprpipe -translation binary
-        chan configure $rdprpipe -blocking 0
-        set ttypid [exec ./z8ltty -cps 30 -killit <@ $rdkbpipe >@ $wrprpipe &]
-        atexit "exec kill $ttypid"
-    } else {
-
-        # running as pipan8l on raspi chip either plugged into PDP-8/L front panel or simulating PDP-8/L
-        # if real PDP-8/L, /tmp/pipan8l_ttypr and /tmp/pipan8l_ttykb must be softlinked to the serial port connected to the PDPs TTY boards
-        # if simulating (pipan8l -sim), simlib.cc creates named pipes and we just access them
-        set rdprpipe [open "/tmp/pipan8l_ttypr" "r"]
-        set wrkbpipe [open "/tmp/pipan8l_ttykb" "w"]
-        chan configure $rdprpipe -translation binary
-        chan configure $wrkbpipe -translation binary
-        chan configure $rdprpipe -blocking 0
-        while {[readttychartimed 500] != ""} { }
-    }
+    # running as pipan8l on raspi chip either plugged into PDP-8/L front panel or simulating PDP-8/L
+    # if real PDP-8/L, /tmp/pipan8l_ttypr and /tmp/pipan8l_ttykb must be softlinked to the serial port connected to the PDPs TTY boards
+    # if simulating (pipan8l -sim), simlib.cc creates named pipes and we just access them
+    set rdprpipe [open "/tmp/pipan8l_ttypr" "r"]
+    set wrkbpipe [open "/tmp/pipan8l_ttykb" "w"]
+    chan configure $rdprpipe -translation binary
+    chan configure $wrkbpipe -translation binary
+    chan configure $rdprpipe -blocking 0
+    while {[readttychartimed 500] != ""} { }
 }
 
 # increment a variable but return its previous value
@@ -765,15 +745,13 @@ proc sendchartottykb {ch} {
 ;# function to send the given string to the tty (see openttypipes)
 ;# also checks for echoing
 proc sendtottykb {str} {
-    global wrkbpipe
     set len [string length $str]
     for {set i 0} {$i < $len} {incr i} {
         after 1500
         set ex [string index $str $i]
         set ix [chartoint $ex]
         set ch [inttochar [expr {$ix | 0200}]]
-        puts -nonewline $wrkbpipe $ch
-        chan flush $wrkbpipe
+        sendchartottykb $ch
         while true {
             set ch [readttychartimed 1000]
             if {$ch == ""} {

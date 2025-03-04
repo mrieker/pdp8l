@@ -36,4 +36,29 @@ proc helpini {} {
     puts ""
 }
 
+# override the tty access functions in pipan8lini.tcl
+# these access the tty directly via the pdp8ltty.v registers
+proc closettypipes {} { }
+
+proc openttypipes {} { }
+
+proc readttychartimed {msec} {
+    for {set i 0} {$i < $msec} {incr i} {
+        after 1
+        set prfull [pin get pr_full]
+        if {$prfull} {
+            set prchar [pin get pr_char set pr_full 0 pr_flag 1]
+            set prchar [expr {$prchar & 0177}]
+            if {$prchar != 0} {
+                return [inttochar $prchar]
+            }
+        }
+    }
+    return ""
+}
+
+proc sendchartottykb {ch} {
+    pin set kb_char [chartoint $ch] kb_flag 1
+}
+
 return $oldhelp
