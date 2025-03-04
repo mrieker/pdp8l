@@ -1,12 +1,11 @@
 #!/bin/bash
 #
 #  Run music program on real PDP or simulator
-#  Use music-real.sh or music-sim.sh
 #
 set -e
 if [ "$1" == "" ]
 then
-    echo "use music-real.sh or music-sim.sh"
+    echo "missing 'sim' or 'real' argument"
     exit 1
 fi
 diskfile=~/music-rkab0.rk05
@@ -15,13 +14,12 @@ then
     echo "no $diskfile - run setup-os8.sh"
     exit 1
 fi
-../pipan8l/z8l$1 <<END
-    hardreset
-END
 ../pipan8l/z8lrk8je -killit -loadrw 0 $diskfile &
 sleep 2
-../pipan8l/z8l$1 bootos8.tcl
-../pipan8l/z8lpbit.armv7l   # enable ISZAC instruction
+case $1 in
+    real)../pipan8l/z8lpanel manual.tcl ;;
+    sim) ../pipan8l/z8lsim manual.tcl ;;
+esac
 echo ""
 echo "  to hear music"
 echo "    * turn on AM radio and put near backplane"
