@@ -26,9 +26,11 @@ then
     petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga $mydir/pdp8l.runs/impl_1/myboard_wrapper.bit --u-boot
 fi
 
-if [ $mydir/BOOT.BIN -ot images/linux/BOOT.BIN ]
+if [ $mydir/BOOT.BIN.gz -ot images/linux/BOOT.BIN ]
 then
+    rm -f $mydir/BOOT.BIN $mydir/BOOT.BIN.gz
     cp -auv images/linux/BOOT.BIN $mydir/BOOT.BIN
+    gzip $mydir/BOOT.BIN
 fi
 if [ $mydir/image.ub -ot images/linux/image.ub ]
 then
@@ -36,7 +38,8 @@ then
 fi
 
 cd $mydir
-scp BOOT.BIN root@zturn$hostnum:/boot/BOOT.BIN
+gunzip -c BOOT.BIN.gz | ssh root@zturn$hostnum dd of=/boot/BOOTX.BIN
+ssh root@zturn$hostnum mv -f /boot/BOOTX.BIN /boot/BOOT.BIN
 set +e
 ssh root@zturn$hostnum reboot
 ping -c 90 zturn$hostnum
