@@ -20,5 +20,5 @@ wrmem 021 $inity
 setsw sr 0
 startat $startaddr
 relsw all
-exec -ignorestderr ./z8lvc8 -pms 120 -size [getenv vcsize 512] $vt
+exec -ignorestderr ./z8lvc8 -pms 120 -size [getenv vcsize 800] $vt
 exit
