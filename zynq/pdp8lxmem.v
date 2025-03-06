@@ -128,7 +128,7 @@ module pdp8lxmem (
                 ~ buf_zf_enab ? 0      :    // WC and CA cycles always use field 0
                                 ifld;       // by default, use instruction field
 
-    assign armrdata = (armraddr == 0) ? 32'h584D202D :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
+    assign armrdata = (armraddr == 0) ? 32'h584D202E :  // [31:16] = 'XM'; [15:12] = (log2 nreg) - 1; [11:00] = version
                       (armraddr == 1) ? { ctlenab, ctllo4k, 25'b0, mrhold, mrstep, mwhold, mwstep, os8zap } :
                       (armraddr == 2) ? { _mrdone, _mwdone, field, 4'b0, dfld, ifld, ifldafterjump, saveddfld, savedifld, 4'b0, xmstate } :
                       (armraddr == 3) ? { numcycles, lastintack, buf_bf_enab, buf_df_enab, buf_zf_enab, 16'b0, os8step } :
@@ -450,8 +450,14 @@ module pdp8lxmem (
                 0: begin
                     x_MEM <= 1;
 
-                    // check for PDP/sim starting a memory cycle
-                    if (~ xmemblock & memstart) begin
+                    // if being blocked from starting (cmem wants to use extended memory),
+                    // ...make sure we aren't jamming up the address bus going to the extended mem
+                    if (xmemblock) begin
+                        xbraddr  <= 0;
+                    end
+
+                    // not blocked, check for PDP/sim starting a memory cycle
+                    else if (memstart) begin
                         hizmembus <= 1;                     // hi-Z the FPGAs MEMBUS pins so we can read PDPs MA
                         memdelay  <= addrlatchwid;          // reset memory delay line
 
@@ -587,7 +593,6 @@ module pdp8lxmem (
                         mwstep   <= 0;              // tell stepper (eg z8lmctrace.cc) cycle is complete
                         xbrenab  <= 0;              // stop writing to FPGA 32KW memory
                         xbrwena  <= 0;
-                        xbraddr  <= 0;
                         xbrwdat  <= 0;
                         xmstate  <= 6;
                     end
@@ -605,6 +610,9 @@ module pdp8lxmem (
                         end else begin
                             _mwdone  <= 1;
                             xmstate  <= 0;
+                            if (xmemblock) begin
+                                xbraddr <= 0;
+                            end
                         end
                     end
                 end
