@@ -35,12 +35,10 @@ proc os8dpacktoggleinboot {} {
 }
 
 proc os8dpack0toggleinboot {} {
-    wrmem 026 06744     ;#  dlca
-    wrmem 027 06746     ;#  dldc
     wrmem 030 06743     ;#  dlag
     wrmem 031 05031     ;#  jmp .
-    disas 026 031
-    return 026
+    disas 030 031
+    return 030
 }
 
 proc os8dtapeloadandboot {{sourcetape ""}} {
