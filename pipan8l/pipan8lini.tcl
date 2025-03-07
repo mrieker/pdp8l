@@ -93,8 +93,7 @@ proc checkttymatch {nskip line {tmsec 30000}} {
         set ch [readttychartimed $tmsec]
         if {$ch == ""} {
             puts ""
-            puts "checkttymatch: timed out waiting for '$line'"
-            exit 1
+            error "checkttymatch: timed out waiting for '$line'"
         }
         puts -nonewline $ch
         flush stdout
@@ -114,8 +113,7 @@ proc checkttymatch {nskip line {tmsec 30000}} {
                 if {$ch == "\n"} break
             }
             puts ""
-            puts "checkttymatch: failed to match '$line'"
-            exit 1
+            error "checkttymatch: failed to match '$line'"
         }
     }
     return $skipped
@@ -755,16 +753,14 @@ proc sendtottykb {str} {
         while true {
             set ch [readttychartimed 1000]
             if {$ch == ""} {
-                puts "sendtottykb: timed out receiving echo"
-                exit 1
+                error "sendtottykb: timed out receiving echo"
             }
             if {$ch > " "} break
             if {$ch == $ex} break
             if {$i > 0} break
         }
         if {$ch != $ex} {
-            puts "sendtottykb: sent char [escapechr $ex] to tty kb but echoed as [escapechr $ch]"
-            exit 1
+            error "sendtottykb: sent char [escapechr $ex] to tty kb but echoed as [escapechr $ch]"
         }
     }
 }
@@ -806,8 +802,7 @@ proc stopandreset {} {
     flicksw stop
     for {set i 0} {[getreg run]} {incr i} {
         if {$i > 1000} {
-            puts "stopandreset: cpu did not stop"
-            exit 1
+            error "stopandreset: cpu did not stop"
         }
         flushit
     }
@@ -816,8 +811,7 @@ proc stopandreset {} {
     startat 0
     for {set i 0} {[getreg run]} {incr i} {
         if {$i > 1000} {
-            puts "stopandreset: cpu did not halt"
-            exit 1
+            error "stopandreset: cpu did not halt"
         }
         flushit
     }
@@ -847,8 +841,7 @@ proc waitforttypr {msec str} {
         }
         set ex [string index $str $i]
         if {$ch != $ex} {
-            puts "waitforttypr: expected char [escapechr $ex] on tty but got [escapechr $ch]"
-            exit 1
+            error "waitforttypr: expected char [escapechr $ex] on tty but got [escapechr $ch]"
         }
     }
 }
