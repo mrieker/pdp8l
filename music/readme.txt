@@ -5,8 +5,8 @@ setup os/8 disk:
 
 boot os/8 disk:
 
-    ./music-real.sh     using real pdp
-    ./music-sim.sh      using simulator
+    ./manual.sh real    using real pdp
+    ./manual.sh sim     using simulator
 
 compile music.pa (just once after doing setup-os8.sh):
 

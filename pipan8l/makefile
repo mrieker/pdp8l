@@ -116,6 +116,11 @@ z8lxmemtest.$(MACH): z8lxmemtest.$(MACH).o $(LIBS)
 %.$(MACH).o: %.cc *.h
 	$(GPP) -DHASPA=$(HASPA) -DUNIPROC=$(UNIPROC) -c -o $@ $<
 
+doubleroll-8l.bin: doubleroll-8l.asm
+	pdp8v/asm/assemble doubleroll-8l.asm doubleroll-8l.obj > doubleroll-8l.lis
+	pdp8v/asm/link -o doubleroll-8l.oct doubleroll-8l.obj > doubleroll-8l.map
+	pdp8v/asm/octtobin < doubleroll-8l.oct > doubleroll-8l.bin
+
 kaleid-e.bin: kaleid-e.pal kaleid.pal
 	pdp8v/asm/assemble -pal kaleid-e.pal kaleid-e.obj > kaleid-e.lis
 	pdp8v/asm/link -o kaleid-e.oct kaleid-e.obj > kaleid-e.map

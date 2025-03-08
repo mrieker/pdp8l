@@ -10,30 +10,51 @@ Requires a ZTurn 7020 board but does not need to be plugged into PDP
        there are BOOT.BIN and image.ub files in the zynq directory
        to copy to the SD card /boot directory
 
+       there is a copy of the linux kernel headers in the zplin directory
+        ...that are needed to build the kernel module
+
+       the basic outline is (all done on a PC):
+        1) put RasPI OS on an SD card
+        2) delete all RasPI /boot files then replace with BOOT.BIN and image.ub
+        3) expand rootfs partition to fill SD card
+        4) edit SD card /etc/passwd to remove root and pi passwords
+        5) put linux kernel headers on SD card /usr/src and link to /lib/modules
+
     2) plug USB cable from connector right next to the SD card on ZTurn card to a PC
        ...this is the console
        use a com port program to access the serial port at 115,200 baud
 
-    3) log into the ZTurn as non-priv user (eg pi)
+    3) log in as root to set up network and install some utilities
+       - look for apt installs in zplin/howto.txt
+       - enable ssh daemon and set passwords so ssh will work
+
+    4) use ssh to log into the ZTurn as non-priv user (pi)
+       optionally copy PC's .ssh/id_rsa.pub to ZTurn's .ssh/authorized_keys using scp so you don't need password any more
        clone the repo either from the PC or from github
 
-    4) download some maindec files
+        git clone https://github.com/mrieker/pdp8l.git
+
+    5) download some maindec files
 
         cd pdp8l
         wget https://pdp8online.com/ftp/software/paper_tapes/tapes.tgz
         tar xzvf tapes.tgz
 
-    5) compile the software on the ZTurn
+        ...should create a directory called alltapes
+
+        wget https://so-much-stuff.com/pdp8/tapes/maindec/maindec-08-d3ra-pb -O alltapes/d3ra-pb.bin
+
+    6) compile the software on the ZTurn
 
         cd pipan8l
         make
 
-    6) should be able to run a couple maindecs on simulator:
+    7) should be able to run a couple maindecs on simulator:
 
         ./z8lsim run-d01b.tcl
         ./z8lsim run-d02b.tcl
 
-    7) compile and run demo programs on simulator:
+    8) compile and run demo programs on simulator:
 
         git clone https://github.com/mrieker/pdp8v.git
         cd pdp8v/asm
@@ -41,14 +62,16 @@ Requires a ZTurn 7020 board but does not need to be plugged into PDP
         cd ../..
 
         ./z8lsim doubleroll.tcl
+        - uses './z8lsim -status' to display ascii-art front panel
         - MA & AC lights roll in opposite directions
         - press control-C to abort
 
         ./z8lsim kaleid.tcl e
         - displays random patterns in simulated VC/8E X window
         - close X window or press control-C to abort
+        - have to use ssh -X from PC so it can open window
 
-    8) run music program on simulator
+    9) run music program on simulator
 
         cd ../music
         more readme.txt
@@ -62,19 +85,43 @@ Getting it to work on real PDP-8/L:
        should put power jumper plug on front panel piggy back board
        zturn36 board should not have a power jumper because the console usb will supply power
 
+       Note:
+        You will need to remove boards from rows 31,32,33 to get these boards
+        plugged in.  Then plug them back in, subject to the TTY note below.
+
+        Be very careful when plugging in the interconnect connectors, it is very
+        easy to be off-by-one.  Maybe use a dental mirror to inspect before
+        powering on.
+
+        Likewise it is very easy to be off-by-one when plugging the ZTurn card
+        into the ZTURN36 board with those finely spaced pins so be sure they are
+        in correctly before powering on or it might fry some Zynq chip driver
+        transistors.  And make sure the ethernet connector is where the ZTURN36
+        board says ETHERNET.
+
+       Note:
+        The test programs use the TTY circuits in the FPGA to access TTY input/
+        output so you must remove the TTY boards M706 and M707.  You can also
+        remove the TTY clock gen card M452 and TTY cable card W076.
+
+        When not running tests, such as when running OS/8, the FPGA TTY can be
+        accessed using the ./z8ltty command.  Or you can plug the TTY boards
+        back in and use them.
+
     2) hook up ethernet and console USB cables to the ZTurn
+
+       Note:
+        If the ZTurn has a static IP address, you should not need the USB cable
+        except to power the ZTurn board.  Alternatively, the ZTurn can be powered
+        from the PDP via the power jumper on the ZTURN36 board.  It is probably
+        not a good idea to have both the USB cable connected and the power jumper
+        in place at the same time.
 
     3) should still be able to log in just as before and simulator should still work
 
     4) turn PDP-8/L on
 
     5) from pdp8l/pipan8l directory
-
-        ./z8lreal           turns off simulator mode in FPGA
-
-       if PDP does not have BREAK (DMA) option installed
-
-        ./z8lreal -enlo4k -nobrk
 
     * Test I2C connection to front panel
 
@@ -83,34 +130,158 @@ Getting it to work on real PDP-8/L:
 
     * Run basic memory test (analogous to toggling various locations via front panel switches):
 
-        ./z8lpanel
+        ./z8lreal                       # make sure accessing real PDP (not sim)
 
-        z8lpanel> hardreset
+        ./z8lpanel                      # access front panel piggy-back board for automated testing
+
+        ;# these commands override the real switches to do ldad, exam, dep to access single memory locations
+        ;# should see lights blink as each deposit/examine is done
+        ;# processor must be halted for them to work (just like doing ldad, exam, dep from front panel)
+        ;# ...and should remain halted throughout
+
+        z8lpanel> wrmem <addr> <data>   ;# write <data> to memory at <addr> (it's TCL so need leading 0 for octal)
+        z8lpanel> octal [rdmem <addr>]  ;# read memory at <addr> then display in octal
+
+            ;# they can be scripted, eg, to repeatedly write 5432 to mem addr 12345 until control-C:
+            z8lpanel> while {![ctrlcflag]} {wrmem 012345 05432}
+            ;# ... then you can trace through with a scope
+
+            Note:
+                The rdmem and wrmem commands can only access addresses 000000..017777 because the PDP-8/L
+                panel only has switches for that address range.
+
+        ;# access some memory test scripts (they use rdmem, wrmem to access memory)
 
         z8lpanel> source testmem.tcl
-        z8lpanel> looptest testrands    ;# writes random numbers to memory and verifies them
-                                        ;# uses console deposit/examine so runs s-l-o-w-l-y
-                                        ;# should see lights blink as each deposit/examine is done
-                                        ;# processor should remain halted throughout
-        - press control-C to abort
 
-        z8lpanel> isziactest            ;# puts a simple ISZ/IAC loop in memory and runs it
-                                        ;# should see accumulator incrementing on front panel
+        ;# tests use console deposit/examine so they run s-l-o-w-l-y
+        ;# press control-C once to abort a test back to z8lpanel> prompt
+        ;# ... twice quickly should get to shell prompt
+
+        z8lpanel> testzeroes 0 077      ;# writes 0s to locations 0000..0077 then verifies (use other ranges as needed)
+        z8lpanel> testones 0 077        ;# writes 1s to locations 0000..0077 then verifies (use other ranges as needed)
+        z8lpanel> looptest testrands    ;# writes random numbers to memory then verifies, in blocks of 64 words at a time
+
+        z8lpanel> isziactest            ;# puts a simple ISZ/IAC loop in memory
+        z8lpanel> startat 020           ;# start it running
+                                        ;# should see link,accumulator incrementing on front panel
+        z8lpanel> octal [getreg ac]     ;# read AC via D connectors at back of PDP then display in octal
+        z8lpanel> dumpit                ;# dump all front panel values, observer RUN indicator
+        z8lpanel> flicksw stop          ;# stop the test (optional), or use front panel stop switch
+        z8lpanel> dumpit                ;# dump all front panel values, RUn indicator absent
         z8lpanel> exit
 
       Note:
+        The above tests are generally sufficient to see if the PDP is working.  The memory
+        tests will find stuck bits (bad diodes, resistors, etc) and isziactest will test that
+        the processor can execute instructions and that the AC does not have stuck bits.
+
+      Note:
+        Run './z8lpanel -status' from another ssh window to see an ascii-art replica of
+        the front panel continuously updated while running the above tests.  It should
+        match what the real PDP lights are showing.  If not, there is a problem, might
+        be as simple as a burnt out bulb.  The AC,MA,MB,RUN,BREAK signals are read from
+        the row 34,35,36 connectors at the back so that might be another source of error.
+
+        The switch register will be different because the tests tell z8lpanel to
+        override the real switches.  In any case, './z8lpanel -status' will show what
+        the PDP actually sees for switches.  Use the 'relsw all' command in z8lpanel
+        to release its override of the switches.  Using 'setsw sr 01234' tells z8lpanel
+        to override the switchregister switches with 1234.
+
+      Note:
+        The above tests also work with z8lsim (although much faster).
+
+      Note:
         If your core memory has issues, the FPGA can handle the core functionality.
-        Instead of './z8lreal' command, use './z8lreal -enlo4k' (enable low 4K fpga memory)
+        Instead of './z8lreal' command, use './z8lreal -enlo4k' (enable low 4K FPGA memory).
+        The FPGA will tell the PDP to use FPGA RAM for all memory accesses by holding _EA low.
+        You can verify enlo4k mode with either './z8ldump -once' from shell or
+        'pin get xm_enlo4k' from within z8lpanel.
+
+        You can also turn it on from within z8lpanel with 'pin set xm_enlo4k 1'
+        and turn it off with 'pin set xm_enlo4k 0'.  Processor should be halted
+        while using these commands!  Try 'hardreset' command if PDP gets jammed
+        up somehow.
+
+        To see whether it is turned on, do 'pin get xm_enlo4k' from within z8lpanel.
 
     * Test ZTurn bus connections (tests abort if they find an error):
 
+        If your PDP does not have the DMA (BREAK) option installed,
+        use the './z8lreal -nobrk' command to tell FPGA to not use
+        it.  The FPGA will use internal circuitry to access its own
+        RAM, even for the low 4K, instead of trying to use the PDP's
+        DMA option circuitry.  This option also forces enlo4k mode
+        so the processor will always use the FPGA RAM even for the
+        low 4K.  This setting is also available in z8lpanel as the
+        cm_nobrk pin, but you must also explicitly turn on enlo4k
+        mode with pin xm_enlo4k, 'pin set xm_enlo4k 1 cm_nobrk 1'.
+
+        memory (B) connectors - get memory address (MA) from the PDP
+                                send memory read data (MEM) to the PDP
+                                (write data is on MB register lines)
+        dma (C) connectors - send DMA address and write data to the PDP
+                             (read data is on MB register lines)
+        pio (D) connectors - get memory buffer (MB) from the PDP
+                             get accumulator (AC) from the PDP
+                             send PIO read data (INPUTBUS) to the PDP
+
         test dma (C) and memory (B) connectors:
             ./z8lcmemtest
+            - prints 'pass m complete n errors' (2 or 3 sec)
             - press control-C to abort
+
+            ./z8lcmemtest -3cycle -cainc -extmem
+            - tests all the bells and whistles (15 to 20 sec per pass)
+
+            The panel lights should show a constant 5252 for MA and MB
+            and that the processor is running FETCH cycles.  Theoretically
+            you could see a glow of the BREAK light along with fainter
+            WC and CA lights but it may not be apparent.  You can see those
+            other state occasionally on the ./z8lpanel -status display when
+            it happens to sample the lights at just the right time.
+
+            Basically the processor is executing a '5252: JMP 5252' instruction
+            while the z8lcmemtest program is making like it is a disk controller
+            doing DMA requests via pdp8lcmem.v to read and write memory.
 
         test pio (D) connectors (assumes z8lcmemtest works):
             ./z8lpiotest
+            - prints '*' after each pass (2 sec or so at first then every 0.5 sec thereafter)
             - press control-C to abort
+
+            There should be a glow of activity on the front panel for
+            this test as the processor is running a little program that
+            can be found in z8lpiotest.cc.
+
+        pound the living daylights out of it (originally for testing sim but adapted to test real PDP):
+            ./z8lsimtest -real                      # prints every insruction
+            ./z8lsimtest -real | grep '0000  L'     # prints every 10000th instruction
+
+            You will have to get things started manually or use z8lpanel in a separate screen.
+            Start the test then follow the prompt to get things going.
+                ./z8lpanel
+                z8lpanel> setsw sr 05252
+                z8lpanel> flicksw ldad
+                z8lpanel> flicksw start
+                z8lpanel> relsw all
+                z8lpanel> exit
+
+            It stops if there is any error.  It should run as long as you want it to.
+
+            All lights should be flashing randomly as z8lsimtest feeds the PDP random instructions
+            and operands, verifying each memory cycle as it goes along.  Also feeds in DMA cycles
+            here and there (1-cycle and 3-cycle) and interrupt requests.  You shouldn't see any
+            activity on the PAR,PROT lights and ION will just occasionally blink.  Also rare is for
+            any of the WC,CA,B lights to blink, and RUN should be on continuously.
+
+            Then maybe show lights in ascii-art screen:
+                ./z8lpanel -status
+
+        Note:  It is possible for these tests to leave the PDP in a wacky state when
+            stopped (with control-C).  Try the 'hardreset' command in z8lpanel to try
+            to unjam it, or as a last resort, power cycle the PDP.
 
     * Run MAINDECs:
 
@@ -127,9 +298,15 @@ Getting it to work on real PDP-8/L:
         ./z8lpanel run-d1gb.tcl
         ./z8lpanel run-d3ra.tcl
 
-    * Run doubleroll, kaleidoscope and music programs as desired for simulator
+        note:
+            when running d3ra test, you may want to monitor dectape status in another
+            ssh window with a './z8ltc08 -status' command (another ascii-art screen)
 
-        use z8lpanel instead of z8lsim
+    * Run doubleroll, kaleidoscope and music programs as desired
+
+        Use same instructions as for simulator except do a ./z8lreal
+        command to make sure using real PDP, then use ./z8lpanel instead
+        of ./z8lsim.
 
 = = = = = = = = = = = = = = = =
 
@@ -262,6 +439,7 @@ Getting it to work on real PDP-8/L:
             enlo4k=1 : use FPGA 32KW memory for low 4K
                   =0 : real PDP-8/L : use PDP-8/L core memory for low 4K
                           simulator : use small FPGA 4KW memory for low 4K
+            available to z8lpanel pin get/set command as xm_enlo4k
 
     SH - pdp8lshad.v module registers (processor shadow)
 
@@ -274,6 +452,7 @@ Getting it to work on real PDP-8/L:
                                          |
                                          bit <29> = 0 : use PDP's BREAK circuitry for DMA
                                                     1 : do all DMA directly to FPGA's 32KW memory
+                                         available to z8lpanel pin get/set command as cm_nobrk
 
     TT - pdp8ltty.v module registers (teletypes)
 
