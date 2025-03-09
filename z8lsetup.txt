@@ -166,14 +166,14 @@ Getting it to work on real PDP-8/L:
         z8lpanel> startat 020           ;# start it running
                                         ;# should see link,accumulator incrementing on front panel
         z8lpanel> octal [getreg ac]     ;# read AC via D connectors at back of PDP then display in octal
-        z8lpanel> dumpit                ;# dump all front panel values, observer RUN indicator
+        z8lpanel> dumpit                ;# dump all front panel values, observe RUN indicator
         z8lpanel> flicksw stop          ;# stop the test (optional), or use front panel stop switch
-        z8lpanel> dumpit                ;# dump all front panel values, RUn indicator absent
+        z8lpanel> dumpit                ;# dump all front panel values, RUN indicator absent
         z8lpanel> exit
 
       Note:
-        The above tests are generally sufficient to see if the PDP is working.  The memory
-        tests will find stuck bits (bad diodes, resistors, etc) and isziactest will test that
+        The above tests are generally sufficient to see if the PDP is working.  The memory tests
+        will find stuck memory bits and stuck MA/MB register bits, and isziactest will test that
         the processor can execute instructions and that the AC does not have stuck bits.
 
       Note:
@@ -203,8 +203,6 @@ Getting it to work on real PDP-8/L:
         and turn it off with 'pin set xm_enlo4k 0'.  Processor should be halted
         while using these commands!  Try 'hardreset' command if PDP gets jammed
         up somehow.
-
-        To see whether it is turned on, do 'pin get xm_enlo4k' from within z8lpanel.
 
     * Test ZTurn bus connections (tests abort if they find an error):
 
@@ -260,8 +258,12 @@ Getting it to work on real PDP-8/L:
             ./z8lsimtest -real | grep '0000  L'     # prints every 10000th instruction
 
             You will have to get things started manually or use z8lpanel in a separate screen.
-            Start the test then follow the prompt to get things going.
+            Start the test then follow the prompt to get things going.  It waits for you to
+            stop the processor, then enter the '5252: JMP 5252' loop and start it.  Either use
+            the front panel directly or use z8lpanel from another ssh screen:
+
                 ./z8lpanel
+                z8lpanel> flicksw stop
                 z8lpanel> setsw sr 05252
                 z8lpanel> flicksw ldad
                 z8lpanel> flicksw start
@@ -276,7 +278,7 @@ Getting it to work on real PDP-8/L:
             activity on the PAR,PROT lights and ION will just occasionally blink.  Also rare is for
             any of the WC,CA,B lights to blink, and RUN should be on continuously.
 
-            Then maybe show lights in ascii-art screen:
+            Then maybe show lights in ascii-art screen while test is running:
                 ./z8lpanel -status
 
         Note:  It is possible for these tests to leave the PDP in a wacky state when
@@ -443,16 +445,26 @@ Getting it to work on real PDP-8/L:
 
     SH - pdp8lshad.v module registers (processor shadow)
 
+            monitors processor cycles to make sure they are what they should be
+            sets err bits and freezes contents when discrepancy found
+            works only when enlo4k enabled continuously since last START key
+
     CM - pdp8lcmem.v module registers (direct memory access)
+
+            used by z8lrk8je and z8ltc08 to do dma transfers
 
         of particular importance:
 
             VERSION=434D1018 CM 227D0560 00000020 00000000
                                          ^
                                          |
-                                         bit <29> = 0 : use PDP's BREAK circuitry for DMA
-                                                    1 : do all DMA directly to FPGA's 32KW memory
-                                         available to z8lpanel pin get/set command as cm_nobrk
+                                         bit <29> = available to z8lpanel pin get/set command as cm_nobrk
+
+            - cm_nobrk=0 : uses PDP's BREAK circuitry so can access PDP's core memory
+            - cm_nobrk=1 : all accesses are made to FPGA's 32KW memory
+                           must have xm_enlo4k set for it to be useful
+                           otherwise PDP would be using its own core for low 4K,
+                             while all low 4K DMA would be going to FPGA RAM
 
     TT - pdp8ltty.v module registers (teletypes)
 
