@@ -33,6 +33,74 @@
 #include "i2czlib.h"
 #include "z8ldefs.h"
 
+// get switch/light value
+#define GETVAL(bitno) ((vals[bitno/64] >> (bitno%64)) & 1)
+// get whether toggle switch is being overidden
+// = ! collectorpin | ! basepin
+#define GETOVR(bitno) (((dirs[bitno/64] >> (bitno%64)) & GETVAL(R##bitno) & 1) ^ 1)
+
+// write button switch value (args for writebut())
+#define WRITEBUT(bitno) (bitno/64),(bitno%64)
+// write toggle switch value (args for writetog())
+#define WRITETOG(bitno) WRITEBUT(bitno),WRITEBUT(R##bitno)
+
+#define IR00 0202
+#define IR01 0216
+#define IR02 0310
+
+#define LINK 0016    // U1 GPB6
+#define FET  0214    // U3 GPB4
+#define ION  0215    // U3 GPB5
+#define PARE 0201    // U3 GPA1
+#define EXE  0200    // U3 GPA0
+#define DEF  0311    // U4 GPB1
+#define PRTE 0306    // U4 GPA6
+#define WCT  0312    // U4 GPB3
+#define CAD  0305    // U4 GPA5
+
+#define STOP  0303
+#define CONT  0314
+#define START 0302
+#define LDAD  0315
+#define EXAM  0316
+#define DEP   0300
+
+#define SR00 0104
+#define SR01 0000
+#define SR02 0002
+#define SR03 0005
+#define SR04 0003
+#define SR05 0213
+#define SR06 0212
+#define SR07 0206
+#define SR08 0210
+#define SR09 0103
+#define SR10 0102
+#define SR11 0304
+
+#define MPRT 0010   // active low
+#define DFLD 0012   // active low
+#define IFLD 0006   // active low
+#define STEP 0301   // active low
+
+#define RSR00 0017
+#define RSR01 0015
+#define RSR02 0001
+#define RSR03 0004
+#define RSR04 0014
+#define RSR05 0203
+#define RSR06 0205
+#define RSR07 0211
+#define RSR08 0207
+#define RSR09 0101
+#define RSR10 0100
+#define RSR11 0307
+
+#define RMPRT 0011
+#define RDFLD 0007
+#define RIFLD 0013
+#define RSTEP 0317
+
 #define I2CUS(s,r) (10*2+15*(s)+10*(r)) // s=number bits sent, r=number bits rcvd
 
 #define I2CBA  0x20     // I2C address of MCP23017 chip 0
@@ -223,6 +291,7 @@ void I2CZLib::loop52 ()
     }
 }
 
+// release our override of all switches
 void I2CZLib::relall ()
 {
     if (! (pdpat[Z_RE] & e_simit)) {
@@ -281,26 +350,26 @@ void I2CZLib::readpads (Z8LPanel *pads)
         unlki2c ();
 
         // light bulbs - all active low
-        pads->light.ir   = ((((vals[2] >> 002) & 1) << 2) |
-                            (((vals[2] >> 016) & 1) << 1) |
-                            (((vals[3] >> 010) & 1) << 0)) ^ 7;
-        pads->light.link = ! ((vals[0] >> 016) & 1);    // U1 GPB6
-        pads->light.fet  = ! ((vals[2] >> 014) & 1);    // U3 GPB4
-        pads->light.ion  = ! ((vals[2] >> 015) & 1);    // U3 GPB5
-        pads->light.pare = ! ((vals[2] >> 001) & 1);    // U3 GPA1
-        pads->light.exe  = ! ((vals[2] >> 000) & 1);    // U3 GPA0
-        pads->light.def  = ! ((vals[3] >> 011) & 1);    // U4 GPB1
-        pads->light.prte = ! ((vals[3] >> 006) & 1);    // U4 GPA6
-        pads->light.wct  = ! ((vals[3] >> 012) & 1);    // U4 GPB3
-        pads->light.cad  = ! ((vals[3] >> 005) & 1);    // U4 GPA5
+        pads->light.ir   = ((GETVAL(IR00) << 2) |
+                            (GETVAL(IR01) << 1) |
+                            (GETVAL(IR02) << 0)) ^ 7;
+        pads->light.link = ! GETVAL(LINK);  // U1 GPB6
+        pads->light.fet  = ! GETVAL(FET);   // U3 GPB4
+        pads->light.ion  = ! GETVAL(ION);   // U3 GPB5
+        pads->light.pare = ! GETVAL(PARE);  // U3 GPA1
+        pads->light.exe  = ! GETVAL(EXE);   // U3 GPA0
+        pads->light.def  = ! GETVAL(DEF);   // U4 GPB1
+        pads->light.prte = ! GETVAL(PRTE);  // U4 GPA6
+        pads->light.wct  = ! GETVAL(WCT);   // U4 GPB3
+        pads->light.cad  = ! GETVAL(CAD);   // U4 GPA5
 
         // momentary button - just read the pin (active low)
-        pads->button.stop  = ! ((vals[3] >> 003) & 1);
-        pads->button.cont  = ! ((vals[3] >> 014) & 1);
-        pads->button.start = ! ((vals[3] >> 002) & 1);
-        pads->button.ldad  = ! ((vals[3] >> 015) & 1);
-        pads->button.exam  = ! ((vals[3] >> 016) & 1);
-        pads->button.dep   = ! ((vals[3] >> 000) & 1);
+        pads->button.stop  = ! GETVAL(STOP);
+        pads->button.cont  = ! GETVAL(CONT);
+        pads->button.start = ! GETVAL(START);
+        pads->button.ldad  = ! GETVAL(LDAD);
+        pads->button.exam  = ! GETVAL(EXAM);
+        pads->button.dep   = ! GETVAL(DEP);
 
         //  func    base  coll
         //  sense     1    hiZ
@@ -309,43 +378,43 @@ void I2CZLib::readpads (Z8LPanel *pads)
 
         // toggle value = collector
         pads->togval.sr =                               // active high
-            (((vals[1] >> 004) & 1) << 11) |
-            (((vals[0] >> 000) & 1) << 10) |
-            (((vals[0] >> 002) & 1) <<  9) |
-            (((vals[0] >> 005) & 1) <<  8) |
-            (((vals[0] >> 003) & 1) <<  7) |
-            (((vals[2] >> 013) & 1) <<  6) |
-            (((vals[2] >> 012) & 1) <<  5) |
-            (((vals[2] >> 006) & 1) <<  4) |
-            (((vals[2] >> 010) & 1) <<  3) |
-            (((vals[1] >> 003) & 1) <<  2) |
-            (((vals[1] >> 002) & 1) <<  1) |
-            (((vals[3] >> 004) & 1) <<  0);
+            (GETVAL(SR00) << 11) |
+            (GETVAL(SR01) << 10) |
+            (GETVAL(SR02) <<  9) |
+            (GETVAL(SR03) <<  8) |
+            (GETVAL(SR04) <<  7) |
+            (GETVAL(SR05) <<  6) |
+            (GETVAL(SR06) <<  5) |
+            (GETVAL(SR07) <<  4) |
+            (GETVAL(SR08) <<  3) |
+            (GETVAL(SR09) <<  2) |
+            (GETVAL(SR10) <<  1) |
+            (GETVAL(SR11) <<  0);
 
-        pads->togval.mprt = ! ((vals[0] >> 010) & 1);   // active low
-        pads->togval.dfld = ! ((vals[0] >> 012) & 1);   // active low
-        pads->togval.ifld = ! ((vals[0] >> 006) & 1);   // active low
-        pads->togval.step = ! ((vals[3] >> 001) & 1);   // active low
+        pads->togval.mprt = ! GETVAL(MPRT);   // active low
+        pads->togval.dfld = ! GETVAL(DFLD);   // active low
+        pads->togval.ifld = ! GETVAL(IFLD);   // active low
+        pads->togval.step = ! GETVAL(STEP);   // active low
 
         // toggle being overidden = ! (collector-pin-hiz & base-pin-one)
-        pads->togovr.sr = (
-            (((dirs[1] >> 004) & (vals[0] >> 017) & 1) << 11) |
-            (((dirs[0] >> 000) & (vals[0] >> 015) & 1) << 10) |
-            (((dirs[0] >> 002) & (vals[0] >> 001) & 1) <<  9) |
-            (((dirs[0] >> 005) & (vals[0] >> 004) & 1) <<  8) |
-            (((dirs[0] >> 003) & (vals[0] >> 014) & 1) <<  7) |
-            (((dirs[2] >> 013) & (vals[2] >> 003) & 1) <<  6) |
-            (((dirs[2] >> 012) & (vals[2] >> 005) & 1) <<  5) |
-            (((dirs[2] >> 006) & (vals[2] >> 011) & 1) <<  4) |
-            (((dirs[2] >> 010) & (vals[2] >> 007) & 1) <<  3) |
-            (((dirs[1] >> 003) & (vals[1] >> 001) & 1) <<  2) |
-            (((dirs[1] >> 002) & (vals[1] >> 000) & 1) <<  1) |
-            (((dirs[3] >> 004) & (vals[3] >> 007) & 1) <<  0)) ^ 07777;
+        pads->togovr.sr =
+            (GETOVR(SR00) << 11) |
+            (GETOVR(SR01) << 10) |
+            (GETOVR(SR02) <<  9) |
+            (GETOVR(SR03) <<  8) |
+            (GETOVR(SR04) <<  7) |
+            (GETOVR(SR05) <<  6) |
+            (GETOVR(SR06) <<  5) |
+            (GETOVR(SR07) <<  4) |
+            (GETOVR(SR08) <<  3) |
+            (GETOVR(SR09) <<  2) |
+            (GETOVR(SR10) <<  1) |
+            (GETOVR(SR11) <<  0);
 
-        pads->togovr.mprt = ((dirs[0] >> 010) & (vals[0] >> 011) & 1) ^ 1;
-        pads->togovr.dfld = ((dirs[0] >> 012) & (vals[0] >> 007) & 1) ^ 1;
-        pads->togovr.ifld = ((dirs[0] >> 006) & (vals[0] >> 013) & 1) ^ 1;
-        pads->togovr.step = ((dirs[3] >> 001) & (vals[3] >> 017) & 1) ^ 1;
+        pads->togovr.mprt = GETOVR(MPRT);
+        pads->togovr.dfld = GETOVR(DFLD);
+        pads->togovr.ifld = GETOVR(IFLD);
+        pads->togovr.step = GETOVR(STEP);
     }
 }
 
@@ -406,12 +475,12 @@ void I2CZLib::writepads (Z8LPanel const *pads)
         // when asserted, drive the line low overriding the presumed high state of physical switch
         //   should be < 10mA each well under 25mA per pin limit, and even if all on, 60mA well within 125mA per-chip limit
         // when negated, hi-Z the pin, allowing phys switch to operate, and so readpads() can read phys switch state
-        writebut (dirs, vals, pads->button.stop,  3, 003);
-        writebut (dirs, vals, pads->button.cont,  3, 014);
-        writebut (dirs, vals, pads->button.start, 3, 002);
-        writebut (dirs, vals, pads->button.ldad,  3, 015);
-        writebut (dirs, vals, pads->button.exam,  3, 016);
-        writebut (dirs, vals, pads->button.dep,   3, 000);
+        writebut (dirs, vals, pads->button.stop,  WRITEBUT(STOP));
+        writebut (dirs, vals, pads->button.cont,  WRITEBUT(CONT));
+        writebut (dirs, vals, pads->button.start, WRITEBUT(START));
+        writebut (dirs, vals, pads->button.ldad,  WRITEBUT(LDAD));
+        writebut (dirs, vals, pads->button.exam,  WRITEBUT(EXAM));
+        writebut (dirs, vals, pads->button.dep,   WRITEBUT(DEP));
 
         // toggles are all active high
         // if not overriding, base line driven high to shut off transistor and value line put in hi-Z
@@ -422,23 +491,23 @@ void I2CZLib::writepads (Z8LPanel const *pads)
 
         // phase 1: hi-Z things; 2: drive things
         for (int phase = 1; phase <= 2; phase ++) {
-            writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, 1, 004, 0, 017);    // active high
-            writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, 0, 000, 0, 015);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, 0, 002, 0, 001);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, 0, 005, 0, 004);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, 0, 003, 0, 014);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, 2, 013, 2, 003);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, 2, 012, 2, 005);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, 2, 006, 2, 011);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, 2, 010, 2, 007);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, 1, 003, 1, 001);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, 1, 002, 1, 000);    // active high
-            writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, 3, 004, 3, 007);    // active high
+            writetog (dirs, vals, (pads->togval.sr >> 11) & 1, (pads->togovr.sr >> 11) & 1, WRITETOG(SR00));    // active high
+            writetog (dirs, vals, (pads->togval.sr >> 10) & 1, (pads->togovr.sr >> 10) & 1, WRITETOG(SR01));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  9) & 1, (pads->togovr.sr >>  9) & 1, WRITETOG(SR02));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  8) & 1, (pads->togovr.sr >>  8) & 1, WRITETOG(SR03));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  7) & 1, (pads->togovr.sr >>  7) & 1, WRITETOG(SR04));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  6) & 1, (pads->togovr.sr >>  6) & 1, WRITETOG(SR05));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  5) & 1, (pads->togovr.sr >>  5) & 1, WRITETOG(SR06));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  4) & 1, (pads->togovr.sr >>  4) & 1, WRITETOG(SR07));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  3) & 1, (pads->togovr.sr >>  3) & 1, WRITETOG(SR08));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  2) & 1, (pads->togovr.sr >>  2) & 1, WRITETOG(SR09));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  1) & 1, (pads->togovr.sr >>  1) & 1, WRITETOG(SR10));    // active high
+            writetog (dirs, vals, (pads->togval.sr >>  0) & 1, (pads->togovr.sr >>  0) & 1, WRITETOG(SR11));    // active high
 
-            writetog (dirs, vals, ! pads->togval.mprt, pads->togovr.mprt, 0, 010, 0, 011);                      // active low
-            writetog (dirs, vals, ! pads->togval.dfld, pads->togovr.dfld, 0, 012, 0, 007);                      // active low
-            writetog (dirs, vals, ! pads->togval.ifld, pads->togovr.ifld, 0, 006, 0, 013);                      // active low
-            writetog (dirs, vals, ! pads->togval.step, pads->togovr.step, 3, 001, 3, 017);                      // active low
+            writetog (dirs, vals, ! pads->togval.mprt, pads->togovr.mprt, WRITETOG(MPRT));                      // active low
+            writetog (dirs, vals, ! pads->togval.dfld, pads->togovr.dfld, WRITETOG(DFLD));                      // active low
+            writetog (dirs, vals, ! pads->togval.ifld, pads->togovr.ifld, WRITETOG(IFLD));                      // active low
+            writetog (dirs, vals, ! pads->togval.step, pads->togovr.step, WRITETOG(STEP));                      // active low
 
             writei2c (dirs, vals);
         }
