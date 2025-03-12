@@ -222,7 +222,6 @@ module pdp8lsim (
         { g1linkraw, g1acumraw } = { (mbuf[06] ? 1'b0 : link) ^ mbuf[04], (mbuf[07] ? 12'b0 : acum) ^ (mbuf[05] ? 12'o7777 : 12'o0000) } + { 12'b0, mbuf[00] };
         // handle rotate bits
         case (mbuf[03:01])
-            1: { g1link, g1acum } = { g1linkraw, g1acumraw[05:00], g1acumraw[11:06] };  // bsw
             2: { g1link, g1acum } = { g1acumraw, g1linkraw };                           // rol 1
             3: { g1link, g1acum } = { g1acumraw[10:00], g1linkraw, g1acumraw[11] };     // rol 2
             4: { g1link, g1acum } = { g1acumraw[00], g1linkraw, g1acumraw[11:01] };     // ror 1
