@@ -66,6 +66,7 @@ static void *logthread (void *dummy);
 static void closelog ();
 static int writepipe (int fd, char const *buf, int len);
 static void tclatexit ();
+static void getexedir (char *buf, int buflen);
 
 
 
@@ -101,6 +102,10 @@ int tclmain (
     if (Tcl_CreateObjCommand (interp, "atexit", cmd_atexit, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "ctrlcflag", cmd_ctrlcflag, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "help", cmd_help, NULL, NULL) == NULL) ABORT ();
+
+    char exedir[1024];
+    getexedir (exedir, sizeof exedir);
+    if (Tcl_SetVar (interp, "Z8LHOME", exedir, 0) == NULL) ABORT ();
 
     // redirect stdout if -log given
     if (logname != NULL) {
@@ -484,4 +489,26 @@ void Tcl_SetResultF (Tcl_Interp *interp, char const *fmt, ...)
     if (vasprintf (&buf, fmt, ap) < 0) ABORT ();
     va_end (ap);
     Tcl_SetResult (interp, buf, (void (*) (char *)) free);
+}
+
+// get executeable directory into buf excluding trailing /
+static void getexedir (char *buf, int buflen)
+{
+    int rc = readlink ("/proc/self/exe", buf, buflen);
+    if (rc < 0) {
+        fprintf (stderr, "getexedir: error readink link /proc/self/exe: %m\n");
+        ABORT ();
+    }
+    if (rc >= buflen) {
+        fprintf (stderr, "getexedir: link /proc/self/exe longer than %d bytes\n", buflen - 1);
+        ABORT ();
+    }
+    buf[rc] = 0;
+
+    char *lastslash = strrchr (buf, '/');
+    if (lastslash == NULL) {
+        fprintf (stderr, "getexedir: no slash in executable name %s\n", buf);
+        ABORT ();
+    }
+    *lastslash = 0;
 }

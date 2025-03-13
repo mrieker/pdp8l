@@ -3,8 +3,9 @@
 #    ./z8lpanel bootos8dtape.tcl    ... to run on real pdp
 #    ./z8lsim bootos8dtape.tcl      ... to run on simulator
 #
-source "os8lib.tcl"
+global Z8LHOME
+source $Z8LHOME/os8lib.tcl
 os8dtapeloadandboot
-exec -ignorestderr ./z8ltty -cps 960 -killit -upcase < /dev/tty > /dev/tty
+exec -ignorestderr $Z8LHOME/z8ltty -cps 960 -killit -upcase < /dev/tty > /dev/tty
 flicksw stop
 exit

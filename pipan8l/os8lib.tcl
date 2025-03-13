@@ -1,4 +1,6 @@
 proc os8dpackloadandboot {{sourcedisk ""}} {
+    global Z8LHOME
+
     hardreset
 
     if {$sourcedisk == ""} {
@@ -13,7 +15,7 @@ proc os8dpackloadandboot {{sourcedisk ""}} {
     set home [getenv HOME /tmp]
     exec cp $sourcedisk $home/rkab0.rk05
     exec chmod u+w $home/rkab0.rk05
-    set rk8pid [exec ./z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &]
+    set rk8pid [exec $Z8LHOME/z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &]
     atexit "exec kill $rk8pid"
     after 1000
 
@@ -42,6 +44,8 @@ proc os8dpack0toggleinboot {} {
 }
 
 proc os8dtapeloadandboot {{sourcetape ""}} {
+    global Z8LHOME
+
     hardreset
 
     if {$sourcetape == ""} {
@@ -56,7 +60,7 @@ proc os8dtapeloadandboot {{sourcetape ""}} {
     set home [getenv HOME /tmp]
     exec cp $sourcetape $home/dta0.tu56
     exec chmod u+w $home/dta0.tu56
-    set tc08pid [exec ./z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &]
+    set tc08pid [exec $Z8LHOME/z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &]
     atexit "exec kill $tc08pid"
     after 1000
 
