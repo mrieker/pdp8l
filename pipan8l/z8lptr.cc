@@ -48,12 +48,13 @@ int main (int argc, char **argv)
             puts ("");
             puts ("     Access paper tape reader");
             puts ("");
-            puts ("  ./z8lptr [-7bit] [-clear] [-cps <charspersec>] [-inscr] [-killit] <filename>");
+            puts ("  ./z8lptr [-7bit] [-clear] [-cps <charspersec>] [-inscr] [-killit] [-text] <filename>");
             puts ("     -7bit   : force top bit of byte = 1");
             puts ("     -clear  : clear status bits at beginning");
             puts ("     -cps    : set chars per second, default 300");
             puts ("     -inscr  : insert <CR> before <LF>");
             puts ("     -killit : kill other process that is processing paper tape reader");
+            puts ("     -text   : equivalent to -7bit -inscr");
             puts ("");
             return 0;
         }
@@ -84,6 +85,11 @@ int main (int argc, char **argv)
         }
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-text") == 0) {
+            mask = 0200;
+            inscr = true;
             continue;
         }
         if (argv[i][0] == '-') {
@@ -119,6 +125,7 @@ int main (int argc, char **argv)
         ptrat[1] |= PTR_ENAB;   // enable pdp8lptr.v to process io instructions
     }
 
+    bool lastcr = false;
     uint32_t nbytes = 0;
     while (true) {
         printf ("\r%u/%u byte%s so far ", nbytes, fsize, ((nbytes == 1) ? "" : "s"));
@@ -139,11 +146,13 @@ int main (int argc, char **argv)
             return 0;
         }
 
-        if (((rdbyte & 0177) == '\n') && inscr) {
+        if (((rdbyte & 0177) == '\n') && inscr && ! lastcr) {
             ptrat[1] = PTR_FLAG | PTR_ENAB | (rdbyte - '\n' + '\r') | mask;
             do usleep (1000000 / cps);
             while (! (ptrat[1] & PTR_STEP));
         }
+
+        lastcr = (rdbyte & 0177) == '\r';
 
         ptrat[1] = PTR_FLAG | PTR_ENAB | rdbyte | mask;
         ++ nbytes;

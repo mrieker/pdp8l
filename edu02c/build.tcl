@@ -47,7 +47,7 @@ lookforprompt "."
 checkttyprompt "" "R PIP"
 checkttyprompt "*" "EDU20C.PA<PTR:"
 exec cp edu20c.pal /tmp/edu20c.pal
-exec $Z8LHOME/z8lptr -7bit -cps 900 -inscr -killit /tmp/edu20c.pal &
+exec $Z8LHOME/z8lptr -cps 900 -killit -text /tmp/edu20c.pal &
 checkttyprompt "^" ""
 lookforprompt "*" 300000
 sendchartottykb "\003"
@@ -62,7 +62,7 @@ lookforprompt "."
 
 # retrieve listing file
 checkttyprompt "" "R PIP"
-set ptppid [exec $Z8LHOME/z8lptp -7bit -clear -cps 900 -remcr -remdel -remnul -killit $home/edu20c.lis &]
+set ptppid [exec $Z8LHOME/z8lptp -clear -cps 900 -killit -text $home/edu20c.lis &]
 checkttyprompt "*" "PTP:<EDU20C.LS"
 checkttyprompt "*" "" 750000
 exec kill -INT $ptppid

@@ -58,7 +58,7 @@ int main (int argc, char **argv)
             puts ("");
             puts ("     Access paper tape punch");
             puts ("");
-            puts ("  ./z8lptp [-7bit] [-clear] [-cps <charspersec>] [-killit] [-leader] [-remcr] [-remdel] [-remnul] [-trailer] <filename>");
+            puts ("  ./z8lptp [-7bit] [-clear] [-cps <charspersec>] [-killit] [-leader] [-remcr] [-remdel] [-remnul] [-text] [-trailer] <filename>");
             puts ("     -7bit    : force top bit of byte = 0");
             puts ("     -clear   : clear status bits at beginning");
             puts ("     -cps     : set chars per second, default 50");
@@ -67,6 +67,7 @@ int main (int argc, char **argv)
             puts ("     -remcr   : remove <CR>s");
             puts ("     -remdel  : remove <DEL>s");
             puts ("     -remnul  : remove <NUL>s");
+            puts ("     -text    : equivalent to -7bit -remcr -remdel -remnul");
             puts ("     -trailer : output 16-byte null trailer");
             puts ("");
             return 0;
@@ -109,6 +110,13 @@ int main (int argc, char **argv)
             continue;
         }
         if (strcasecmp (argv[i], "-remnul") == 0) {
+            remnul = true;
+            continue;
+        }
+        if (strcasecmp (argv[i], "-text") == 0) {
+            mask   = 0200;
+            remcr  = true;
+            remdel = true;
             remnul = true;
             continue;
         }

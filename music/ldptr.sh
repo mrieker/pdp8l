@@ -11,4 +11,4 @@
 #    *   get * prompt when read is complete
 #
 dd=`dirname $0`
-exec $dd/../pipan8l/z8lptr -7bit -inscr $1
+exec $dd/../pipan8l/z8lptr -text $1
