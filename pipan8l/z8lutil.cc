@@ -92,32 +92,7 @@ uint32_t volatile *Z8LPage::findev (char const *id, bool (*entry) (void *param, 
         if (idx + len > 1024) break;
         if ((id == NULL) || (((*dev >> 24) == (uint8_t) id[0]) && (((*dev >> 16) & 255) == (uint8_t) id[1]))) {
             if ((entry == NULL) || entry (param, dev)) {
-                if (lockit) {
-                    struct flock flockit;
-                    int kills = killit ? 3 : 0;
-                trylk:;
-                    memset (&flockit, 0, sizeof flockit);
-                    flockit.l_type   = F_WRLCK;
-                    flockit.l_whence = SEEK_SET;
-                    flockit.l_start  = idx * sizeof zynqpage[0];
-                    flockit.l_len    = len * sizeof zynqpage[0];
-                    if (fcntl (zynqfd, F_SETLK, &flockit) < 0) {
-                        if (((errno == EACCES) || (errno == EAGAIN)) && (fcntl (zynqfd, F_GETLK, &flockit) >= 0)) {
-                            if (flockit.l_type == F_UNLCK) goto trylk;
-                            fprintf (stderr, "Z8LPage::findev: %c%c locked by pid %d\n",
-                                *dev >> 24, *dev >> 16, (int) flockit.l_pid);
-                            if (-- kills >= 0) {
-                                fprintf (stderr, "Z8LPage::findev: killing pid %d\n", (int) flockit.l_pid);
-                                kill ((int) flockit.l_pid, SIGTERM);
-                                usleep (100000);
-                                goto trylk;
-                            }
-                        } else {
-                            fprintf (stderr, "Z8LPage::findev: error locking %c%c: %m\n", *dev >> 24, *dev >> 16);
-                        }
-                        ABORT ();
-                    }
-                }
+                if (lockit) locksubdev (dev, len, killit);
                 return dev;
             }
         }
@@ -144,6 +119,68 @@ uint32_t volatile *Z8LPage::extmem ()
     }
     return (uint32_t volatile *) extmemptr;
 }
+
+// lock a sub-device
+//  input:
+//   start = first register of sub-device to lock
+//   nwords = number of registers starting at 'start'
+//   killit = true: try to kill other process if locked
+//           false: abort if already locked
+void Z8LPage::locksubdev (uint32_t volatile *start, int nwords, bool killit)
+{
+    // find device that contains the start word
+    int len, ofs;
+    uint32_t volatile *dev;
+    for (int idx = 0; idx < 1024;) {
+        dev = &zynqpage[idx];
+        len = 2 << ((*dev >> 12) & 15);
+        if (idx + len > 1024) break;
+        ofs = start - dev;
+        if ((ofs >= 0) && (ofs < len)) goto found;
+        idx += len;
+    }
+    ABORT ();
+found:;
+    if (len - ofs < nwords) ABORT ();
+
+    // dev = device within zynqpage
+    // ofs = offset of start within dev
+    // len = total number of words in device
+
+    int kills = killit ? 3 : 0;
+
+    while (true) {
+
+        // try to lock the requested range
+        struct flock flockit;
+        memset (&flockit, 0, sizeof flockit);
+        flockit.l_type   = F_WRLCK;
+        flockit.l_whence = SEEK_SET;
+        flockit.l_start  = (long)start - (long)zynqpage;
+        flockit.l_len    = nwords * sizeof zynqpage[0];
+        if (fcntl (zynqfd, F_SETLK, &flockit) >= 0) break;
+
+        // failed, try to find out what pid has it locked
+        if (((errno == EACCES) || (errno == EAGAIN)) && (fcntl (zynqfd, F_GETLK, &flockit) >= 0)) {
+            if (flockit.l_type == F_UNLCK) continue;
+
+            // print out message saying pid that has it locked
+            fprintf (stderr, "Z8LPage::findev: %c%c+%d locked by pid %d\n", *dev >> 24, *dev >> 16, ofs, (int) flockit.l_pid);
+            if (-- kills >= 0) {
+
+                // try to kill it then try locking again
+                fprintf (stderr, "Z8LPage::findev: killing pid %d\n", (int) flockit.l_pid);
+                kill ((int) flockit.l_pid, SIGTERM);
+                usleep (125000);
+                continue;
+            }
+        } else {
+            fprintf (stderr, "Z8LPage::findev: error locking %c%c: %m\n", *dev >> 24, *dev >> 16);
+        }
+        ABORT ();
+    }
+}
+
 
 #define CMWAIT(pred) do {                                               \
     uint32_t started = 0;                                               \

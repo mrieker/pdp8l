@@ -53,7 +53,6 @@ if {! [file exists $edudisk]} {
 }
 
 exec $Z8LHOME/z8lrk8je -killit -loadrw 0 $edudisk &
-exec -ignorestderr $Z8LHOME/z8ldc02 -cps 960 -killit -upcase 12345 12346 &
 after 1000
 
 pin set xm_enlo4k 1
@@ -79,7 +78,7 @@ checkttyprompt "READY" "RUN"
 checkttymatch 0 "HELLO"
 puts ""
 puts ""
-puts "  This terminal is the primary terminal"
-puts "  The 2nd and 3rd terminals are accessible via telnet ports 12345 and 12346"
+puts "  This terminal is accessible via ../pipan8l/z8ltty -cps 960 -killit -upcase"
+puts "  The 2nd is accessible via ../pipan8l/z8ltty -cps 960 -killit -upcase -dc02 0"
+puts "  The 3rd is accessible via ../pipan8l/z8ltty -cps 960 -killit -upcase -dc02 1"
 puts ""
-exec -ignorestderr $Z8LHOME/z8ltty -cps 960 -killit -upcase < /dev/tty > /dev/tty

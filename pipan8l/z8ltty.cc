@@ -58,6 +58,9 @@ static TclFunDef const fundefs[] = {
 
 static uint8_t const nullbuf[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+static bool (*getprchar) (uint8_t *prchar_r);
+static void (*putkbchar) (uint8_t kbchar);
+
 static bool nokb;
 static bool punchquiet;
 static bool punchstat;
@@ -71,6 +74,7 @@ static uint32_t cps = 10;
 static uint32_t punchbytes;
 static uint32_t readerbytes;
 static uint32_t readersize;
+static uint32_t volatile *dcreg;
 static uint32_t volatile *ttyat;
 static uint8_t punchmask;
 static uint8_t readermask;
@@ -79,22 +83,29 @@ static bool findtt (void *param, uint32_t volatile *ttyat);
 static bool stoponcheck (TTYStopOn *const stopon, char prchar);
 static void sigrunhand (int signum);
 
+static bool dc_getprchar (uint8_t *prchar_r);
+static void dc_putkbchar (uint8_t kbchar);
+static bool tt_getprchar (uint8_t *prchar_r);
+static void tt_putkbchar (uint8_t kbchar);
+
 
 
 int main (int argc, char **argv)
 {
+    bool dc02 = false;
     bool dotcl = false;
     bool killit = false;
+    int port = -1;
     int tclargs = argc;
-    uint32_t port = 3;
     char *p;
     for (int i = 0; ++ i < argc;) {
         if (strcmp (argv[i], "-?") == 0) {
             puts ("");
             puts ("     Access TTY");
             puts ("");
-            puts ("  ./z8ltty [-cps <charspersec>] [-killit] [-nokb] [<octalportnumber>] [-tcl [-upcase] [<scriptfilename> [<scriptargs...>]]]");
+            puts ("  ./z8ltty [-cps <charspersec>] [-dc02] [-killit] [-nokb] [<octalportnumber>] [-upcase] [-tcl [<scriptfilename> [<scriptargs...>]]]");
             puts ("     -cps    : set chars per second, default 10");
+            puts ("     -dc02   : <octalportnumber> is DC02 port number, 0..5, default 0");
             puts ("     -killit : kill other process that is processing this tty port");
             puts ("     -nokb   : do not pass stdin keyboard to pdp");
             puts ("     <octalportnumber> defaults to 03, other values are 40 42 44 46");
@@ -120,6 +131,10 @@ int main (int argc, char **argv)
             }
             continue;
         }
+        if (strcasecmp (argv[i], "-dc02") == 0) {
+            dc02 = true;
+            continue;
+        }
         if (strcasecmp (argv[i], "-killit") == 0) {
             killit = true;
             continue;
@@ -137,21 +152,41 @@ int main (int argc, char **argv)
             upcase = true;
             continue;
         }
-        if (argv[i][0] == '-') {
+        if ((argv[i][0] == '-') || (port >= 0)) {
             fprintf (stderr, "unknown option %s\n", argv[i]);
             return 1;
         }
         port = strtoul (argv[i], &p, 8);
-        if ((*p != 0) || (port > 076)) {
-            fprintf (stderr, "port number %s must be octal integer in range 0..076\n", argv[i]);
+        if (*p != 0) {
+            fprintf (stderr, "port number %s must be octal integer\n", argv[i]);
             return 1;
         }
     }
 
     Z8LPage z8p;
-    ttyat = z8p.findev ("TT", findtt, &port, true, killit);
-
-    ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
+    if (dc02) {
+        if (port < 0) port = 0;
+        if (port > 5) {
+            fprintf (stderr, "port number %o must be in range 0..5\n", port);
+            return 1;
+        }
+        uint32_t volatile *dcat = z8p.findev ("DC", NULL, NULL, false, killit);
+        dcat[1]   = 0x80000000U;    // enable board to process io instructions
+        dcreg     = &dcat[2+port];  // point to register for this terminal
+        getprchar = dc_getprchar;   // set up get/put functions
+        putkbchar = dc_putkbchar;
+        z8p.locksubdev (dcreg, 1, killit);  // make sure another one of these isn't running
+    } else {
+        if (port < 0) port = 3;
+        if ((port < 1) || (port > 076)) {
+            fprintf (stderr, "port number %o must be in range 1..76\n", port);
+            return 1;
+        }
+        ttyat = z8p.findev ("TT", findtt, &port, true, killit);
+        ttyat[Z_TTYKB] = KB_ENAB;   // enable board to process io instructions
+        getprchar = tt_getprchar;   // set up get/put functions
+        putkbchar = tt_putkbchar;
+    }
 
     int rc;
     if (dotcl) {
@@ -167,12 +202,12 @@ int main (int argc, char **argv)
 
 static bool findtt (void *param, uint32_t volatile *ttyat)
 {
-    uint32_t port = *(uint32_t *) param;
+    int port = *(int *) param;
     if (ttyat == NULL) {
         fprintf (stderr, "findtt: cannot find TT port %02o\n", port);
         ABORT ();
     }
-    return (ttyat[Z_TTYPN] & 077) == port;
+    return (ttyat[Z_TTYPN] & 077) == (uint32_t) port;
 }
 
 // have outgoing char, step stopon state and see if complete match has occurred
@@ -511,8 +546,8 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
 
         // maybe see if PDP has a character to print
         if (nowus >= readnextprat) {
-            uint32_t prreg = ttyat[Z_TTYPR];
-            if (prreg & PR_FULL) {
+            uint8_t prreg;
+            if (getprchar (&prreg)) {
 
                 // print character to stdout
                 uint8_t prchar = prreg & 0177;
@@ -540,9 +575,6 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                     }
                     if (punchstat) fprintf (stderr, "\r[%u]", ++ punchbytes);
                 }
-
-                // clear printing full flag, set printing complete flag
-                ttyat[Z_TTYPR] = PR_FLAG;
 
                 // check for another char to print after 1000000/cps usec
                 readnextprat = nowus + 1000000 / cps;
@@ -575,7 +607,7 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                 if (rc <= 0) ABORT ();
                 if ((kbchar == '\\' - '@') && stdintty) break;
                 if (upcase && (kbchar >= 'a') && (kbchar <= 'z')) kbchar -= 'a' - 'A';
-                ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | 0200 | kbchar;
+                putkbchar (0200 | kbchar);
                 readnextkbat = nowus + 1000000 / cps;
             } else if (readerfile >= 0) {
 
@@ -593,7 +625,7 @@ static int cmd_run (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj
                     readerfile  = -1;
                     readerquiet = false;
                 } else {
-                    ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbbyte | readermask;
+                    putkbchar (kbbyte | readermask);
                     if (readerstat) fprintf (stderr, "\r[%u/%u]", ++ readerbytes, readersize);
                     // little slower for reader so pdp doesn't get overrun echoing
                     readnextkbat = nowus + 1111111 / cps;
@@ -632,4 +664,40 @@ static void sigrunhand (int signum)
     }
     dprintf (STDERR_FILENO, "\nz8ltty: terminated by signal %d\n", signum);
     exit (1);
+}
+
+// get printer character from terminal multiplexor
+
+static bool dc_getprchar (uint8_t *prchar_r)
+{
+    uint32_t prreg = *dcreg;
+    if (! (prreg & 0x20000000)) return false;
+    *prchar_r = prreg >> 12;
+    *dcreg = 0x4C000000;            // set prflag=1, prfull=0
+    return true;
+}
+
+// put keyboard character to terminal multiplexor
+
+static void dc_putkbchar (uint8_t kbchar)
+{
+    *dcreg = 0x91000000U | kbchar;  // set kbchar, kbflag=1
+}
+
+// get printer character from single terminal interface
+
+static bool tt_getprchar (uint8_t *prchar_r)
+{
+    uint32_t prreg = ttyat[Z_TTYPR];
+    if (! (prreg & PR_FULL)) return false;
+    *prchar_r = prreg;
+    ttyat[Z_TTYPR] = PR_FLAG;
+    return true;
+}
+
+// put keyboard character to single terminal interface
+
+static void tt_putkbchar (uint8_t kbchar)
+{
+    ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbchar;
 }

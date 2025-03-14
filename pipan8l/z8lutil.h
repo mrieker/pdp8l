@@ -33,6 +33,7 @@ struct Z8LPage {
     virtual ~Z8LPage ();
     uint32_t volatile *findev (char const *id, bool (*entry) (void *param, uint32_t volatile *dev), void *param, bool lockit, bool killit = false);
     uint32_t volatile *extmem ();
+    void locksubdev (uint32_t volatile *start, int nwords, bool killit);
 
     uint32_t dmacycle (uint32_t cm, uint32_t cm2);
     void dmaflush ();
