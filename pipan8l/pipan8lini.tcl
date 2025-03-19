@@ -725,6 +725,9 @@ proc rimloader {speed} {
 # read memory location
 # - does loadaddress which reads the location
 proc rdmem {addr} {
+    if {($addr > 017777) && ([libname] == "i2cz")} {
+        return [pin get em:$addr]
+    }
     setsw ifld [expr {$addr >> 12}]
     setsw dfld [expr {$addr >> 12}]
     setsw sr [expr {$addr & 07777}]
@@ -848,13 +851,17 @@ proc waitforttypr {msec str} {
 
 # write memory location
 # - does loadaddress, then deposit to write
-proc wrmem {addr data args} {
-    setsw ifld [expr {$addr >> 12}]
-    setsw dfld [expr {$addr >> 12}]
-    setsw sr [expr {$addr & 07777}]
-    flicksw ldad
-    setsw sr $data
-    flicksw dep
+proc wrmem {addr data} {
+    if {($addr > 017777) && ([libname] == "i2cz")} {
+        pin set em:$addr $data
+    } else {
+        setsw ifld [expr {$addr >> 12}]
+        setsw dfld [expr {$addr >> 12}]
+        setsw sr [expr {$addr & 07777}]
+        flicksw ldad
+        setsw sr $data
+        flicksw dep
+    }
 }
 
 # zero block of memory
