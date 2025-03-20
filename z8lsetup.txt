@@ -4,7 +4,7 @@
 Setting up the software and test software on simulator
 Requires a ZTurn 7020 board but does not need to be plugged into PDP
 
-    1) make SD card using procedure in zplin/howto.txt
+    1) make SD card using procedure in zplin/quicksdcard.txt
        do not need to plug zturn into pdp-8/l yet
 
        there are BOOT.BIN and image.ub files in the zynq directory
@@ -25,7 +25,7 @@ Requires a ZTurn 7020 board but does not need to be plugged into PDP
        use a com port program to access the serial port at 115,200 baud
 
     3) log in as root to set up network and install some utilities
-       - look for apt installs in zplin/howto.txt
+       - look for apt installs in zplin/quicksdcard.txt
        - enable ssh daemon and set passwords so ssh will work
 
     4) use ssh to log into the ZTurn as non-priv user (pi)

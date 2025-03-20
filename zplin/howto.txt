@@ -3,6 +3,10 @@
 #  How to set up tools for building Zynq FPGA code and create SD card  #
 ########################################################################
 
+note:
+    to create an sd card with the given fpga code, follow steps in quicksdcard.txt.
+    if you want to make changes to the fpga code, follow the steps below.
+
 start with:
     always needed:
         ZTurn 7020 board

@@ -25,7 +25,7 @@ partprobe /dev/sda
 mkdir /x
 mount /dev/sda1 /x
 rm -rf /x/*
-cp ../zynq/BOOT.BIN /x/
+gunzip -c ../zynq/BOOT.BIN.gz > /x/BOOT.BIN
 cp ../zynq/image.ub /x/
 umount /x
 
