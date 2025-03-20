@@ -17,7 +17,7 @@ fi
 ../pipan8l/z8lrk8je -killit -loadrw 0 $diskfile &
 sleep 2
 case $1 in
-    real)../pipan8l/z8lpanel manual.tcl ;;
+    real)../pipan8l/z8lpanel -real manual.tcl ;;
     sim) ../pipan8l/z8lsim manual.tcl ;;
 esac
 echo ""

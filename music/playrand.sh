@@ -18,6 +18,6 @@ fi
 ../pipan8l/z8lrk8je -killit -loadrw 0 $diskfile &
 sleep 2
 case $1 in
-    real)../pipan8l/z8lpanel playrand.tcl ;;
-    sim) ../pipan8l/z8lsim playrand.tcl ;;
+    real)../pipan8l/z8lpanel -real -log ~/playrand.log playrand.tcl ;;
+    sim) ../pipan8l/z8lsim -log ~/playrand.log playrand.tcl ;;
 esac
