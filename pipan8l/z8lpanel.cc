@@ -129,13 +129,8 @@ int main (int argc, char **argv)
             puts ("     <scriptfile.tcl> : execute script then exit");
             puts ("                 else : read and process commands from stdin");
             puts ("");
-            puts ("  ./z8lpanel -status [<hostname-or-ip-address-of-z8lpanel>]");
+            puts ("  ./z8lpanel -status");
             puts ("     display ascii-art front panel");
-            puts ("     runs on pc, raspi, zturn");
-            puts ("     <hostname-or-ip-address-of-z8lpanel-status-server> defaults to localhost");
-            puts ("");
-            puts ("  ./z8lpanel -status server");
-            puts ("     act as UDP server for the ascii-art front panel");
             puts ("");
             return 0;
         }
