@@ -44,62 +44,150 @@
 // write toggle switch value (args for writetog())
 #define WRITETOG(bitno) WRITEBUT(bitno),WRITEBUT(R##bitno)
 
-#define IR00 0202
-#define IR01 0216
-#define IR02 0310
+#define U1 0000     // MCP23017s
+#define U2 0100
+#define U3 0200
+#define U4 0300
 
-#define LINK 0016    // U1 GPB6
-#define FET  0214    // U3 GPB4
-#define ION  0215    // U3 GPB5
-#define PARE 0201    // U3 GPA1
-#define EXE  0200    // U3 GPA0
-#define DEF  0311    // U4 GPB1
-#define PRTE 0306    // U4 GPA6
-#define WCT  0312    // U4 GPB3
-#define CAD  0305    // U4 GPA5
+#define P01 010     // GPB0
+#define P02 011
+#define P03 012
+#define P04 013
+#define P05 014
+#define P06 015
+#define P07 016
+#define P08 017     // GPB7
 
-#define STOP  0303
-#define CONT  0314
-#define START 0302
-#define LDAD  0315
-#define EXAM  0316
-#define DEP   0300
+#define P21 000     // GPA0
+#define P22 001
+#define P23 002
+#define P24 003
+#define P25 004
+#define P26 005
+#define P27 006
+#define P28 007     // GPA7
 
-#define SR00 0104
-#define SR01 0000
-#define SR02 0002
-#define SR03 0005
-#define SR04 0003
-#define SR05 0213
-#define SR06 0212
-#define SR07 0206
-#define SR08 0210
-#define SR09 0103
-#define SR10 0102
-#define SR11 0304
+#if FPPCB - 0 == 0
+#error do 'make FPPCB=3 (THT parts) or FPPCB=4 (SMT parts)'
+#endif
 
-#define MPRT 0010   // active low
-#define DFLD 0012   // active low
-#define IFLD 0006   // active low
-#define STEP 0301   // active low
+#if FPPCB == 3      // through-hole thick style
 
-#define RSR00 0017
-#define RSR01 0015
-#define RSR02 0001
-#define RSR03 0004
-#define RSR04 0014
-#define RSR05 0203
-#define RSR06 0205
-#define RSR07 0211
-#define RSR08 0207
-#define RSR09 0101
-#define RSR10 0100
-#define RSR11 0307
+#define MPRT  (U1+P01)   // active low
+#define RMPRT (U1+P02)
+#define DFLD  (U1+P03)   // active low
+#define RIFLD (U1+P04)
+#define RSR04 (U1+P05)
+#define RSR01 (U1+P06)
+#define LINK  (U1+P07)
+#define RSR00 (U1+P08)
+#define SR01  (U1+P21)
+#define RSR02 (U1+P22)
+#define SR02  (U1+P23)
+#define SR04  (U1+P24)
+#define RSR03 (U1+P25)
+#define SR03  (U1+P26)
+#define IFLD  (U1+P27)   // active low
+#define RDFLD (U1+P28)
 
-#define RMPRT 0011
-#define RDFLD 0007
-#define RIFLD 0013
-#define RSTEP 0317
+#define RSR10 (U2+P21)
+#define RSR09 (U2+P22)
+#define SR10  (U2+P23)
+#define SR09  (U2+P24)
+#define SR00  (U2+P25)
+
+#define SR08  (U3+P01)
+#define RSR07 (U3+P02)
+#define SR06  (U3+P03)
+#define SR05  (U3+P04)
+#define FET   (U3+P05)
+#define ION   (U3+P06)
+#define IR01  (U3+P07)
+#define EXE   (U3+P21)
+#define PARE  (U3+P22)
+#define IR00  (U3+P23)
+#define RSR05 (U3+P24)
+#define RSR06 (U3+P26)
+#define SR07  (U3+P27)
+#define RSR08 (U3+P28)
+
+#define IR02  (U4+P01)
+#define DEF   (U4+P02)
+#define WCT   (U4+P03)
+#define BNCY  (U4+P04)
+#define CONT  (U4+P05)
+#define LDAD  (U4+P06)
+#define EXAM  (U4+P07)
+#define RSTEP (U4+P08)
+#define DEP   (U4+P21)
+#define STEP  (U4+P22)   // active low
+#define START (U4+P23)
+#define STOP  (U4+P24)
+#define SR11  (U4+P25)
+#define CAD   (U4+P26)
+#define PRTE  (U4+P27)
+#define RSR11 (U4+P28)
+
+#endif
+
+#if FPPCB == 4      // surface-mount thin style
+
+#define SR00  (U1+P01)
+#define SR03  (U1+P02)
+#define SR02  (U1+P03)
+#define SR01  (U1+P04)
+#define MPRT  (U1+P24)
+#define IFLD  (U1+P25)
+#define LINK  (U1+P26)
+#define SR04  (U1+P27)
+#define DFLD  (U1+P28)
+
+#define RSR04 (U2+P01)
+#define RDFLD (U2+P02)
+#define RIFLD (U2+P03)
+#define RMPRT (U2+P04)
+#define SR10  (U2+P21)
+#define RSR09 (U2+P22)
+#define SR09  (U2+P23)
+#define RSR10 (U2+P24)
+#define RSR02 (U2+P25)
+#define RSR01 (U2+P26)
+#define RSR00 (U2+P27)
+#define RSR03 (U2+P28)
+
+#define SR06  (U3+P01)
+#define EXE   (U3+P02)
+#define SR08  (U3+P03)
+#define ION   (U3+P04)
+#define SR07  (U3+P05)
+#define IR01  (U3+P06)
+#define SR05  (U3+P07)
+#define IR00  (U3+P21)
+#define RSR05 (U3+P22)
+#define PARE  (U3+P24)
+#define RSR08 (U3+P25)
+#define RSR06 (U3+P26)
+#define FET   (U3+P27)
+#define RSR07 (U3+P28)
+
+#define LDAD  (U4+P01)
+#define BNCY  (U4+P02)
+#define CONT  (U4+P03)
+#define SR11  (U4+P04)
+#define STEP  (U4+P05)
+#define EXAM  (U4+P06)
+#define DEP   (U4+P07)
+#define RSTEP (U4+P08)
+#define STOP  (U4+P21)
+#define IR02  (U4+P22)
+#define PRTE  (U4+P23)
+#define DEF   (U4+P24)
+#define CAD   (U4+P25)
+#define START (U4+P26)
+#define WCT   (U4+P27)
+#define RSR11 (U4+P28)
+
+#endif
 
 #define I2CUS(s,r) (10*2+15*(s)+10*(r)) // s=number bits sent, r=number bits rcvd
 

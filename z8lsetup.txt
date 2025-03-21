@@ -47,7 +47,8 @@ Requires a ZTurn 7020 board but does not need to be plugged into PDP
     6) compile the software on the ZTurn
 
         cd pipan8l
-        make
+        make FPPCB=3    have the through-hole part front panel board
+        make FPPCB=4    have the surface-mount part front panel board
 
     7) should be able to run a couple maindecs on simulator:
 

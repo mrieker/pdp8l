@@ -1,7 +1,7 @@
 CFLAGS ?= -O2 -Werror
 MACH   := $(shell uname -m)
 TCLINC := -I$(shell ./tclinc.sh)
-GPP    := g++ $(CFLAGS) $(TCLINC) -std=c++11 -g -Wall -fPIC
+GPP    := g++ $(CFLAGS) $(TCLINC) -std=c++11 -g -Wall -fPIC -DFPPCB=$(FPPCB)
 LNKFLG := -lpthread -lreadline -lrt -l$(shell ./tcllib.sh)
 
 ifeq ($(MACH),armv6l)
