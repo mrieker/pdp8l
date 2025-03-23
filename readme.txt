@@ -14,7 +14,8 @@ PDP-8/L related projects
     connects to zturn board plugged into row 36 via 3-wire I2C cable
     zturn program runs TCL scripts to load and run tests (maindec and otherwise)
 
-    pipan8l/pcb3 - circuit board
+    pipan8l/pcb3 - circuit board (through hole parts)
+    pipan8l/pcb4 - circuit board (surface mount parts)
     pipan8l/z8lpanel - zturn program
         provides TCL commands to access light & switch signals
             senses lights and switches
@@ -28,11 +29,13 @@ PDP-8/L related projects
 
     pipan8l/z8l* - various zynq programs
         with real PDP-8/L only
-            z8lreal - set real (non-simulation) mode w/out front panel overlay board
-            z8lpanel - set real (non-simulation) mode with front panel overlay board
-                provides TCL commands to access real light & switch signals
+            z8lreal - set fpga to real (non-simulation) mode
+            z8lpanel - access front panel overlay board
+                provides TCL commands to access real pdp light & switch signals
+                can override or just sense real switches
         with zynq PDP-8/L simulator only
-            z8lsim - set simulation mode
+            can run on zturn board by itself or with all boards plugged into real pdp
+            z8lsim - set fpga to simulation mode
                 provides TCL commands to access simulated light & switch signals
             z8ltrace - print simulation instruction trace
         runs with either real or simulated PDP-8/L
