@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#  Run simple EDU20C test on real or sim
+#  Run simple EDU25R test on real or sim
 #
 case $1 in
     real) exec ../pipan8l/z8lpanel -log ~/test.log test.tcl ;;

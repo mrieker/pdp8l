@@ -2,7 +2,11 @@ puts ""
 puts "d02b: instruction test 2"
 stopandreset
 openttypipes
-loadbin ../alltapes/maindec-8i-d02b-pb.bin
+if {[lindex $argv 0] == "-slow"} {
+    loadbin ../alltapes/maindec-8i-d02b-pb.bin
+} else {
+    loadbinptr ../alltapes/maindec-8i-d02b-pb.bin
+}
 setsw sr 07777
 flushit
 startat 0201

@@ -5,7 +5,7 @@
 #  Optionally run status on another screen:
 #    ./z8ltc08 -status [<ip-address-of-this-system>]
 #
-loadbin ../alltapes/d3ra-pb.bin
+loadbinptr ../alltapes/d3ra-pb.bin
 puts "run-d3ra: loading tape files"
 set home [getenv HOME /tmp]
 set tcpid [exec ./z8ltc08 -killit -loadrw 1 $home/tape1.tu56 -loadrw 2 $home/tape2.tu56 -loadrw 3 $home/tape3.tu56 &]

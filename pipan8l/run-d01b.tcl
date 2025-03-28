@@ -4,7 +4,11 @@ puts "d01b: instruction test 1"
 ;# open tty, load program
 stopandreset
 openttypipes
-loadbin ../alltapes/maindec-8i-d01b-pb.bin
+if {[lindex $argv 0] == "-slow"} {
+    loadbin ../alltapes/maindec-8i-d01b-pb.bin
+} else {
+    loadbinptr ../alltapes/maindec-8i-d01b-pb.bin
+}
 
 ;# program starts at 0144, halts at 0146 with ac=0000
 puts "d01b: starting program"

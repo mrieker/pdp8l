@@ -3,7 +3,12 @@ puts "d1eb: extended memory checkerboard"
 
 stopandreset
 openttypipes
-loadbin ../alltapes/maindec-08-d1eb-pb.bin
+if {[lindex $argv 0] == "-slow"} {
+    loadbin ../alltapes/maindec-08-d1eb-pb.bin
+} else {
+    loadbinptr ../alltapes/maindec-08-d1eb-pb.bin
+}
+puts "d1eb: starting"
 setsw sr 0200
 flicksw ldad
 flushit
@@ -15,11 +20,14 @@ waitforttypr 15000 "SETUP SR"
 setsw sr 0
 flushit
 sendtottykb "\r"
+puts -nonewline "d1eb: tossing "
 while true {
     set ch [readttychartimed 250]
     if {$ch == ""} break
-    puts "d1eb: tossing char [escapechr $ch]"
+    puts -nonewline [escapechr $ch]
+    flush stdout
 }
+puts ""
 
 set nmin 3
 puts "d1eb: letting it run for $nmin minutes"
@@ -27,12 +35,8 @@ set error 0
 for {set started [clock seconds]} {[clock seconds] - $started < $nmin * 60} {} {
     if {[ctrlcflag]} return
     if {! [getreg run]} {
-        puts "d1eb: processor halted"
-        puts [dumpit]
-        return
-    }
-    if {![getreg run]} {
         puts "d1eb: processor halted - failed"
+        puts [dumpit]
         exit 1
     }
     set ch [readttychartimed 250]

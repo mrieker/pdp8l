@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <tcl.h>
 #include <unistd.h>
 
@@ -47,6 +48,7 @@ struct TclExit {
 static Tcl_ObjCmdProc cmd_atexit;
 static Tcl_ObjCmdProc cmd_ctrlcflag;
 static Tcl_ObjCmdProc cmd_help;
+static Tcl_ObjCmdProc cmd_waitpid;
 
 bool volatile ctrlcflag;
 static bool logflushed;
@@ -102,6 +104,7 @@ int tclmain (
     if (Tcl_CreateObjCommand (interp, "atexit", cmd_atexit, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "ctrlcflag", cmd_ctrlcflag, NULL, NULL) == NULL) ABORT ();
     if (Tcl_CreateObjCommand (interp, "help", cmd_help, NULL, NULL) == NULL) ABORT ();
+    if (Tcl_CreateObjCommand (interp, "waitpid", cmd_waitpid, NULL, NULL) == NULL) ABORT ();
 
     char exedir[1024];
     getexedir (exedir, sizeof exedir);
@@ -447,8 +450,9 @@ int cmd_ctrlcflag (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj 
 int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
     puts ("");
-    bool didatexit = false;
-    bool didctrlc  = false;
+    bool didatexit  = false;
+    bool didctrlc   = false;
+    bool didwaitpid = false;
     for (TclFunDef const *fd = fundefs; fd->help != NULL; fd ++) {
         if (! didatexit && (strcasecmp (fd->name, "atexitflag") > 0)) {
             printf ("  %10s - %s\n", "atexit", "execute given command on exit");
@@ -458,6 +462,10 @@ int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *cons
             printf ("  %10s - %s\n", "ctrlcflag", "read and clear control-C flag");
             didctrlc = true;
         }
+        if (! didwaitpid && (strcasecmp (fd->name, "waitpid") > 0)) {
+            printf ("  %10s - %s\n", "waitpid", "wait for process to exit");
+            didwaitpid = true;
+        }
         printf ("  %10s - %s\n", fd->name, fd->help);
     }
     if (! didatexit) {
@@ -465,6 +473,9 @@ int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     }
     if (! didctrlc) {
         printf ("  %10s - %s\n", "ctrlcflag", "read and clear control-C flag");
+    }
+    if (! didwaitpid) {
+        printf ("  %10s - %s\n", "waitpid", "wait for process to exit");
     }
     puts ("");
     puts ("for help on specific command, do '<command> help'");
@@ -474,6 +485,46 @@ int cmd_help (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     }
     puts ("");
     return TCL_OK;
+}
+
+// wait for process to exit
+int cmd_waitpid (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    switch (objc) {
+        case 2: {
+            char const *opstr = Tcl_GetString (objv[1]);
+            if (strcasecmp (opstr, "help") == 0) {
+                puts ("");
+                puts ("  waitpid <processid>");
+                puts ("");
+                puts ("  returns:");
+                puts ("    null string - process still running");
+                puts ("    integer - exit status (when pid argument > 0)");
+                puts ("    integer:integer - exit status:process id (when pid arg <= 0)");
+                puts ("");
+                return TCL_OK;
+            }
+            int pid;
+            int rc = Tcl_GetIntFromObj (interp, objv[1], &pid);
+            if (rc != TCL_OK) return rc;
+            int exst;
+            rc = waitpid (pid, &exst, WNOHANG);
+            if (rc < 0) {
+                Tcl_SetResultF (interp, "%m");
+                return TCL_ERROR;
+            }
+            if (rc == 0) return TCL_OK;
+            if (rc == pid) {
+                Tcl_SetObjResult (interp, Tcl_NewIntObj (exst));
+                return TCL_OK;
+            }
+            if (sigprocmask (SIG_BLOCK, &sigintmask, NULL) != 0) ABORT ();
+            Tcl_SetResultF (interp, "%d:%d", exst, rc);
+            return TCL_OK;
+        }
+    }
+    Tcl_SetResult (interp, (char *) "bad number of arguments", TCL_STATIC);
+    return TCL_ERROR;
 }
 
 /////////////////

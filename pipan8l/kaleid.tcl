@@ -9,8 +9,7 @@ if {($vt != "e") && ($vt != "i")} {
     exit 1
 }
 exec -ignorestderr make kaleid-$vt.bin
-hardreset
-set startaddr [loadbin kaleid-$vt.bin]
+set startaddr [loadbinptr kaleid-$vt.bin]
 set nowtv [gettod]
 set initx [expr {int ($nowtv * 1000000) % 1000 + 1234}]
 set inity [expr {int ($nowtv * 1000000) / 1000 % 1000 + 2345}]

@@ -18,8 +18,9 @@ proc helpini {} {
     puts "  getrestofttyline        - read rest of line from tty"
     puts "  inttochar               - convert integer to character"
     puts "  isziactest              - deposit isz/iac test in memory"
-    puts "  loadbin <filename>      - load bin file, verify, return start address"
-    puts "  loadrim <filename>      - load rim file, verify"
+    puts "  loadbin <filename>      - load bin file via console, verify, return start address"
+    puts "  loadbinptr <filename>   - load bin file via paper tape reader, return start address"
+    puts "  loadrim <filename>      - load rim file via console, verify"
     puts "  loop52                  - set up and start 5252: jmp 5252"
     puts "  octal <val>             - convert value to 4-digit octal string"
     puts "  openttypipes            - access tty device pipes"
@@ -333,6 +334,7 @@ proc isziactest {} {
 }
 
 # load bin format tape file, return start address
+# uses front panel load address, deposit
 #  returns
 #       -1: successful, no start address
 #     else: successful, start address
@@ -498,6 +500,48 @@ proc loadbin {fname} {
     loadverify $verify
 
     return $start
+}
+
+# load bin format tape file, return start address
+# uses rim loader, bin loader, high-speed paper tape reader
+proc loadbinptr {fname} {
+    global Z8LHOME
+
+    stopandreset
+    setsw mprt 0 ; setsw ifld 0 ; setsw dfld 0 ; setsw step 0
+
+    puts "loadbinptr: toggling in rim loader"
+    rimloader hi
+
+    puts "loadbinptr: reading in bin loader"
+    exec -ignorestderr make -C $Z8LHOME binloader.rim
+    set ptrpid [exec -ignorestderr $Z8LHOME/z8lptr -killit $Z8LHOME/binloader.rim &]
+    after 1000
+    setsw sr 07756 ; flicksw ldad
+    setsw sr 00000 ; flicksw start
+    while true {
+        set exst [waitpid $ptrpid]
+        if {$exst != ""} break
+        if {[ctrlcflag]} {error "control-C"}
+        after 100
+    }
+    if {$exst != 0} {error "error $exst reading binloader.rim"}
+    flicksw stop
+
+    puts "loadbinptr: reading in $fname"
+    set ptrpid [exec -ignorestderr $Z8LHOME/z8lptr -killit $fname &]
+    after 1000
+    setsw sr 07777 ; flicksw ldad
+    setsw sr 00000 ; flicksw start
+    while {[getreg run]} {
+        if {[ctrlcflag]} {error "control-C"}
+        after 100
+    }
+    exec kill $ptrpid
+    waitpid $ptrpid
+    puts ""
+    if {[getreg ac] != 0} {error "checksum error"}
+    return [rdmem 07616]
 }
 
 # load rim format tape file
@@ -718,7 +762,7 @@ proc rimloader {speed} {
             error "bad speed $speed"
         }
     }
-    disas 07756 07775
+    #disas 07756 07775
     return 07756
 }
 

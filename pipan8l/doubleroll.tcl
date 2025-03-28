@@ -5,7 +5,7 @@
 
 exec -ignorestderr make doubleroll-8l.bin
 hardreset
-set startaddr [loadbin doubleroll-8l.bin]
+set startaddr [loadbinptr doubleroll-8l.bin]
 setsw sr 0140
 startat $startaddr
 relsw all

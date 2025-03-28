@@ -42,6 +42,11 @@ lib.$(MACH).a: \
 	rm -f lib.$(MACH).a
 	ar rc $@ $^
 
+binloader.rim: binloader.pal
+	pdp8v/asm/assemble -pal binloader.pal binloader.obj > binloader.lis
+	pdp8v/asm/link -o binloader.oct binloader.obj > binloader.map
+	pdp8v/asm/octtorim < binloader.oct > binloader.rim
+
 dttest.bin: dttest.asm
 	pdp8v/asm/assemble dttest.asm dttest.obj > dttest.lis
 	pdp8v/asm/link -o dttest.oct dttest.obj > dttest.map
