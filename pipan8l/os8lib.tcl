@@ -1,29 +1,34 @@
-proc os8dpackloadandboot {{sourcedisk ""}} {
+
+# boot ~/os8-rkab0.rk05 disk
+proc os8dpackloadandboot {} {
     global Z8LHOME
 
     hardreset
 
-    if {$sourcedisk == ""} {
-        set sourcedisk "os8-rkab0.rk05"
-        if {! [file exists $sourcedisk]} {
-            exec -ignorestderr wget -nv -O $sourcedisk.temp https://tangentsoft.com/pidp8i/uv/ock.rk05
-            exec mv $sourcedisk.temp $sourcedisk
-            exec chmod a-w $sourcedisk
-        }
+    set sourcedisk "os8-rkab0.rk05"
+    if {! [file exists $Z8LHOME/$sourcedisk]} {
+        exec -ignorestderr wget -nv -O $Z8LHOME/$sourcedisk.temp https://tangentsoft.com/pidp8i/uv/ock.rk05
+        exec mv $Z8LHOME/$sourcedisk.temp $Z8LHOME/$sourcedisk
+        exec chmod a-w $Z8LHOME/$sourcedisk
     }
 
     set home [getenv HOME /tmp]
-    exec cp $sourcedisk $home/rkab0.rk05
-    exec chmod u+w $home/rkab0.rk05
-    set rk8pid [exec $Z8LHOME/z8lrk8je -killit -loadrw 0 $home/rkab0.rk05 &]
+    if {! [file exists $home/$sourcedisk]} {
+        exec cp $Z8LHOME/$sourcedisk $home/$sourcedisk
+        exec chmod u+w $home/$sourcedisk
+    }
+
+    set rk8pid [exec $Z8LHOME/z8lrk8je -killit -loadrw 0 $home/$sourcedisk &]
     atexit "exec kill $rk8pid"
     after 1000
 
     pin set xm_os8zap 1
-    startat [os8dpacktoggleinboot]
+    startat [os8dpack0toggleinboot]
 }
 
-proc os8dpacktoggleinboot {} {
+# toggle in decpack long-form OS/8 boot
+proc os8dpacktoggleinboot {{driveno 0}} {
+    if {($driveno < 0) || ($driveno > 3)} {error "bad driveno $driveno"}
     wrmem 023 06002     ;#  iof
     wrmem 024 06744     ;#  dlca
     wrmem 025 01032     ;#  tad unit
@@ -31,11 +36,12 @@ proc os8dpacktoggleinboot {} {
     wrmem 027 06743     ;#  dlag
     wrmem 030 01032     ;#  tad unit
     wrmem 031 05031     ;#  jmp .
-    wrmem 032 00000     ;# unit: 0
+    wrmem 032 [expr {$driveno * 2}] ;# unit<<1
     disas 023 031
     return 023
 }
 
+# toggle in decpack short-form OS/8 boot drive 0
 proc os8dpack0toggleinboot {} {
     wrmem 030 06743     ;#  dlag
     wrmem 031 05031     ;#  jmp .
@@ -43,24 +49,26 @@ proc os8dpack0toggleinboot {} {
     return 030
 }
 
-proc os8dtapeloadandboot {{sourcetape ""}} {
+# boot ~/os8-dta0.tu56 tape
+proc os8dtapeloadandboot {} {
     global Z8LHOME
 
     hardreset
 
-    if {$sourcetape == ""} {
-        set sourcetape "os8-dta0.tu56"
-        if {! [file exists $sourcetape]} {
-            exec -ignorestderr wget -nv -O $sourcetape.temp https://www.pdp8online.com/ftp/images/misc_dectapes/AL-4711C-BA.tu56
-            exec mv $sourcetape.temp $sourcetape
-            exec chmod a-w $sourcetape
-        }
+    set sourcetape "os8-dta0.tu56"
+    if {! [file exists $Z8LHOME/$sourcetape]} {
+        exec -ignorestderr wget -nv -O $Z8LHOME/$sourcetape.temp https://www.pdp8online.com/ftp/images/misc_dectapes/AL-4711C-BA.tu56
+        exec mv $Z8LHOME/$sourcetape.temp $Z8LHOME/$sourcetape
+        exec chmod a-w $Z8LHOME/$sourcetape
     }
 
     set home [getenv HOME /tmp]
-    exec cp $sourcetape $home/dta0.tu56
-    exec chmod u+w $home/dta0.tu56
-    set tc08pid [exec $Z8LHOME/z8ltc08 -killit -loadrw 0 $home/dta0.tu56 &]
+    if {! [file exists $home/$sourcetape]} {
+        exec cp $Z8LHOME/$sourcetape $home/$sourcetape
+        exec chmod u+w $home/$sourcetape
+    }
+
+    set tc08pid [exec $Z8LHOME/z8ltc08 -killit -loadrw 0 $home/$sourcetape &]
     atexit "exec kill $tc08pid"
     after 1000
 
@@ -68,6 +76,7 @@ proc os8dtapeloadandboot {{sourcetape ""}} {
     startat [os8dtapetoggleinboot]
 }
 
+# toggle in dectape OS/8 boot
 proc os8dtapetoggleinboot {} {
 
     ;# from OS8 Handbook p41
