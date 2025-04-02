@@ -133,6 +133,7 @@
 #define g_lastswLDAD    (1U << 11)
 #define g_lastswSTART   (1U << 12)
 #define g_simmemen      (1U << 13)
+#define g_lbPRTE        (1U << 14)
 #define g_lbIR          (7U << 25)
 
 #define h_oBAC      (07777U <<  0)

@@ -1,3 +1,4 @@
+setsw mprt 0    ;# force loader init
 puts ""
 puts "= = = = = = = = = = = = = = = = ="
 puts "  D01B"

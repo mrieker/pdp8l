@@ -407,6 +407,7 @@ void I2CZLib::readpads (Z8LPanel *pads)
         pads->light.ion  = (zrg & g_lbION)  != 0;
         pads->light.exe  = (zrg & g_lbEXE)  != 0;
         pads->light.def  = (zrg & g_lbDEF)  != 0;
+        pads->light.prte = (zrg & g_lbPRTE) != 0;
         pads->light.wct  = (zrg & g_lbWC)   != 0;
         pads->light.cad  = (zrg & g_lbCA)   != 0;
 

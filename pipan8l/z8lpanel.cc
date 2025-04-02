@@ -290,8 +290,8 @@ static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
                 puts ("      ea - extended address");
                 puts ("    link - link bit");
                 puts ("     ion - interrupts enabled");
-                puts ("     par - memory parity error");
-                puts ("    prot - memory protect error");
+                puts ("    pare - memory parity error");
+                puts ("    prte - memory protect error");
                 puts ("     run - executing instructions");
                 puts ("");
                 return TCL_OK;
@@ -308,8 +308,8 @@ static int cmd_getreg (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
             if (strcasecmp (regname, "ea")   == 0) regval = pads.light.ema;
             if (strcasecmp (regname, "ion")  == 0) regval = pads.light.ion;
             if (strcasecmp (regname, "link") == 0) regval = pads.light.link;
-            if (strcasecmp (regname, "par")  == 0) regval = pads.light.pare;
-            if (strcasecmp (regname, "prot") == 0) regval = pads.light.prte;
+            if (strcasecmp (regname, "pare") == 0) regval = pads.light.pare;
+            if (strcasecmp (regname, "prte") == 0) regval = pads.light.prte;
             if (strcasecmp (regname, "run")  == 0) regval = pads.light.run;
             if (regval != 0xFFFFU) {
                 if (pthread_mutex_unlock (&padmutex) != 0) ABORT ();

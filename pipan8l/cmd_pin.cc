@@ -155,6 +155,7 @@ static PinDef const pindefs[] = {
     { "lbFET",           DEV_8L, Z_RG, g_lbFET,            false },
     { "lbION",           DEV_8L, Z_RG, g_lbION,            false },
     { "lbLINK",          DEV_8L, Z_RG, g_lbLINK,           false },
+    { "lbPRTE",          DEV_8L, Z_RG, g_lbPRTE,           false },
     { "lbRUN",           DEV_8L, Z_RG, g_lbRUN,            false },
     { "lbWC",            DEV_8L, Z_RG, g_lbWC,             false },
     { "debounced",       DEV_8L, Z_RG, g_debounced,        false },

@@ -20,7 +20,7 @@ puts "d01b: waiting for halt at 0146"
 for {set i 0} {[getreg run] || ([getreg ma] != 0146)} {incr i} {
     if {$i > 10} {
         puts "d01b: failed to halt at 0146"
-        dumpit
+        puts [dumpit]
         exit 1
     }
     after 100
@@ -28,7 +28,7 @@ for {set i 0} {[getreg run] || ([getreg ma] != 0146)} {incr i} {
 }
 if {[getreg ac] != 0} {
     puts "d01b: failed to halt at 0146 with 0000 in accumulator"
-    dumpit
+    puts [dumpit]
     exit 1
 }
 flicksw cont
@@ -51,5 +51,5 @@ for {set started [clock seconds]} {[clock seconds] - $started < 6} {} {
     }
 }
 puts "d01b: took too long for 3 bells"
-dumpit
+puts [dumpit]
 exit 1

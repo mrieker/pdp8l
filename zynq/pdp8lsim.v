@@ -22,7 +22,7 @@
 
 module pdp8lsim (
     input CLOCK, CSTEP, RESET,  // fpga 100MHz clock and reset
-    input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,"if low, blocks mem protect switch"
+    input iBEMA,                // B35-T2,p5 B-7,J11-45,,B25,asserted when address > 07777
     input i_CA_INCRMNT,         // C35-M2,p15 A-3,J11-30,,C25,?? NOT ignored in PDP-8/L see p2 D-2
     input i_DATA_IN,            // C36-M2,p15 B-2,J11-32,,,
     input[11:00] iINPUTBUS,     // D34-B1,p15 B-8,PIOBUSA,,,gated out to CPU by x_INPUTBUS
@@ -82,6 +82,7 @@ module pdp8lsim (
     output lbLINK,
     output[11:00] lbMA,
     output[11:00] lbMB,
+    output reg lbPRTE,
     output lbRUN,
     output lbWC,
     input swCONT,
@@ -208,6 +209,9 @@ module pdp8lsim (
     // valid in fetch cycle after ts2
     wire[11:00] effaddr = { (mbuf[07] ? madr[11:07] : 5'b0), mbuf[06:00] };
 
+    // address being accessed this cycle is protected with mem prot switch
+    wire prtad = swMPRT & ~ iBEMA & (madr[11:07] == 5'o37);
+
     // calculate accumulator and link for tad instruction
     wire[11:00] tadacum;
     wire tadlink;
@@ -304,6 +308,7 @@ module pdp8lsim (
             lastswEXAM  <= 0;
             lastswLDAD  <= 0;
             lastswSTART <= 0;
+            lbPRTE      <= 0;
             majstate    <= MS_HALT;
             memen       <= 0;
             memidle     <= 0;
@@ -387,6 +392,7 @@ module pdp8lsim (
                 // clock read data from internal or external memory into MB at the end
                 TS_TS1BODY: begin
                     if (timedelay == 0) begin
+                        lbPRTE    <= 0;
                         ldad      <= 0;
                         memen     <= i_EA;
                         timedelay <= 1;
@@ -438,24 +444,25 @@ module pdp8lsim (
                             end
                             MS_DEFER: if (madr[11:03] == 1) mbuf <= mbuf + 1;
                             MS_EXEC, MS_INTAK: case (ireg)
-                                2: mbuf <= mbuf + 1;  // isz
-                                3: mbuf <= acum;      // dca
-                                4: mbuf <= pctr;      // jms
+                                2: begin if (prtad) lbPRTE <= 1; else mbuf <= mbuf + 1; end    // isz
+                                3: begin if (prtad) lbPRTE <= 1; else mbuf <= acum; end        // dca
+                                4: begin if (prtad) lbPRTE <= 1; else mbuf <= pctr; end        // jms
                             endcase
                             MS_WC: begin
-                                mbuf <= mbuf + 1;
+                                if (prtad) lbPRTE <= 1; else mbuf <= mbuf + 1;
                                 // middle of wc with count just read, detect count overflow
                                 // PDP-8/L clocks it with TP2 (vol 2, p5 D-5)
                                 o_BWC_OVERFLOW <= (mbuf != 12'o7777);
                             end
-                            MS_CA: begin
-                                if (~ i_CA_INCRMNT) mbuf <= mbuf + 1;
+                            MS_CA: if (~ i_CA_INCRMNT) begin
+                                if (prtad) lbPRTE <= 1; else mbuf <= mbuf + 1;
                             end
-                            MS_BRK: begin
-                                mbuf <= breakdata;      // data must be ready in time for TS3 (pdp-8/l user's handbook p39)
+                            MS_BRK: if (~ i_DATA_IN | iMEMINCR) begin
+                                // data must be ready in time for TS3 (pdp-8/l user's handbook p39)
+                                if (prtad) lbPRTE <= 1; else mbuf <= breakdata;
                             end
                             MS_DEPOS: begin
-                                mbuf <= swSR;
+                                if (prtad) lbPRTE <= 1; else mbuf <= swSR;
                             end
                         endcase
                         timedelay <= 0;
@@ -484,7 +491,8 @@ module pdp8lsim (
                     // like a real PDP, compute next major state in time for TP3
                     // mostly needed by pdp8lxmem.v
                     if (timedelay == 0) begin
-                        case (majstate)
+                        if (lbPRTE) nextmajst <= MS_HALT;
+                        else case (majstate)
 
                             // nearing end of FETCH cycle
                             MS_FETCH: begin

@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C409A;
+    localparam VERSION = 32'h384C409B;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -241,6 +241,7 @@ module Zynq (
     wire sim_lbLINK;
     wire[11:00] sim_lbMA;
     wire[11:00] sim_lbMB;
+    wire sim_lbPRTE;
     wire sim_lbRUN;
     wire sim_lbWC;
 
@@ -444,7 +445,7 @@ module Zynq (
     assign saxi_BRESP = 0;  // A3.4.4/A10.3 transfer OK
     assign saxi_RRESP = 0;  // A3.4.4/A10.3 transfer OK
 
-    reg[52:00] ilaarray[4095:0], ilardata;
+    reg[14:00] ilaarray[4095:0], ilardata;
     reg[11:00] ilaafter, ilaindex;
     reg ilaarmed;
 
@@ -476,8 +477,8 @@ module Zynq (
             bPIOBUSA, bPIOBUSB, bPIOBUSC, bPIOBUSD, bPIOBUSE, bPIOBUSF, bPIOBUSH, bPIOBUSJ, bPIOBUSK, bPIOBUSL, bPIOBUSM, bPIOBUSN,
             8'b0 } :
         (readaddr        == 10'b0000010001) ? { ilaarmed, 3'b0, ilaafter, 4'b0, ilaindex } :
-        (readaddr        == 10'b0000010010) ? {        ilardata[31:00] } :
-        (readaddr        == 10'b0000010011) ? { 11'b0, ilardata[52:32] } :
+        (readaddr        == 10'b0000010010) ? { 17'b0, ilardata[14:00] } :
+        (readaddr        == 10'b0000010011) ? { 32'b0                  } :
         (readaddr[11:05] ==  7'b0000100)    ? rkardata   :
         (readaddr[11:05] ==  7'b0000101)    ? vcardata   :
         (readaddr[11:05] ==  7'b0000110)    ? fpi2crdata :
@@ -887,7 +888,8 @@ module Zynq (
     assign regctlg[11] = lastswLDAD;
     assign regctlg[12] = lastswSTART;
     assign regctlg[13] = simmemen;
-    assign regctlg[15:14] = 0;
+    assign regctlg[14] = sim_lbPRTE;
+    assign regctlg[15] = 0;
     assign regctlg[27:16] = { sim_lbIR, 9'b000000000 };
     assign regctlg[31:28] = 0;
 
@@ -1329,6 +1331,7 @@ module Zynq (
         .lbLINK         (sim_lbLINK),
         .lbMA           (sim_lbMA),
         .lbMB           (sim_lbMB),
+        .lbPRTE         (sim_lbPRTE),
         .lbRUN          (sim_lbRUN),
         .lbWC           (sim_lbWC),
         .swCONT         (arm_swCONT),
@@ -1997,16 +2000,10 @@ module Zynq (
                 // capture signals while before trigger and for ilaafter cycles thereafter
                 if (ilaarmed | (ilaafter != 0)) begin
                     ilaarray[ilaindex] <= {
-                        xmstate,
-                        cmnobrkopt,
-                        cmbusyonarm,
-                        xbraddr,
-                        xbrrdat,
-                        xbrwdat,
-                        cmxbrenab,
-                        cmxbrwena,
-                        xmxbrenab,
-                        xmxbrwena
+                        sim_lbPRTE,
+                        arm_swMPRT,
+                        sim_iBEMA,
+                        sim_oMA
                     };
 
                     ilaindex <= ilaindex + 1;
@@ -2015,7 +2012,7 @@ module Zynq (
 
                 // check trigger condition
                 // - disk controller requesting dma cycle
-                if (cmawrite & (writeaddr[3:2] == 1) & saxi_WDATA[31]) begin
+                if (sim_lbPRTE) begin
                     ilaarmed <= 0;
                 end
             end

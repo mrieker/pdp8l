@@ -18,6 +18,6 @@ wrmem 020 $initx
 wrmem 021 $inity
 setsw sr 0
 startat $startaddr
-relsw all
+relsw sr
 exec -ignorestderr ./z8lvc8 -pms 120 -size [getenv vcsize 800] $vt
 exit

@@ -7,6 +7,7 @@ if {[lindex $argv 0] == "-slow"} {
 } else {
     loadbinptr ../alltapes/maindec-8i-d02b-pb.bin
 }
+setsw mprt 0
 setsw sr 07777
 flushit
 startat 0201

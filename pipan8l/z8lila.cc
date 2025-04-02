@@ -104,21 +104,13 @@ int main (int argc, char **argv)
         if (nodots || (i == 0) || (i == DEPTH - 1) ||
                 (thisentry != preventry) || (thisentry != nextentry)) {
 
-            printf ("%6.2f  %02u  %u %02u  %05o %04o %04o  %o %o  %o %o  %016llX\n",
+            printf ("%6.2f  %o %o %o  %04o\n",
                 (i - DEPTH + AFTER + 1) / 100.0,        // trigger shows as 0.00uS
 
-                (unsigned) (thisentry >> 49) & 017,     // nobrkopt
-                (unsigned) (thisentry >> 48) & 1,       // nobrkopt
-                (unsigned) (thisentry >> 43) & 037,     // busyonarm
-                (unsigned) (thisentry >> 28) & 077777,  // xbraddr
-                (unsigned) (thisentry >> 16) & 07777,
-                (unsigned) (thisentry >>  4) & 07777,
-                (unsigned) (thisentry >>  3) & 1,
-                (unsigned) (thisentry >>  2) & 1,
-                (unsigned) (thisentry >>  1) & 1,
-                (unsigned) (thisentry >>  0) & 1,
-
-                (unsigned long long) thisentry
+                (unsigned) (thisentry >> 14) & 1,       // lbPRTE
+                (unsigned) (thisentry >> 13) & 1,       // swMPRT
+                (unsigned) (thisentry >> 12) & 1,       // iBEMA
+                (unsigned) (thisentry >>  0) & 07777    // oMA
             );
             indotdotdot = false;
         } else if (! indotdotdot) {

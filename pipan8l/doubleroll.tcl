@@ -8,6 +8,6 @@ hardreset
 set startaddr [loadbinptr doubleroll-8l.bin]
 setsw sr 0140
 startat $startaddr
-relsw all
+relsw sr
 exec -ignorestderr ./z8lpanel -status < /dev/tty > /dev/tty
 exit

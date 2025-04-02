@@ -210,6 +210,7 @@ proc dumpit {} {
     set ion  [getreg ion]
     set link [getreg link]
     set run  [getreg run]
+    set prte [getreg prte]
 
     set sw "SR=[octal [getsw sr]]"
     set sw [expr {[getsw cont]  ? "$sw CONT"  : "$sw"}]
@@ -225,7 +226,7 @@ proc dumpit {} {
     set mne [string range "ANDTADISZDCAJMSJMPIOTOPR" [expr {$ir * 3}] [expr {$ir * 3 + 2}]]
 
     return [format "  %s %s ST=%-2s AC=%o.%04o MA=%o.%04o MB=%04o IR=%o  %s  %s" \
-        [expr {$run ? "RUN" : "   "}] [expr {$ion ? "ION" : "   "}] $st $link $ac $ea $ma $mb $ir $mne $sw]
+        [expr {$run ? "RUN " : ($prte ? "PRTE" : "    ")}] [expr {$ion ? "ION" : "   "}] $st $link $ac $ea $ma $mb $ir $mne $sw]
 }
 
 # dump the raw gpio pins
@@ -424,6 +425,10 @@ proc loadbin {fname} {
             # deposit the data
             setsw sr $data
             flicksw dep
+            if {[getreg prte]} {
+                close $fp
+                error [format "mem addr %05o protected" $addr]
+            }
 
             # verify resultant lights
             set actma [getreg ma]
@@ -508,29 +513,34 @@ proc loadbinptr {fname} {
     global Z8LHOME
 
     stopandreset
-    setsw mprt 0 ; setsw ifld 0 ; setsw dfld 0 ; setsw step 0
+    setsw ifld 0 ; setsw dfld 0 ; setsw step 0
 
-    puts "loadbinptr: toggling in rim loader"
-    rimloader hi
+    if {[getsw mprt]} {
+        puts "loadbinptr: mprt sw on - assuming loaders intact"
+    } else {
+        puts "loadbinptr: toggling in rim loader"
+        rimloader hi
 
-    puts "loadbinptr: reading in bin loader"
-    exec -ignorestderr make -C $Z8LHOME binloader.rim
-    set ptrpid [exec -ignorestderr $Z8LHOME/z8lptr -killit $Z8LHOME/binloader.rim &]
-    after 1000
-    setsw sr 07756 ; flicksw ldad
-    setsw sr 00000 ; flicksw start
-    while true {
-        set exst [waitpid $ptrpid]
-        if {$exst != ""} break
-        if {[ctrlcflag]} {error "control-C"}
-        after 100
+        puts "loadbinptr: reading in bin loader"
+        exec -ignorestderr make -C $Z8LHOME binloader.rim
+        set ptrpid [exec -ignorestderr $Z8LHOME/z8lptr -killit $Z8LHOME/binloader.rim &]
+        after 1000
+        setsw sr 07756 ; flicksw ldad
+        setsw sr 00000 ; flicksw start
+        while true {
+            set exst [waitpid $ptrpid]
+            if {$exst != ""} break
+            if {[ctrlcflag]} {error "control-C"}
+            after 100
+        }
+        if {$exst != 0} {error "error $exst reading binloader.rim"}
+        flicksw stop
     }
-    if {$exst != 0} {error "error $exst reading binloader.rim"}
-    flicksw stop
 
     puts "loadbinptr: reading in $fname"
     set ptrpid [exec -ignorestderr $Z8LHOME/z8lptr -killit $fname &]
     after 1000
+    setsw mprt 0
     setsw sr 07777 ; flicksw ldad
     setsw sr 00000 ; flicksw start
     while {[getreg run]} {
@@ -541,6 +551,7 @@ proc loadbinptr {fname} {
     waitpid $ptrpid
     puts ""
     if {[getreg ac] != 0} {error "checksum error"}
+    setsw mprt 1
     return [rdmem 07616]
 }
 
@@ -621,6 +632,10 @@ proc loadrim {fname} {
         # deposit the data
         setsw sr $data
         flicksw dep
+        if {[getreg prte]} {
+            close $fp
+            error [format "mem addr %05o protected" $addr]
+        }
 
         # verify resultant lights
         set actma [getreg ma]
@@ -905,6 +920,9 @@ proc wrmem {addr data} {
         flicksw ldad
         setsw sr $data
         flicksw dep
+        if {[getreg prte]} {
+            error [format "mem addr %05o protected" $addr]
+        }
     }
 }
 
@@ -917,6 +935,9 @@ proc zeromem {start stop} {
     for {set addr $start} {$addr <= $stop} {incr addr} {
         if {$addr % 8 == 0} {puts [format "%04o" $addr]}
         flicksw dep
+        if {[getreg prte]} {
+            error [format "mem addr %05o protected" $addr]
+        }
     }
 }
 
