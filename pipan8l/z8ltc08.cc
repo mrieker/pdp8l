@@ -291,7 +291,7 @@ static int cmd_tcloadrw (ClientData clientdata, Tcl_Interp *interp, int objc, Tc
 
 static int loadtape (bool readwrite, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
-    if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[2]), "help") == 0)) {
+    if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "help") == 0)) {
         puts ("");
         puts ("  tcloadro <drivenumber> <filenane>");
         puts ("  tcloadrw <drivenumber> <filenane>");

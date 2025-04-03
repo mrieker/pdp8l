@@ -47,19 +47,23 @@ struct TTYStopOn {
 
 static Tcl_ObjCmdProc cmd_punch;
 static Tcl_ObjCmdProc cmd_reader;
+static Tcl_ObjCmdProc cmd_recvchar;
 static Tcl_ObjCmdProc cmd_run;
+static Tcl_ObjCmdProc cmd_sendchar;
 
 static TclFunDef const fundefs[] = {
-    { cmd_punch,  "punch",  "load file for punching" },
-    { cmd_reader, "reader", "load file for reading" },
-    { cmd_run,    "run",    "access tty i/o" },
+    { cmd_punch,    "punch",    "load file for punching" },
+    { cmd_reader,   "reader",   "load file for reading" },
+    { cmd_recvchar, "recvchar", "receive printer/punch character" },
+    { cmd_run,      "run",      "access tty i/o" },
+    { cmd_sendchar, "sendchar", "send keyboard/reader character" },
     { NULL, NULL, NULL }
 };
 
 static uint8_t const nullbuf[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static bool (*getprchar) (uint8_t *prchar_r);
-static void (*putkbchar) (uint8_t kbchar);
+static bool (*putkbchar) (uint8_t kbchar);
 
 static bool nokb;
 static bool punchquiet;
@@ -84,9 +88,9 @@ static bool stoponcheck (TTYStopOn *const stopon, char prchar);
 static void sigrunhand (int signum);
 
 static bool dc_getprchar (uint8_t *prchar_r);
-static void dc_putkbchar (uint8_t kbchar);
+static bool dc_putkbchar (uint8_t kbchar);
 static bool tt_getprchar (uint8_t *prchar_r);
-static void tt_putkbchar (uint8_t kbchar);
+static bool tt_putkbchar (uint8_t kbchar);
 
 
 
@@ -432,6 +436,58 @@ static int cmd_reader (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_
     return TCL_ERROR;
 }
 
+// read single printer/punch character
+static int cmd_recvchar (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "help") == 0)) {
+        puts ("");
+        puts ("  recvchar [-7bit] [-int] [-time <timeoutms>]");
+        puts ("    -7bit = mask top bit to zero");
+        puts ("    -int  = return character as an integer or -1 if timeout");
+        puts ("    -time = timeout after given milliseconds, default 1000");
+        puts ("  returns character received or null string if timeout/control-C");
+        puts ("");
+        return TCL_OK;
+    }
+
+    bool intflag = false;
+    int timeout = 1000;
+    uint8_t mask = 0377;
+    for (int i = 0; ++ i < objc;) {
+        char const *arg = Tcl_GetString (objv[i]);
+        if (strcasecmp (arg, "-7bit") == 0) {
+            mask = 0177;
+            continue;
+        }
+        if (strcasecmp (arg, "-int") == 0) {
+            intflag = true;
+            continue;
+        }
+        if (strcasecmp (arg, "-time") == 0) {
+            if (++ i >= objc) {
+                Tcl_SetResultF (interp, "missing timeout value");
+                return TCL_ERROR;
+            }
+            int rc = Tcl_GetIntFromObj (interp, objv[i], &timeout);
+            if (rc != TCL_OK) return rc;
+            continue;
+        }
+        Tcl_SetResultF (interp, "unknown argument/option %s", arg);
+        return TCL_ERROR;
+    }
+
+    while (! ctrlcflag) {
+        uint8_t ch;
+        if (getprchar (&ch)) {
+            Tcl_SetResultF (interp, intflag ? "%u" : "%c", ch & mask);
+            break;
+        }
+        if (-- timeout < 0) break;
+        usleep (1000);
+    }
+    return TCL_OK;
+}
+
 // take over stdin/stdout for tty operations
 // if there is a reader file loaded, shovel it to the pdp as keyboard characters at cps rate
 // if there is a punch file, copy printer output to the file
@@ -652,6 +708,73 @@ reterr:;
     return retcode;
 }
 
+// send single keyboard/reader character
+static int cmd_sendchar (ClientData clientdata, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
+{
+    if ((objc == 2) && (strcasecmp (Tcl_GetString (objv[1]), "help") == 0)) {
+        puts ("");
+        puts ("  sendchar [-7bit] [-int] [-time <timeoutms>] <character>");
+        puts ("    -7bit = force top bit to one");
+        puts ("    -int  = character argument is integer");
+        puts ("    -time = timeout after given milliseconds, default 1000");
+        puts ("  returns true if successful, false if timeout");
+        puts ("");
+        return TCL_OK;
+    }
+
+    bool intflag = false;
+    char *p;
+    int character = -1;
+    int timeout = 1000;
+    uint8_t mask = 0000;
+    for (int i = 0; ++ i < objc;) {
+        char const *arg = Tcl_GetString (objv[i]);
+        if (strcasecmp (arg, "-7bit") == 0) {
+            mask = 0200;
+            continue;
+        }
+        if (strcasecmp (arg, "-int") == 0) {
+            intflag = true;
+            continue;
+        }
+        if (strcasecmp (arg, "-time") == 0) {
+            if (++ i >= objc) {
+                Tcl_SetResultF (interp, "missing timeout value");
+                return TCL_ERROR;
+            }
+            int rc = Tcl_GetIntFromObj (interp, objv[i], &timeout);
+            if (rc != TCL_OK) return rc;
+            continue;
+        }
+        if ((character >= 0) || (intflag && (arg[0] == '-'))) {
+            Tcl_SetResultF (interp, "unknown argument/option %s", arg);
+            return TCL_ERROR;
+        }
+        if (intflag) {
+            character = strtol (arg, &p, 0);
+            if ((*p != 0) || (character < 0) || (character > 255)) {
+                Tcl_SetResultF (interp, "bad character integer in range 0..255 %s", arg);
+                return TCL_ERROR;
+            }
+        } else {
+            character = (uint32_t) (uint8_t) arg[0];
+        }
+    }
+    if (character < 0) {
+        Tcl_SetResultF (interp, "missing character argument");
+        return TCL_ERROR;
+    }
+    character |= mask;
+
+    int rc = 0;
+    while (! ctrlcflag && ! (rc = putkbchar (character))) {
+        if (-- timeout < 0) break;
+        usleep (1000);
+    }
+    Tcl_SetObjResult (interp, Tcl_NewIntObj (rc));
+    return TCL_OK;
+}
+
 static void sigrunhand (int signum)
 {
     if (signum == SIGQUIT) {
@@ -679,9 +802,11 @@ static bool dc_getprchar (uint8_t *prchar_r)
 
 // put keyboard character to terminal multiplexor
 
-static void dc_putkbchar (uint8_t kbchar)
+static bool dc_putkbchar (uint8_t kbchar)
 {
+    if (*dcreg & 0x80000000U) return false;
     *dcreg = 0x91000000U | kbchar;  // set kbchar, kbflag=1
+    return true;
 }
 
 // get printer character from single terminal interface
@@ -697,7 +822,9 @@ static bool tt_getprchar (uint8_t *prchar_r)
 
 // put keyboard character to single terminal interface
 
-static void tt_putkbchar (uint8_t kbchar)
+static bool tt_putkbchar (uint8_t kbchar)
 {
+    if (ttyat[Z_TTYKB] & KB_FLAG) return false;
     ttyat[Z_TTYKB] = KB_FLAG | KB_ENAB | kbchar;
+    return true;
 }
