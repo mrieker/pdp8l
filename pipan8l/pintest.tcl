@@ -1,8 +1,37 @@
 
 # test pins coming out of zynq/zturn board
-#  ./z8lpin pintest.tcl
-
 # toggles each on/off/on/off in sequence by J pin number
+
+#  ./z8lpanel
+#  z8lpanel> source pintest.tcl
+#  z8lpanel> intest
+#  z8lpanel> outest
+
+proc splitcsvline {csvline} {
+    set len [string length $csvline]
+    set csvlist {}
+    set quoted 0
+    set strsofar ""
+    for {set i 0} {$i < $len} {incr i} {
+        set ch [string index $csvline $i]
+        if {! $quoted && ($ch == ",")} {
+            lappend csvlist $strsofar
+            set strsofar ""
+            continue
+        }
+        if {$ch == "\""} {
+            set quoted [expr {! $quoted}]
+            continue
+        }
+        if {$ch == "\\"} {
+            incr i
+            set ch [string index $csvline $i]
+        }
+        set strsofar "$strsofar$ch"
+    }
+    lappend csvlist $strsofar
+    return $csvlist
+}
 
 # test 'input-to-processor' pins
 proc intest {} {
