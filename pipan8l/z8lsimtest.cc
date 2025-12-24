@@ -303,7 +303,8 @@ int main (int argc, char **argv)
     // real PDP: holding before TP4 with PC=DOTJMPDOT
     // simulator: just about to fetch the DOTJMPDOT with PC=DOTJMPDOT
 
-    signal (SIGINT, sighand);
+    signal (SIGINT,  sighand);
+    signal (SIGTERM, sighand);
 
     // run random instructions, verifying the cycles
     bool contforcesfetch = false;
