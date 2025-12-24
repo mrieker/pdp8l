@@ -164,7 +164,7 @@ module Zynq (
     input         saxi_WVALID);
 
     // [31:16] = '8L'; [15:12] = (log2 len)-1; [11:00] = version
-    localparam VERSION = 32'h384C409B;
+    localparam VERSION = 32'h384C409C;
 
     reg[11:02] readaddr, writeaddr;
     wire debounced, lastswLDAD, lastswSTART, simmemen;
@@ -1887,7 +1887,7 @@ module Zynq (
     wire[63:00] i2cstatus;
     pdp8lfpi2c fpi2cinst (
         .CLOCK (CLOCK),
-        .RESET (pwronreset),
+        .RESET (~ RESET_N),
 
         .armwrite (fpi2cwrite),
         .armraddr (readaddr[4:2]),
