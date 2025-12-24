@@ -84,7 +84,7 @@ petalinux-build     3m36                            # let it fail to compile vdm
 
 cd build/tmp/work-shared/plnx-zynq7/kernel-source
 patch -p1 < ../../../../../../../vdmahdmi.patch     # second time
-cd ../../../../..
+cd ../../../../..               (ie, petakernl/zturn)
 petalinux-build     4m52                            # it should succeed
 
 petalinux-build -c kernel -x compile -f             # 0m29
@@ -92,6 +92,12 @@ petalinux-build                                     # 1m57
 petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ./images/linux/system.bit --u-boot
 ls -l images/linux/BOOT.BIN                         # contains default FPGA code
 ls -l images/linux/image.ub                         # linux kernel
+
+
+if edit kernel sometime:
+    petalinux-build -c kernel -x compile -f
+    petalinux-build
+
 
 ###################
 #  Set up SDCARD  #

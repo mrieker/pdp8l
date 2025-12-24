@@ -54,3 +54,5 @@ PDP-8/L related projects
     zynq - zynq fpga code
     zplin - zynq petalinux
 
+    see quickstart.txt for example programs
+

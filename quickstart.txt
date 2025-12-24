@@ -1,0 +1,122 @@
+
+Setup:
+
+    ZTURN/ZTURN36 board installed in slot 36 B,C,D with ZTurn-7020 plugged in
+    ZTURN/ZTURN35 board installed in slot 35 B,C,D and piggy-backed to ZTURN36
+    ZTURN/ZTURN34B and ZTURN34D boards installed in slot 34 B,D and piggy-backed to ZTURN36,35
+    PIPAN8L/PCB3 or 4 installed on backplane pins of slot 1 and connected to ZTURN36 via I2C
+
+    5V power supply plugged into ZTurn board and powered on
+     - optional but recommended so ZTurn doesn't get powered from PC via USB cabke
+    ethernet cable plugged into ZTurn board and connected
+     - optional but recommended to allow more than one terminal window at a time
+    USB cable from USB connector closest to ZTurn SDCard connected to a PC
+     - baud rate is 115200
+
+Initially, use ZTurn serial console to set up IP address (if ethernet connected):
+
+    Log in as root
+        edit /etc/dhcpcd.conf to set eth0 IP address and default gateway address
+        reboot
+    Now should be able to ssh to that IP address
+
+Before doing any of the below, do:
+
+    cd pdp8l/pipan8l
+    ./z8lreal [options...]      turns on fpga code to access real pdp (not simulate)
+                -entty03        use fpga console tty
+                                 - use ./z8ltty to access console tty
+                                 - must unplug tty boards from pdp (M706 and M707)
+                -nobrk          PDP-8/L does not have BREAK option hardware
+                                 - forces all low 4K memory accesses to fpga memory
+                                 - can leave core memory plugged in
+
+Light rolling demo:
+
+    cd pdp8l/pipan8l
+    ./z8lpanel doubleroll.tcl
+        must have some switches (like 5 & 6) on
+        indicates number of steps before reversing
+
+Kaleidoscope demo:
+
+    cd pdp8l/pipan8l
+    ./z8lpanel kaleid.tcl e
+
+Music demo:
+
+    cd pdp8l/music
+    ./playrand.sh real
+        loads ~/music-rkab0.rk05 file in RK05 drive 0
+        toggles in OS/8 bootloader then starts it
+        does a DIR to get list of music files
+        runs MUSIC then passes song files in random order
+
+    Take cover off PDP-8/L backplane pins
+    Put small insulated AM radio on top of backplane pins
+    Tune to 600-700 kHz
+
+OS/8 Basic games:
+
+    cd pdp8l/pipan8l
+    ./z8lpanel bootos8dpack.tcl
+
+        DIR
+        R BASIC
+            OLD
+            BLKJAK
+            RUN
+            ...
+            BYE
+
+EDU25 Basic:
+
+    cd pdp8l/edu25r
+    ./test.sh real
+        types in and runs simple HELLO program
+
+    then to access main tty:
+        ../pipan8l/z8ltty -cps 960 -upcase
+        control-\ when done
+
+    to access other 2 ttys, on 2 other screens:
+        cd pdp8l/pipan8l
+        ./z8ltty -cps 960 -upcase -dc02 0
+        ./z8ltty -cps 960 -upcase -dc02 1
+
+On separate screens:
+
+    cd pdp8l/pipan8l
+    ./z8lpanel -status          displays front-panel lights
+    ./z8ldump                   displays dump of fpga registers
+
+Tutorial:
+
+    programs of interest
+    pass -? option to print help text
+
+        z8lpanel - access front panel via i2c bus
+            also can access fpga control bits
+            can process tcl scripts for testing and booting
+            can load rim and bin files
+            help command lists commands
+
+        z8ltty - connect to a tty controller, process tty i/o
+            example: ./z8ltty -cps 960 -upcase      by default, accesses primary tty controller
+            press control-\ when done
+
+        z8lrk8je - load disk files in rk05 drives, process rk05 i/o
+            example: ./z8lrk8je -loadrw 0 ~/os8-rkab0.rk05 &
+            leave it running in background so it can process rk05 i/o
+
+        z8lptr - load file in high-speed paper tape reader, process reader i/o
+            example: ./z8lptr -text somefile.txt
+                     ./z8lptr somefile.bin
+            exits when whole file read by pdp
+            press control-C to terminate earlier
+
+        z8lptp - load file in high-speed paper tape punch, process punch i/o
+            example: ./z8lptp -text somefile.txt
+            press control-C when done punching from pdp
+
+
