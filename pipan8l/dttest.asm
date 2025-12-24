@@ -7,20 +7,15 @@
 ; pdp8v/asm/link -o dttest.oct dttest.obj > dttest.map
 ; pdp8v/asm/octtobin < dttest.oct > dttest.bin
 
-; on zturn:
-;  ./z8ltc08 -loadro 0 ~/dttest.tu56
+; on zynq with real pdp-8/l:
+;  ./z8lreal [-entty03] [-nobrk]
+;  ./z8lpanel dttest.tcl
 
-; on another zturn terminal (if not using pdp-8/l built-in tty):
-;  ./z8ltty -cps 120
+; on zynq with simulator:
+;  ./z8lsim dttest.tcl
 
-; on pipan8l:
-;  ./pipan8l dttest.tcl
-
-; optional (on pc, pipan8l or zturn):
-;  ./pipan8l -status pipan8l-ip-hostname
-
-; optional (on pc, pipan8l or zturn):
-;  ./z8ltc08 -status zturn-ip-hostname
+; optional on another screen:
+;  ./z8ltc08 -status
 
 	ion   = 06001
 	iof   = 06002
