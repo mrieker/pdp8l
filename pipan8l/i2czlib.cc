@@ -222,6 +222,8 @@
 #define I2CWR 0ULL      // 8th address bit indicating write
 #define I2CRD 1ULL      // 8th address bit indicating read
 
+char const i2czlib_fppcb[] = { 'F', 'P', 'P', 'C', 'B', '=', '0' + FPPCB, 0 };
+
 static pthread_mutex_t fpi2clock = PTHREAD_MUTEX_INITIALIZER;
 
 I2CZLib::I2CZLib ()
@@ -229,6 +231,8 @@ I2CZLib::I2CZLib ()
     z8p   = NULL;
     pdpat = NULL;
     fpat  = NULL;
+
+    fprintf (stderr, "I2CZLib::I2CZLib: %s\n", i2czlib_fppcb);
 
     z8p   = new Z8LPage ();
     pdpat = z8p->findev ("8L", NULL, NULL, false);

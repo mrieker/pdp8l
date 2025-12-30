@@ -13,7 +13,28 @@ Setup:
     USB cable from USB connector closest to ZTurn SDCard connected to a PC
      - baud rate is 115200
 
-Initially, use ZTurn serial console to set up IP address (if ethernet connected):
+    Recommended installation steps:
+
+        * remove any PDP-8/L boards from rows 32,33,34 columns B,C,D
+        * install ZTURN34B and ZTURN34D boards in slots 34 B and D
+        * install ZTURN35 board in slot 35 B,C,D
+        * install ZTURN36 board in slot 36 without the ZTurn installed
+            also do not have any jumper on the power connector
+        * install the 3 interconnection boards starting with the B column
+            make sure each is fully seated and not off-by-one as it is installed
+        * install the ZTurn onto the ZTURN36 board
+            make sure it is fully seated and not off-by-one
+        * re-install any removed PDP-8/L boards
+            if you want to have the ZTurn do console TTY processing, take/leave the console TTY boards out
+            likewise, if you want the ZTurn to do papertape processing, take/leave the papertape boards out
+        * install front panel overlay board onto backplane pins of row 1
+            it may be helpful to use the spacer board to align the pins
+            cut it into 4 segments for A,B,C,D pins
+            you can leave the spacer board(s) on
+        * install I2C cable from ZTURN36 board around to front panel board
+        * connect power supply, ethernet and console USB cables to ZTurn
+
+Initially, use ZTurn serial console (USB) to set up IP address (if ethernet connected):
 
     Log in as root
         edit /etc/dhcpcd.conf to set eth0 IP address and default gateway address
@@ -30,6 +51,55 @@ Before doing any of the below, do:
                 -nobrk          PDP-8/L does not have BREAK option hardware
                                  - forces all low 4K memory accesses to fpga memory
                                  - can leave core memory plugged in
+
+---------------------------
+GETTING THE PDP-8/L WORKING
+---------------------------
+
+The console board can be used to toggle in test programs automatically and run them.
+There are TCL commands for accessing all console lights and switches.
+
+There are several simple memory test programs in testmem.tcl.  They use the front panel board
+to do LOAD ADDRESS ; DEPOSIT ; EXAMINE sequences to verify that the processor can access memory
+via the console.
+
+    $ ./z8lpanel
+    z8lpanel> source testmem.tcl    ;# define memory test tcl script functions
+    z8lpanel> hardreset             ;# make sure PDP is halted and ready
+    z8lpanel> testzeroes 0 077      ;# try to write zeroes to 0000..0077 and verify
+    z8lpanel> testones 0100 0177    ;# try to write ones to 0100..0177 and verify
+    z8lpanel> looptest testrands    ;# tests all memory 0000..7777 with random numbers (write then verify)
+
+Another example is the 'isziactest' program.  See pipan8lini.tcl, search for 'proc isziactest'.
+
+    $ ./z8lpanel                     # automatically loads z8lpanelini.tcl and pipan8lini.tcl
+    z8lpanel> hardreset             ;# make sure PDP is halted and ready
+    z8lpanel> isziactest            ;# do LOAD ADDRESSes, DEPOSITs, EXAMINEs to write test program to memory
+
+    Then you must either manually start it with 0020 LOAD ADDRESS ; START at the real switches or use:
+
+    z8lpanel> setsw sr 0020         ;# override physical switches and with value 0020
+    z8lpanel> flicksw ldad          ;# flick the LOAD ADDRESS switch
+    z8lpanel> flicksw start         ;# flick the START switch
+    z8lpanel> relsw sr              ;# release switchregister override
+
+    ...to run it.  You should see the accumulator incrementing.
+
+    z8lpanel> octal [getreg ac]     ;# read and display accumulator in octal
+    0762
+    z8lpanel> octal [getreg ac]
+    1027
+    z8lpanel> octal [getreg ac]
+    1072
+
+This stand-alone program will pound the living daylights out of the PDP
+by sending it random opcodes, interrupts, DMA cycles:
+
+    $ ./z8lsimtest -real
+
+-------------------------------
+WHEN THE PDP-8/L IS ALL WORKING
+-------------------------------
 
 Light rolling demo:
 
