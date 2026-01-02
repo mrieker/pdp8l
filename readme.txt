@@ -56,3 +56,36 @@ PDP-8/L related projects
 
     see quickstart.txt for example programs
 
+* repo directories
+
+    edu20c - edusystem basic
+    edu25r - edusystem basic
+    music - music program (also boots OS/8)
+    zturn - various zturn circuit boards (plug into slots 34,35,36 of PDP-8/L)
+            needed for I/O emulation
+    zplin - zynq petalinux files
+            needed to rebuild linux kernel for zturn board
+    zynq - fpga source files
+
+    pipan8l - C++ programs that run on a RasPI or ZTurn
+
+    pipan8l/km-* - various kernel modules needed by the RasPI and ZTurn programs
+
+    pipan8l/pcb - front-panel replacement board for console automation only
+            through-hole parts
+            use with RasPI (no I/O device emulation)
+
+    pipan8l/pcb3 - front-panel backplane overlay board
+            through-hole parts
+            use with ZTurn for console automation and I/O device emulation
+            build pipan8l programs with 'make FPPCB=3'
+
+    pipan8l/pcb3x - front-panel backplane pin spacer/pin alignment board
+
+    pipan8l/pcb4 - front-panel backplane overlay board
+            surface-mount parts
+            use with ZTurn for console automation and I/O device emulation
+            build pipan8l programs with 'make FPPCB=4'
+
+    pipan8l/pdp8v - link to PDP-8/V repo for assembler and linker programs
+
