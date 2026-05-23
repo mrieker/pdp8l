@@ -1,0 +1,87 @@
+
+Do ssh to access ZTurn FPGA board
+
+Music demo:
+
+    cd ~/pdp8l/music
+    ./playrand.sh real
+        loads ~/music-rkab0.rk05 file in RK05 drive 0
+        toggles in OS/8 bootloader then starts it
+        does a DIR to get list of music files
+        runs MUSIC then passes song files in random order
+
+Kaleidoscope demo:
+
+    cd ~/pdp8l/pipan8l
+    ./z8lpanel kaleid.tcl e
+
+Light rolling demo:
+
+    cd ~/pdp8l/pipan8l
+    ./z8lpanel doubleroll.tcl
+        must have some switches (like 5 & 6) on
+        indicates number of steps before reversing
+
+OS/8 Basic games:
+
+    cd ~/pdp8l/pipan8l
+    ./z8lpanel bootos8dpack.tcl
+
+        DIR
+        R BASIC
+            OLD
+            BLKJAK
+            RUN
+            ...
+            BYE
+
+EDU25 Basic:
+
+    cd ~/pdp8l/edu25r
+    ./test.sh real
+        types in and runs simple HELLO program
+
+    then to access main tty:
+        ../pipan8l/z8ltty -cps 960 -upcase
+        control-\ when done
+
+    to access other 2 ttys, on 2 other screens:
+        cd ~/pdp8l/pipan8l
+        ./z8ltty -cps 960 -upcase -dc02 0
+        ./z8ltty -cps 960 -upcase -dc02 1
+
+On separate screens:
+
+    cd ~/pdp8l/pipan8l
+    ./z8lpanel -status          displays front-panel lights
+    ./z8ldump                   displays dump of fpga registers
+
+Tutorial:
+
+    programs of interest
+    pass -? option to print help text
+
+        z8lpanel - access front panel via i2c bus
+            also can access fpga control bits
+            can process tcl scripts for testing and booting
+            can load rim and bin files
+            help command lists commands
+
+        z8ltty - connect to a tty controller, process tty i/o
+            example: ./z8ltty -cps 960 -upcase      by default, accesses primary tty controller
+            press control-\ when done
+
+        z8lrk8je - load disk files in rk05 drives, process rk05 i/o
+            example: ./z8lrk8je -loadrw 0 ~/os8-rkab0.rk05 &
+            leave it running in background so it can process rk05 i/o
+
+        z8lptr - load file in high-speed paper tape reader, process reader i/o
+            example: ./z8lptr -text somefile.txt
+                     ./z8lptr somefile.bin
+            exits when whole file read by pdp
+
+        z8lptp - load file in high-speed paper tape punch, process punch i/o
+            example: ./z8lptp -text somefile.txt
+            press control-C when done punching from pdp
+
+
