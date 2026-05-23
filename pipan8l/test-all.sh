@@ -10,6 +10,15 @@
 #
 set -e
 cd `dirname $0`
+mydir=`pwd`
+
+if [ ! -f pdp8v/asm/assemble ]
+then
+    git clone https://github.com/mrieker/pdp8v.git
+    cd pdp8v/asm
+    make
+    cd $mydir
+fi
 
 case $1 in
     real) simit=0 ;;
